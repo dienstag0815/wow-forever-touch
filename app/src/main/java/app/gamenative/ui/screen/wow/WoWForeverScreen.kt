@@ -1,12 +1,12 @@
 package app.gamenative.ui.screen.wow
 
+import androidx.compose.ui.res.stringResource
+import app.gamenative.R
 import android.content.Context
 import android.os.Build
 import android.os.Environment
-import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -23,12 +23,14 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -42,21 +44,26 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.gamenative.BuildConfig
 import app.gamenative.PluviaApp
 import app.gamenative.events.AndroidEvent
+import app.gamenative.ui.screen.wow.launcher.AboutPage
+import app.gamenative.ui.screen.wow.launcher.FilesPage
+import app.gamenative.ui.screen.wow.launcher.HelpPage
+import app.gamenative.ui.screen.wow.launcher.LauncherPage
+import app.gamenative.ui.screen.wow.launcher.LauncherTexts
+import app.gamenative.ui.screen.wow.launcher.NewsPage
+import app.gamenative.ui.screen.wow.launcher.launcherBackground
 import app.gamenative.ui.screen.wow.WowClientDownloader.BUILD_INFO
 import app.gamenative.ui.screen.wow.WowClientDownloader.EXE_NAME
 import app.gamenative.ui.screen.wow.WowClientDownloader.FLAVOR_DIR
 import app.gamenative.ui.screen.wow.WowClientDownloader.LEGACY_FLAVOR_DIR
 import app.gamenative.ui.screen.wow.WowClientDownloader.LEGACY_PRODUCT
 import app.gamenative.ui.screen.wow.WowClientDownloader.TARGET_PRODUCT
-import app.gamenative.ui.theme.WowBackgroundGradient
 import app.gamenative.ui.theme.WowBronze
 import app.gamenative.ui.theme.WowError
 import app.gamenative.ui.theme.WowGold
 import app.gamenative.ui.theme.WowMuted
 import app.gamenative.ui.theme.WowSubtle
-import app.gamenative.utils.AppUpdater
 import app.gamenative.utils.StorageUtils
-import app.gamenative.utils.renderReleaseNotes
+import app.gamenative.wowaction.WowActionSource
 import com.winlator.container.Container
 import com.winlator.container.ContainerManager
 import com.winlator.contents.ContentProfile
@@ -68,11 +75,13 @@ import com.winlator.xenvironment.ImageFs
 import com.winlator.xenvironment.ImageFsInstaller
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -81,10 +90,14 @@ import java.io.File
 
 object WoWLauncherState {
     var shouldAutoLaunch = true
+
+    // First-run steps that already ran in this process, so none of them can repeat (see nextFirstRunStep).
+    internal var storageRequested = false
+    internal var autoInstallAttempted = false
+    internal var loginPrompted = false
 }
 
 private const val CONTAINER_ID = "wow_forever"
-private const val READY_STATUS = "Ready to launch"
 
 @Composable
 fun WoWForeverScreen(
@@ -101,70 +114,47 @@ fun WoWForeverScreen(
     var hasSavedLogin by remember { mutableStateOf(BattleNetSignIn.load(context) != null) }
     var region by remember(gamePath, files) { mutableStateOf(GameRegion.current(context, gamePath)) }
     var resolution by remember { mutableStateOf(RenderResolution.current(context, gpu.screenSize)) }
+    var fpsLimit by remember { mutableStateOf(FpsLimit.current(context)) }
+    var walkGain by remember { mutableStateOf(StickSensitivity.walk(context)) }
+    var cameraGain by remember { mutableStateOf(StickSensitivity.camera(context)) }
+    var inputMode by remember { mutableStateOf(InputMode.current(context)) }
+    var showLayoutResetDialog by remember { mutableStateOf(false) }
+    // Die Einstellungen liegen auf einer eigenen Seite über der Hauptansicht (LauncherSettingsPage.kt).
+    var showSettings by remember { mutableStateOf(false) }
+    // Die Addon-Verwaltung liegt noch eine Seite darüber (AddonsPage.kt), Zurück führt in die Einstellungen.
+    var showAddons by remember { mutableStateOf(false) }
+    // Die übrigen Seiten hinter den Kacheln der Startseite (Touch-Layout, Spieldateien, Neuigkeiten, Hilfe, Über), eine zur Zeit.
+    var launcherPage by remember { mutableStateOf<LauncherPage?>(null) }
+    // "Über" liegt noch eine Ebene darüber (Fußzeile oder Hilfe), Zurück führt dorthin zurück.
+    var showAbout by remember { mutableStateOf(false) }
+    var graphicsPreset by remember { mutableStateOf(GraphicsPreset.current(context)) }
     var showLoginDialog by remember { mutableStateOf(false) }
-    var statusText by remember { mutableStateOf(READY_STATUS) }
+    val readyStatus = stringResource(R.string.game_status_ready)
+    var statusText by remember { mutableStateOf(readyStatus) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showStoragePermissionDialog by remember { mutableStateOf(false) }
     var versionStatus by remember { mutableStateOf<WowClientDownloader.VersionCheckResult?>(null) }
     var isCheckingVersion by remember { mutableStateOf(false) }
     var isUpdating by remember { mutableStateOf(false) }
     var updateStatusText by remember { mutableStateOf("") }
-    var appUpdate by remember { mutableStateOf<AppUpdater.Release?>(null) }
-    var isDownloadingAppUpdate by remember { mutableStateOf(false) }
-    var appUpdateProgress by remember { mutableFloatStateOf(0f) }
-    var showAppUpdateDialog by remember { mutableStateOf(false) }
-    var showAppUpdatePermissionDialog by remember { mutableStateOf(false) }
-    var pendingInstallPermission by remember { mutableStateOf(false) }
-    var downloadedApk by remember { mutableStateOf<File?>(null) }
     var showUpgradeDialog by remember { mutableStateOf(false) }
+    var installJob by remember { mutableStateOf<Job?>(null) }
+    var isAutoInstall by remember { mutableStateOf(false) }
+    // The default Status() reads as "needs install", so the first-run flow waits until checkFiles() has really looked.
+    var filesChecked by remember { mutableStateOf(false) }
+    var loginOpenedByFlow by remember { mutableStateOf(false) }
+    var showFoldHint by remember { mutableStateOf(false) }
+    var showStartCheck by remember { mutableStateOf(false) }
+    var startCheckOn by remember { mutableStateOf(StartCheck.enabled(context)) }
+    var autoStartOn by remember { mutableStateOf(AutoStartSettings.enabled(context)) }
+    var autoStartSeconds by remember { mutableIntStateOf(AutoStartSettings.seconds(context)) }
+    // Automatic start: the launcher is always shown first, the game starts after this visible countdown (see runAutoStart).
+    var autoUi by remember { mutableStateOf<AutoStartUi>(AutoStartUi.Off) }
+    // Bumped to re-run the first-run effect when its inputs changed without any of its other keys changing.
+    var flowTick by remember { mutableIntStateOf(0) }
 
-    suspend fun fetchAppUpdate(): AppUpdater.Release? {
-        val release = AppUpdater.check()
-        appUpdate = release
-        if (release != null) {
-            showAppUpdateDialog = true
-        }
-        return release
-    }
-
-    fun checkAppUpdate() {
-        scope.launch { fetchAppUpdate() }
-    }
-
-    fun installOrRequestPermission(apk: File) {
-        if (AppUpdater.canInstall(context)) {
-            AppUpdater.install(context, apk)
-        } else {
-            pendingInstallPermission = true
-            showAppUpdatePermissionDialog = true
-        }
-    }
-
-    fun performAppUpdate() {
-        val target = appUpdate ?: return
-        if (isDownloadingAppUpdate) return
-        downloadedApk?.takeIf { it.exists() && it.length() == target.sizeBytes }?.let { apk ->
-            installOrRequestPermission(apk)
-            return
-        }
-        isDownloadingAppUpdate = true
-        appUpdateProgress = 0f
-        errorMessage = null
-        scope.launch {
-            try {
-                val apk = AppUpdater.download(context, target) { progress ->
-                    appUpdateProgress = progress
-                }
-                downloadedApk = apk
-                isDownloadingAppUpdate = false
-                installOrRequestPermission(apk)
-            } catch (e: Exception) {
-                Timber.e(e, "Error downloading app update")
-                errorMessage = "App update download failed: ${e.message}"
-                isDownloadingAppUpdate = false
-            }
-        }
-    }
+    // Self-update (package app.gamenative.update): cached hint at once, silent feed check at most every 6 h.
+    LaunchedEffect(Unit) { app.gamenative.update.UpdateManager.onLauncherShown(context) }
 
     suspend fun fetchVersionStatus() {
         isCheckingVersion = true
@@ -179,8 +169,9 @@ fun WoWForeverScreen(
 
     fun checkFiles(): Boolean {
         files = GamePath.status(context, gamePath)
+        filesChecked = true
         if (files.isWrongGame) {
-            errorMessage = "Incompatible game (${files.products.joinToString()}). WoW Forever requires World of Warcraft Forever ($TARGET_PRODUCT)."
+            errorMessage = context.getString(R.string.game_wrong_product, files.products.joinToString(), TARGET_PRODUCT)
         }
         return files.isReady
     }
@@ -194,60 +185,72 @@ fun WoWForeverScreen(
         launchJob?.cancel()
         launchJob = null
         isLaunching = false
-        statusText = READY_STATUS
+        statusText = readyStatus
     }
 
-    fun launchGame() {
+    fun startLaunch(ignoreFold: Boolean, ignoreStartCheck: Boolean = false) {
         if (isLaunching || files.isWrongGame) return
         if (!files.hasStorageAccess) {
             showStoragePermissionDialog = true
             return
         }
+        if (!ignoreFold && isFoldedNow(context)) {
+            // The game is sized for the unfolded inner display; wait for the player to unfold, or to start anyway.
+            showFoldHint = true
+            PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+            return
+        }
+        showFoldHint = false
+        if (!ignoreStartCheck && startCheckOn) {
+            // Netz-/Login-Vorpruefung (StartCheckUi.kt); "Weiter" kommt mit ignoreStartCheck = true zurueck.
+            showStartCheck = true
+            return
+        }
+        showStartCheck = false
+        StartCheck.onLaunch(context, File(gamePath))
+        // Fold state at start: sets the picture size and what the hint says when folding/unfolding during play.
+        val foldedAtStart = isFoldedNow(context)
+        FoldSession.startedFolded = foldedAtStart
         isLaunching = true
         errorMessage = null
-        statusText = "Preparing components..."
+        statusText = context.getString(R.string.game_status_preparing)
 
         launchJob = scope.launch {
             try {
-                val screenSize = fitScreenSizeToWindow(context, resolution.size)
+                val screenSize = fitScreenSizeToWindow(context, resolution.size, foldedAtStart)
                 val containerId = withContext(Dispatchers.IO) {
-                    prepareLaunch(context, File(gamePath), gpu, screenSize) { msg ->
+                    prepareLaunch(context, File(gamePath), gpu, screenSize, fpsLimit.fps, inputMode) { msg ->
                         scope.launch(Dispatchers.Main) { statusText = msg }
                     }
                 }
-                statusText = "Booting into World of Warcraft..."
+                statusText = context.getString(R.string.game_status_starting)
                 onLaunch(containerId)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: StorageAccessDeniedException) {
                 isLaunching = false
-                statusText = READY_STATUS
+                statusText = readyStatus
                 denyStorageAccess()
             } catch (e: Exception) {
                 Timber.e(e, "Error launching WoW Forever")
-                errorMessage = e.message ?: "Launch failed"
-                statusText = "Launch failed"
+                errorMessage = e.message ?: context.getString(R.string.game_launch_failed)
+                statusText = context.getString(R.string.game_launch_failed)
                 isLaunching = false
             }
         }
     }
+
+    fun launchGame() = startLaunch(ignoreFold = false)
 
     LifecycleResumeEffect(gamePath) {
         // Storage access may have just been granted, which can reveal an install that was invisible before.
         if (!isUpdating && !isLaunching) gamePath = GamePath.load(context)
         checkFiles()
         isLaunching = false
-        statusText = READY_STATUS
+        statusText = readyStatus
         BattleNetSignIn.removeLoginFile(File(gamePath))
         if (versionStatus == null && !WoWLauncherState.shouldAutoLaunch) {
             checkVersionStatus()
-        }
-        if (appUpdate == null && !WoWLauncherState.shouldAutoLaunch) {
-            checkAppUpdate()
-        }
-        if (pendingInstallPermission && AppUpdater.canInstall(context)) {
-            pendingInstallPermission = false
-            downloadedApk?.takeIf { it.exists() }?.let { AppUpdater.install(context, it) }
         }
         onPauseOrDispose {
             launchJob?.cancel()
@@ -291,40 +294,52 @@ fun WoWForeverScreen(
         onDispose { view.keepScreenOn = false }
     }
 
-    // Progress shows under the cards, which is below the fold on a landscape handheld.
-    val scrollState = rememberScrollState()
-    LaunchedEffect(isUpdating, isLaunching) {
-        if (isUpdating || isLaunching) scrollState.animateScrollTo(scrollState.maxValue)
-    }
 
-    fun downloadGameFiles(failure: String, work: (File, (String) -> Unit) -> Unit, onSuccess: () -> Unit) {
+    fun downloadGameFiles(
+        failure: String,
+        work: (File, (String) -> Unit) -> Unit,
+        auto: Boolean = false,
+        onSuccess: () -> Unit,
+    ) {
         if (isUpdating || isLaunching) return
         if (!files.hasStorageAccess) {
             showStoragePermissionDialog = true
             return
         }
         isUpdating = true
-        updateStatusText = "Connecting to Blizzard CDN..."
+        isAutoInstall = auto
+        updateStatusText = context.getString(R.string.game_status_connecting)
         errorMessage = null
-        scope.launch {
+        installJob = scope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    work(File(gamePath)) { msg -> scope.launch(Dispatchers.Main) { updateStatusText = msg } }
+                    // The downloader is blocking code; every status report is a checkpoint where a cancel can take effect.
+                    val job = coroutineContext.job
+                    work(File(gamePath)) { msg ->
+                        job.ensureActive()
+                        scope.launch(Dispatchers.Main) { updateStatusText = msg }
+                    }
                 }
                 isUpdating = false
+                isAutoInstall = false
                 onSuccess()
+            } catch (e: CancellationException) {
+                isUpdating = false
+                isAutoInstall = false
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, failure)
                 if (e.isPermissionDenied()) denyStorageAccess()
                 errorMessage = "$failure: ${e.message}"
                 isUpdating = false
+                isAutoInstall = false
             }
         }
     }
 
-    fun performInstall() {
+    fun startInstall(auto: Boolean) {
         showUpgradeDialog = false
-        downloadGameFiles("Install failed", WowClientDownloader::install) {
+        downloadGameFiles(context.getString(R.string.game_install_failed), WowClientDownloader::install, auto) {
             versionStatus = null
             if (checkFiles()) {
                 checkVersionStatus()
@@ -333,21 +348,160 @@ fun WoWForeverScreen(
         }
     }
 
+    fun performInstall() = startInstall(auto = false)
+
+    fun cancelAutoInstall() {
+        // A cancelled automatic install is not restarted on the next launch; the button stays available.
+        GamePath.setAutoInstallDeclined(context, true)
+        installJob?.cancel()
+        installJob = null
+    }
+
     fun performUpdate() {
         val target = versionStatus ?: return
-        downloadGameFiles("Update failed", { root, onStatus -> WowClientDownloader.updateGame(root, target, onStatus) }) {
+        downloadGameFiles(context.getString(R.string.game_update_failed), { root, onStatus -> WowClientDownloader.updateGame(root, target, onStatus) }) {
             checkFiles()
             versionStatus = target.copy(isOutdated = false, localVersion = target.remoteVersion)
             launchGame()
         }
     }
 
+    val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        // Refusing is fine: the game runs without a microphone, and the question is not asked again.
+        Timber.i("Microphone permission granted=$granted")
+        flowTick++
+    }
+
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        Timber.i("Notification permission granted=$granted")
+        flowTick++
+    }
+
+    val batteryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        Timber.i("Battery optimization exempt=${BatteryExemption.exempt(context)}")
+        flowTick++
+    }
+
+    // First run without a click: storage access, then the install, then the login. Each step runs at most once per
+    // process (see nextFirstRunStep), so returning from Settings or a failed install can't loop.
+    LaunchedEffect(files, filesChecked, hasSavedLogin, isUpdating, isLaunching, flowTick) {
+        if (!filesChecked) return@LaunchedEffect
+        val step = nextFirstRunStep(
+            FirstRunInput(
+                busy = isUpdating || isLaunching,
+                hasStorageAccess = files.hasStorageAccess,
+                micGranted = MicPermission.granted(context),
+                notificationsOk = NotificationPermission.granted(context),
+                batteryExempt = BatteryExemption.exempt(context),
+                isWrongGame = files.isWrongGame,
+                isLegacyBeta = files.isLegacyBeta,
+                needsInstall = files.needsInstall,
+                hasSavedLogin = hasSavedLogin,
+                locationChosen = GamePath.hasChosenLocation(context),
+                unmetered = isUnmeteredNetwork(context),
+                autoLaunchPending = WoWLauncherState.shouldAutoLaunch,
+                storageRequested = WoWLauncherState.storageRequested,
+                micRequested = MicPermission.wasAsked(context),
+                notificationsRequested = NotificationPermission.wasAsked(context),
+                batteryRequested = BatteryExemption.wasAsked(context),
+                installAttempted = WoWLauncherState.autoInstallAttempted || GamePath.autoInstallDeclined(context),
+                loginPrompted = WoWLauncherState.loginPrompted,
+            ),
+        )
+        Timber.i("WoWForeverScreen first run: step=$step")
+        when (step) {
+            FirstRunStep.None -> Unit
+            FirstRunStep.RequestStorage -> {
+                WoWLauncherState.storageRequested = true
+                PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                if (!StorageUtils.requestManageExternalStoragePermission(context)) showStoragePermissionDialog = true
+            }
+            FirstRunStep.RequestMicrophone -> {
+                MicPermission.markAsked(context)
+                PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+            }
+            FirstRunStep.RequestNotifications -> {
+                NotificationPermission.markAsked(context)
+                PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                notificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+            FirstRunStep.RequestBatteryExemption -> {
+                BatteryExemption.markAsked(context)
+                PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                // Some devices have no such settings screen; refusing or failing must never block anything.
+                runCatching { batteryLauncher.launch(BatteryExemption.request(context)) }
+                    .onFailure { Timber.w(it, "Battery optimization request unavailable"); flowTick++ }
+            }
+            FirstRunStep.AutoInstall -> {
+                WoWLauncherState.autoInstallAttempted = true
+                PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                startInstall(auto = true)
+            }
+            FirstRunStep.PromptLogin -> {
+                WoWLauncherState.loginPrompted = true
+                PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                loginOpenedByFlow = true
+                showLoginDialog = true
+            }
+        }
+    }
+
+    // Visible countdown instead of a hidden auto-start. Re-evaluated every second (AutoStartLogic.step): a launcher update
+    // that shows up, a tap on "Abbrechen"/"Jetzt spielen", an outdated game or a pending permission prompt stop it.
+    suspend fun runAutoStart() {
+        val total = autoStartSeconds
+        var left = total
+        var holdMs = 0
+        fun input() = AutoStartInput(
+            enabled = autoStartOn,
+            launcherUpdateOffered = app.gamenative.update.UpdateManager.state.value.let {
+                it is app.gamenative.update.UpdateState.Available || it is app.gamenative.update.UpdateState.Downloading ||
+                    it is app.gamenative.update.UpdateState.Installing
+            },
+            gameOutdated = versionStatus?.isOutdated == true,
+            permissionsPending = firstRunPermissionsPending(context),
+            busy = isLaunching || isUpdating,
+            userStopped = autoUi is AutoStartUi.Stopped,
+            checkRunning = app.gamenative.update.UpdateManager.checkPhase.value == app.gamenative.update.CheckPhase.Running,
+        )
+        try {
+            while (true) {
+                when (val step = AutoStartLogic.step(left, input(), holdMs >= AutoStartLogic.CHECK_HOLD_MAX_MS)) {
+                    is AutoStartStep.Wait -> {
+                        autoUi = AutoStartUi.Counting(step.secondsLeft, total, waitingForCheck = false)
+                        delay(1000)
+                        left--
+                    }
+                    AutoStartStep.WaitForCheck -> {
+                        autoUi = AutoStartUi.Counting(0, total, waitingForCheck = true)
+                        delay(250)
+                        holdMs += 250
+                    }
+                    AutoStartStep.Start -> {
+                        autoUi = AutoStartUi.Off
+                        Timber.i("WoWForeverScreen: countdown over, starting the game")
+                        launchGame()
+                        return
+                    }
+                    is AutoStartStep.Stop -> {
+                        Timber.i("WoWForeverScreen: auto-start stopped: ${step.reason}")
+                        if (autoUi !is AutoStartUi.Stopped) autoUi = AutoStartUi.Stopped(step.reason)
+                        // Permission prompts of the first-run flow were held back while the auto-start was pending.
+                        flowTick++
+                        return
+                    }
+                }
+            }
+        } finally {
+            // The effect was cancelled mid-countdown (e.g. the game folder changed): never leave a dead countdown on screen.
+            if (autoUi is AutoStartUi.Counting) autoUi = AutoStartUi.Stopped(AutoStartBlock.UserStopped)
+        }
+    }
+
     LaunchedEffect(gamePath) {
         val ready = checkFiles()
-        // Every setup path reads or writes shared storage, so ask up front rather than after the user picks one.
-        if (!files.hasStorageAccess) {
-            showStoragePermissionDialog = true
-        }
+        // Every setup path reads or writes shared storage; the first-run effect below opens the access screen for it.
         Timber.i("WoWForeverScreen LaunchedEffect: gamePath=$gamePath, ready=$ready, hasSavedLogin=$hasSavedLogin, shouldAutoLaunch=${WoWLauncherState.shouldAutoLaunch}")
         when {
             !ready || !hasSavedLogin -> {
@@ -356,348 +510,305 @@ fun WoWForeverScreen(
                 if (files.isLegacyBeta) showUpgradeDialog = true
                 if (ready) {
                     checkVersionStatus()
-                    checkAppUpdate()
                 }
             }
             !WoWLauncherState.shouldAutoLaunch -> {
                 checkVersionStatus()
-                checkAppUpdate()
             }
             else -> {
-                val updateJob = async { fetchAppUpdate() }
                 fetchVersionStatus()
-                val update = updateJob.await()
-                Timber.i("WoWForeverScreen LaunchedEffect: isOutdated=${versionStatus?.isOutdated}, appUpdate=$update")
+                Timber.i("WoWForeverScreen LaunchedEffect: isOutdated=${versionStatus?.isOutdated}")
                 WoWLauncherState.shouldAutoLaunch = false
-                if (versionStatus?.isOutdated == true || update != null) {
-                    PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
-                } else {
-                    launchGame()
-                }
+                PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
+                runAutoStart()
             }
         }
     }
 
+    // Start oder Download laufen: der Fortschritt gehört in die Hauptansicht, die Einstellungsseite schließt sich.
+    LaunchedEffect(isUpdating, isLaunching) {
+        if (isUpdating || isLaunching) {
+            showSettings = false
+            showAddons = false
+            launcherPage = null
+            showAbout = false
+        }
+    }
+
+    val busyText = when {
+        isUpdating -> updateStatusText
+        isLaunching -> statusText
+        isCheckingVersion && WoWLauncherState.shouldAutoLaunch -> context.getString(R.string.game_status_checking_version)
+        else -> null
+    }
+
+    val homeState = LauncherHomeState(
+        edition = gpu.edition,
+        files = files,
+        filesChecked = filesChecked,
+        gamePath = gamePath,
+        hasSavedLogin = hasSavedLogin,
+        versionStatus = versionStatus,
+        isLaunching = isLaunching,
+        isUpdating = isUpdating,
+        isAutoInstall = isAutoInstall,
+        busyText = busyText,
+        errorMessage = errorMessage,
+        autoUi = autoUi,
+        canPlay = canPlay,
+        regionLabel = region.label,
+        resolutionLabel = resolution.label,
+        fpsLabel = fpsLimit.label,
+        inputModeLabel = inputMode.label,
+        homeCovered = launcherPage != null || showSettings || showAddons || showAbout,
+    )
+    val homeActions = LauncherHomeActions(
+        onPlay = {
+            // Ein Tipp auf "Spielen" ersetzt den Countdown durch den normalen Start.
+            if (autoUi is AutoStartUi.Counting) autoUi = AutoStartUi.Stopped(AutoStartBlock.PlayedNow)
+            launchGame()
+        },
+        onCancelCountdown = { autoUi = AutoStartUi.Stopped(AutoStartBlock.UserStopped) },
+        onInstall = ::performInstall,
+        onUpdate = ::performUpdate,
+        onCancelInstall = ::cancelAutoInstall,
+        onPickFolder = { folderPicker.launch(null) },
+        onGrantStorage = { StorageUtils.requestManageExternalStoragePermission(context) },
+        onLogin = { showLoginDialog = true },
+        onForgetLogin = {
+            BattleNetSignIn.forget(context)
+            BattleNetSignIn.removeLoginFile(File(gamePath))
+            hasSavedLogin = false
+        },
+        onRefresh = {
+            checkFiles()
+            checkVersionStatus()
+        },
+        onOpenPage = { page ->
+            // Wer eine Seite öffnet, will nicht, dass das Spiel im Hintergrund losstartet.
+            if (autoUi is AutoStartUi.Counting) autoUi = AutoStartUi.Stopped(AutoStartBlock.UserStopped)
+            when (page) {
+                LauncherPage.Settings -> showSettings = true
+                LauncherPage.Addons -> showAddons = true
+                LauncherPage.About -> showAbout = true
+                else -> launcherPage = page
+            }
+        },
+    )
+    // Einstellungsseite und die Kachel "Touch-Layout" (nur die Gruppe Steuerung) teilen Werte und Aktionen.
+    val settingsValues = LauncherSettingsValues(
+        enabled = !isLaunching,
+        region = region,
+        resolution = resolution,
+        fpsLimit = fpsLimit,
+        graphicsPreset = graphicsPreset,
+        inputMode = inputMode,
+        walkGain = walkGain,
+        cameraGain = cameraGain,
+        gamePath = gamePath,
+        autoStartOn = autoStartOn,
+        autoStartSeconds = autoStartSeconds,
+        startCheckOn = startCheckOn,
+        clientLocal = versionStatus?.localVersion,
+        clientRemote = versionStatus?.remoteVersion,
+        clientOutdated = versionStatus?.isOutdated == true,
+    )
+    val settingsActions = LauncherSettingsActions(
+        onRegion = { GameRegion.save(context, it); region = it },
+        onResolution = { RenderResolution.save(context, it); resolution = it },
+        onFps = { FpsLimit.save(context, it); fpsLimit = it },
+        onGraphics = { GraphicsPreset.save(context, it); graphicsPreset = it },
+        onInputMode = { InputMode.save(context, it); inputMode = it },
+        onWalkGain = { StickSensitivity.saveWalk(context, it); walkGain = it },
+        onCameraGain = { StickSensitivity.saveCamera(context, it); cameraGain = it },
+        onPickFolder = { folderPicker.launch(null) },
+        onLayoutReset = { showLayoutResetDialog = true },
+        onAutoStart = { autoStartOn = it; AutoStartSettings.setEnabled(context, it) },
+        onAutoStartSeconds = { autoStartSeconds = it; AutoStartSettings.setSeconds(context, it) },
+        onStartCheck = { startCheckOn = it; StartCheck.setEnabled(context, it) },
+        onOpenAddons = { showAddons = true },
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(WowBackgroundGradient))
-            .padding(24.dp)
+            .launcherBackground(),
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(modifier = Modifier.height(20.dp))
-                Text(
-                    text = "WORLD OF WARCRAFT",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.Serif,
-                    letterSpacing = 3.sp,
-                    color = Color(0xFFF0E6D2)
-                )
-                Text(
-                    text = "FOREVER (ARM64 NATIVE)",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp,
-                    color = WowGold
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(text = "${gpu.edition} Edition", fontSize = 11.sp, color = WowSubtle)
-            }
+            LauncherHome(s = homeState, a = homeActions)
+        }
 
-            Spacer(modifier = Modifier.height(20.dp))
+        if (showSettings) {
+            LauncherSettingsPage(values = settingsValues, actions = settingsActions, onBack = { showSettings = false })
+        }
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .border(1.dp, Color(0xFF2A3C54), RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF131D2E).copy(alpha = 0.85f)),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    SectionTitle("ENVIRONMENT READINESS", WowGold)
-                    Spacer(modifier = Modifier.height(14.dp))
+        if (showAddons) {
+            AddonsPage(
+                addonsDir = File(gamePath, "$FLAVOR_DIR/Interface/AddOns"),
+                gameBusy = isLaunching || isUpdating,
+                onBack = { showAddons = false },
+            )
+        }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CheckItem(label = if (files.exeExists) "ARM64 Binary ($EXE_NAME)" else "ARM64 Binary (downloads on Play)", ready = files.exeExists)
-                        CheckItem(label = "Game Asset Archives (Data/)", ready = files.dataExists)
-                        CheckItem(
-                            label = when {
-                                files.isWrongGame -> "Install Info ($BUILD_INFO - requires $TARGET_PRODUCT)"
-                                files.isLegacyBeta -> "Install Info ($BUILD_INFO - beta, upgrade required)"
-                                else -> "Install Info ($BUILD_INFO)"
-                            },
-                            ready = files.hasForever,
-                        )
-                        CheckItem(label = "All Files Access Permission", ready = files.hasStorageAccess)
-                        CheckItem(
-                            label = if (hasSavedLogin) "Battle.net Login (Configured)" else "Battle.net Login (Configure below play button)",
-                            ready = hasSavedLogin,
-                        )
-                        appUpdate?.let {
-                            CheckItem(
-                                label = "App Build: v${BuildConfig.VERSION_NAME} (v${it.version} available)",
-                                ready = false,
-                            )
-                        } ?: CheckItem(
-                            label = "App Build: v${BuildConfig.VERSION_NAME}",
-                            ready = true,
-                        )
-                        versionStatus?.let { version ->
-                            CheckItem(
-                                label = if (version.isOutdated) {
-                                    "Client Build: ${version.localVersion} (Update ${version.remoteVersion} available)"
-                                } else {
-                                    "Client Build: ${version.localVersion} (Up to date)"
-                                },
-                                ready = !version.isOutdated,
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = Color(0xFF1E2D44))
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(text = "Target Path: $gamePath", fontSize = 11.sp, color = WowSubtle, maxLines = 2)
-
-                    Row {
-                        OptionMenu("Region: ${region.label}", Icons.Default.Public, GameRegion.entries, region, { it.label }, !isLaunching) {
-                            GameRegion.save(context, it)
-                            region = it
-                        }
-                        OptionMenu("Resolution: ${resolution.label}", Icons.Default.AspectRatio, RenderResolution.entries, resolution, { it.label }, !isLaunching) {
-                            RenderResolution.save(context, it)
-                            resolution = it
-                        }
-                    }
-
-                    errorMessage?.let {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(text = "Error: $it", fontSize = 12.sp, color = WowError, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-
-            if (files.needsInstall && files.hasStorageAccess) {
-                Spacer(modifier = Modifier.height(16.dp))
-                InstallCard(
-                    isUpgrade = files.isLegacyBeta,
-                    gamePath = gamePath,
-                    freeSpaceBytes = remember(gamePath, isUpdating) { GamePath.freeSpaceBytes(gamePath) },
-                    enabled = !isUpdating && !isLaunching,
-                    onChangeLocation = { folderPicker.launch(null) },
-                )
-            }
-
-            versionStatus?.takeIf { it.isOutdated && !files.needsInstall }?.let { version ->
-                Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .border(1.dp, Color(0xFFE53E3E).copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF2D1515).copy(alpha = 0.85f)),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = WowError, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            SectionTitle("GAME UPDATE REQUIRED", WowError)
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Live servers require build ${version.remoteVersion}, but local files are build ${version.localVersion}. Logging in may fail or disconnect at realm selection.",
-                            fontSize = 12.sp,
-                            color = Color(0xFFFED7D7),
-                            lineHeight = 16.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Tap Update below to download the latest files directly from Blizzard's CDN over Wi-Fi.",
-                            fontSize = 11.sp,
-                            color = Color(0xFFCBD5E1)
-                        )
-                    }
-                }
-            }
-
-            appUpdate?.let { update ->
-                Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .border(1.dp, WowGold.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2838).copy(alpha = 0.85f)),
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, tint = WowGold, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            SectionTitle("APP UPDATE AVAILABLE (v${update.version})", WowGold)
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "A new release is available on GitHub. Tap below to view notes and update.",
-                            fontSize = 12.sp,
-                            color = Color(0xFFCBD5E1),
-                            lineHeight = 16.sp,
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        PrimaryButton(
-                            text = when {
-                                isDownloadingAppUpdate -> "DOWNLOADING UPDATE..."
-                                downloadedApk?.exists() == true -> "INSTALL UPDATE (v${update.version})"
-                                else -> "UPDATE APP (v${update.version})"
-                            },
-                            icon = Icons.Default.Refresh,
-                            enabled = !isDownloadingAppUpdate && !isLaunching && !isUpdating,
-                            onClick = {
-                                if (downloadedApk?.exists() == true) {
-                                    performAppUpdate()
-                                } else {
-                                    showAppUpdateDialog = true
-                                }
-                            },
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (isLaunching || isUpdating || (isCheckingVersion && WoWLauncherState.shouldAutoLaunch)) {
-                    CircularProgressIndicator(color = WowGold, modifier = Modifier.size(36.dp))
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = when {
-                            isUpdating -> updateStatusText
-                            isLaunching -> statusText
-                            else -> "Checking for game updates..."
-                        },
-                        fontSize = 13.sp,
-                        color = Color(0xFFE2E8F0),
-                        textAlign = TextAlign.Center
-                    )
-                } else {
-                    when {
-                        !files.hasStorageAccess -> PrimaryButton(
-                            text = "GRANT STORAGE PERMISSION",
-                            icon = Icons.Default.FolderOpen,
-                            enabled = !isLaunching && !isUpdating,
-                            onClick = { StorageUtils.requestManageExternalStoragePermission(context) },
-                        )
-                        files.needsInstall -> {
-                            PrimaryButton(
-                                text = if (files.isLegacyBeta) "UPGRADE TO FULL RELEASE" else "DOWNLOAD & INSTALL",
-                                icon = Icons.Default.Download,
-                                enabled = !isLaunching && !isUpdating,
-                                onClick = ::performInstall,
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            OutlinedButton(
-                                onClick = { folderPicker.launch(null) },
-                                modifier = Modifier.fillMaxWidth(0.85f).height(48.dp),
-                                shape = RoundedCornerShape(14.dp),
-                            ) {
-                                Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(20.dp), tint = WowGold)
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text("LOCATE EXISTING FILES", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WowGold)
-                            }
-                        }
-                        versionStatus?.isOutdated == true -> {
-                            PrimaryButton(
-                                text = "UPDATE TO ${versionStatus?.remoteVersion}",
-                                icon = Icons.Default.Refresh,
-                                enabled = canPlay,
-                                onClick = ::performUpdate,
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            OutlinedButton(
-                                onClick = ::launchGame,
-                                enabled = canPlay,
-                                modifier = Modifier.fillMaxWidth(0.85f).height(48.dp),
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text(text = "LAUNCH ANYWAY (OUTDATED)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WowError)
-                            }
-                        }
-                        else -> PrimaryButton(
-                            text = if (files.isWrongGame) "WOW FOREVER REQUIRED" else "PLAY WORLD OF WARCRAFT",
-                            icon = Icons.Default.PlayArrow,
-                            enabled = canPlay,
-                            onClick = ::launchGame,
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        LinkButton("Refresh Status", Icons.Default.Refresh) {
-                            checkFiles()
-                            checkVersionStatus()
-                            checkAppUpdate()
-                        }
-                        if (!files.needsInstall) {
-                            LinkButton("Change Location", Icons.Default.FolderOpen) { folderPicker.launch(null) }
-                        }
-                        LinkButton(
-                            text = if (hasSavedLogin) "Update Login" else "Configure Login",
-                            icon = Icons.Default.Key,
-                        ) {
-                            showLoginDialog = true
-                        }
-                        if (hasSavedLogin) {
-                            LinkButton("Forget Saved Login", Icons.Default.Delete) {
-                                BattleNetSignIn.forget(context)
-                                BattleNetSignIn.removeLoginFile(File(gamePath))
-                                hasSavedLogin = false
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
+        // Seiten hinter den Kacheln; "Über" liegt darüber, damit Zurück aus der Hilfe wieder dorthin führt.
+        when (launcherPage) {
+            LauncherPage.Touch -> LauncherSettingsPage(
+                values = settingsValues,
+                actions = settingsActions,
+                onBack = { launcherPage = null },
+                title = LauncherTexts.pageTitle(LauncherPage.Touch),
+                onlyGroup = LauncherTexts.TOUCH_SETTINGS_GROUP,
+            )
+            LauncherPage.Files -> FilesPage(homeState, homeActions, onBack = { launcherPage = null })
+            LauncherPage.News -> NewsPage(canInstall = !isLaunching && !isUpdating, onBack = { launcherPage = null })
+            LauncherPage.Help -> HelpPage(homeState, homeActions, onBack = { launcherPage = null })
+            else -> Unit
+        }
+        if (showAbout) {
+            AboutPage(onBack = { showAbout = false })
         }
     }
 
     if (showLoginDialog) {
         BattleNetCredentialDialog(
-            onDismiss = { showLoginDialog = false },
+            onDismiss = {
+                showLoginDialog = false
+                loginOpenedByFlow = false
+            },
             onConfirm = { login ->
                 showLoginDialog = false
                 BattleNetSignIn.save(context, login)
                 hasSavedLogin = true
+                // Only the login prompt opened by the first-run flow continues into the game; a manual "Update Login" doesn't.
+                if (loginOpenedByFlow) {
+                    loginOpenedByFlow = false
+                    if (shouldLaunchAfterLogin(!files.needsInstall, files.isWrongGame, versionStatus?.isOutdated == true)) launchGame()
+                }
             },
+        )
+    }
+
+    if (showLayoutResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showLayoutResetDialog = false },
+            title = { Text(text = stringResource(R.string.game_reset_layout_title), fontWeight = FontWeight.Bold, fontSize = 17.sp, color = WowGold) },
+            text = {
+                Column {
+                    Text(
+                        text = stringResource(WowTouchProfiles.RESET_CONFIRM_TEXT, WowTouchProfiles.resetTargetName(inputMode)),
+                        fontSize = 13.sp,
+                        color = Color(0xFFE2E8F0),
+                        lineHeight = 18.sp,
+                    )
+                    // Touchscreen switch and gestures keep the player's changes across starts; this hands them back to the WoW defaults.
+                    TextButton(
+                        onClick = {
+                            showLayoutResetDialog = false
+                            TouchSetupStore.requestReset(context)
+                            app.gamenative.ui.util.SnackbarManager.show(context.getString(R.string.game_reset_touch_scheduled))
+                        },
+                    ) {
+                        Text(stringResource(R.string.game_reset_touch_only), color = WowGold, fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLayoutResetDialog = false
+                        scope.launch {
+                            val done = withContext(Dispatchers.IO) {
+                                try {
+                                    WowTouchProfiles.reset(context, inputMode)
+                                } catch (e: Exception) {
+                                    Timber.w(e, "Layout reset failed")
+                                    false
+                                }
+                            }
+                            app.gamenative.ui.util.SnackbarManager.show(
+                                if (done) context.getString(R.string.game_layout_reset_done) else context.getString(R.string.game_layout_reset_failed),
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = WowBronze, contentColor = Color.White),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text(stringResource(R.string.game_reset), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLayoutResetDialog = false }) {
+                    Text(stringResource(R.string.game_cancel), color = WowMuted)
+                }
+            },
+            containerColor = Color(0xFF1B2838),
+            shape = RoundedCornerShape(16.dp),
+        )
+    }
+
+    if (showStartCheck) {
+        StartCheckDialog(
+            region = region,
+            onContinue = { showStartCheck = false; startLaunch(ignoreFold = false, ignoreStartCheck = true) },
+            onCancel = { showStartCheck = false },
+            onDisable = {
+                startCheckOn = false
+                StartCheck.setEnabled(context, false)
+                showStartCheck = false
+                startLaunch(ignoreFold = false, ignoreStartCheck = true)
+            },
+        )
+    }
+
+    if (showFoldHint) {
+        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+        // Unfolding while the hint is up continues into the game.
+        LaunchedEffect(configuration) {
+            if (!isFoldedNow(context)) startLaunch(ignoreFold = true)
+        }
+        AlertDialog(
+            onDismissRequest = { showFoldHint = false },
+            title = { Text(text = stringResource(R.string.game_fold_title), fontWeight = FontWeight.Bold, fontSize = 17.sp, color = WowGold) },
+            text = {
+                Text(
+                    text = stringResource(R.string.game_fold_text),
+                    fontSize = 13.sp,
+                    color = Color(0xFFE2E8F0),
+                    lineHeight = 18.sp,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { startLaunch(ignoreFold = true) },
+                    colors = ButtonDefaults.buttonColors(containerColor = WowBronze, contentColor = Color.White),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text(stringResource(R.string.game_fold_start_folded), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFoldHint = false }) {
+                    Text(stringResource(R.string.game_cancel), color = WowMuted)
+                }
+            },
+            containerColor = Color(0xFF1B2838),
+            shape = RoundedCornerShape(16.dp),
         )
     }
 
     if (showUpgradeDialog) {
         AlertDialog(
             onDismissRequest = { showUpgradeDialog = false },
-            title = { Text(text = "WoW Forever Has Launched", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = WowGold) },
+            title = { Text(text = stringResource(R.string.game_upgrade_title), fontWeight = FontWeight.Bold, fontSize = 17.sp, color = WowGold) },
             text = {
                 Text(
-                    text = "Blizzard has moved WoW Forever from beta to its full release, and the beta client in this folder " +
-                        "is being retired.\n\nThe full release lives in a new $FLAVOR_DIR folder next to Data/. Upgrading reuses " +
-                        "the game data you already have, so only the new ARM64 client downloads (about 100 MB).\n\n" +
-                        "Already copied the full release from a PC? Choose that folder instead.",
+                    text = stringResource(R.string.game_upgrade_text, FLAVOR_DIR),
                     fontSize = 13.sp,
                     color = Color(0xFFE2E8F0),
                     lineHeight = 18.sp,
@@ -709,7 +820,7 @@ fun WoWForeverScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = WowBronze, contentColor = Color.White),
                     shape = RoundedCornerShape(10.dp),
                 ) {
-                    Text("UPGRADE NOW", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.game_upgrade_now), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -718,10 +829,10 @@ fun WoWForeverScreen(
                         showUpgradeDialog = false
                         folderPicker.launch(null)
                     }) {
-                        Text("CHOOSE FOLDER", color = WowMuted)
+                        Text(stringResource(R.string.game_choose_folder), color = WowMuted)
                     }
                     TextButton(onClick = { showUpgradeDialog = false }) {
-                        Text("LATER", color = WowMuted)
+                        Text(stringResource(R.string.game_later), color = WowMuted)
                     }
                 }
             },
@@ -733,10 +844,10 @@ fun WoWForeverScreen(
     if (showStoragePermissionDialog) {
         AlertDialog(
             onDismissRequest = { showStoragePermissionDialog = false },
-            title = { Text(text = "Storage Permission Required", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = WowGold) },
+            title = { Text(text = stringResource(R.string.game_storage_title), fontWeight = FontWeight.Bold, fontSize = 17.sp, color = WowGold) },
             text = {
                 Text(
-                    text = "Android requires 'All files access' for WoW Forever to read and update game files in this directory.\n\nPlease enable 'Allow access to manage all files' on the next screen.",
+                    text = stringResource(R.string.game_storage_text),
                     fontSize = 13.sp,
                     color = Color(0xFFE2E8F0),
                     lineHeight = 18.sp
@@ -751,129 +862,12 @@ fun WoWForeverScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = WowBronze, contentColor = Color.White),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("OPEN SETTINGS", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.game_open_settings), fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showStoragePermissionDialog = false }) {
-                    Text("CANCEL", color = WowMuted)
-                }
-            },
-            containerColor = Color(0xFF1B2838),
-            shape = RoundedCornerShape(16.dp),
-        )
-    }
-
-    if (showAppUpdateDialog) {
-        appUpdate?.let { update ->
-            AlertDialog(
-                onDismissRequest = {
-                    if (!isDownloadingAppUpdate) showAppUpdateDialog = false
-                },
-                title = {
-                    Text(
-                        text = "App Update Available (v${update.version})",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        color = WowGold,
-                    )
-                },
-                text = {
-                    Column {
-                        if (update.notes.isNotBlank()) {
-                            Text(
-                                text = renderReleaseNotes(update.notes),
-                                fontSize = 12.sp,
-                                color = Color(0xFFCBD5E1),
-                                lineHeight = 16.sp,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 240.dp)
-                                    .verticalScroll(rememberScrollState()),
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-                        if (isDownloadingAppUpdate) {
-                            Text(
-                                text = "Downloading: ${(appUpdateProgress * 100).toInt()}%",
-                                fontSize = 12.sp,
-                                color = WowGold,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            LinearProgressIndicator(
-                                progress = { appUpdateProgress },
-                                modifier = Modifier.fillMaxWidth(),
-                                color = WowGold,
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = ::performAppUpdate,
-                        enabled = !isDownloadingAppUpdate,
-                        colors = ButtonDefaults.buttonColors(containerColor = WowBronze, contentColor = Color.White),
-                        shape = RoundedCornerShape(10.dp),
-                    ) {
-                        Text(
-                            text = when {
-                                isDownloadingAppUpdate -> "DOWNLOADING..."
-                                downloadedApk?.exists() == true -> "INSTALL NOW"
-                                else -> "UPDATE NOW"
-                            },
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                },
-                dismissButton = {
-                    if (!isDownloadingAppUpdate) {
-                        TextButton(onClick = { showAppUpdateDialog = false }) {
-                            Text("LATER", color = WowMuted)
-                        }
-                    }
-                },
-                containerColor = Color(0xFF1B2838),
-                shape = RoundedCornerShape(16.dp),
-            )
-        }
-    }
-
-    if (showAppUpdatePermissionDialog) {
-        AlertDialog(
-            onDismissRequest = { showAppUpdatePermissionDialog = false },
-            title = {
-                Text(
-                    text = "Install Permission Required",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    color = WowGold,
-                )
-            },
-            text = {
-                Text(
-                    text = "Android requires permission to install apps from WoW Forever.\n\nPlease enable 'Allow from this source' on the next screen.",
-                    fontSize = 13.sp,
-                    color = Color(0xFFE2E8F0),
-                    lineHeight = 18.sp,
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showAppUpdatePermissionDialog = false
-                        pendingInstallPermission = true
-                        AppUpdater.openInstallPermissionSettings(context)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = WowBronze, contentColor = Color.White),
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Text("OPEN SETTINGS", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAppUpdatePermissionDialog = false }) {
-                    Text("CANCEL", color = WowMuted)
+                    Text(stringResource(R.string.game_cancel), color = WowMuted)
                 }
             },
             containerColor = Color(0xFF1B2838),
@@ -909,14 +903,15 @@ enum class GameRegion(val label: String) {
 
 /** The 16:9 render budget, before it's reshaped to the window's aspect ratio. Defaults to the GPU profile's size. */
 enum class RenderResolution(val size: String, val label: String) {
-    HD("1280x720", "720p"), FULL_HD("1920x1080", "1080p");
+    HD("1280x720", "720p"), HD_PLUS("1600x900", "900p"), FULL_HD("1920x1080", "1080p");
 
     companion object {
         private const val KEY_RESOLUTION = "resolution"
 
+        /** The player's choice; until there is one, 900p on a large inner display of a foldable, else the GPU default. */
         fun current(context: Context, default: String): RenderResolution =
             prefs(context).getString(KEY_RESOLUTION, null)?.let { saved -> entries.firstOrNull { it.name == saved } }
-                ?: entries.first { it.size == default }
+                ?: windowSize(context, maximum = true).let { (width, height) -> defaultResolution(default, width, height) }
 
         fun save(context: Context, resolution: RenderResolution) {
             prefs(context).edit().putString(KEY_RESOLUTION, resolution.name).apply()
@@ -924,8 +919,77 @@ enum class RenderResolution(val size: String, val label: String) {
     }
 }
 
+/** The FPS cap written to Config.wtf on every start: thin foldables run hot, and a lower cap saves battery. */
+enum class FpsLimit(val fps: Int, val label: String) {
+    FPS_60(60, "60"), FPS_45(45, "45"), FPS_30(30, "30");
+
+    companion object {
+        private const val KEY_FPS = "fps_limit"
+
+        fun current(context: Context): FpsLimit =
+            prefs(context).getString(KEY_FPS, null)?.let { saved -> entries.firstOrNull { it.name == saved } } ?: FPS_60
+
+        fun save(context: Context, limit: FpsLimit) {
+            prefs(context).edit().putString(KEY_FPS, limit.name).apply()
+        }
+    }
+}
+
+/** WoW's voice chat needs the microphone. The launcher asks once; a refusal is respected and never repeated. */
+internal object MicPermission {
+    private const val KEY_ASKED = "microphone_asked"
+
+    fun granted(context: Context) =
+        androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    fun wasAsked(context: Context) = prefs(context).getBoolean(KEY_ASKED, false)
+
+    fun markAsked(context: Context) {
+        prefs(context).edit().putBoolean(KEY_ASKED, true).apply()
+    }
+}
+
+/** Notifications show the ongoing "WoW Forever läuft" entry. Needs a runtime permission from Android 13; asked once. */
+internal object NotificationPermission {
+    private const val KEY_ASKED = "notifications_asked"
+
+    fun granted(context: Context) =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    fun wasAsked(context: Context) = prefs(context).getBoolean(KEY_ASKED, false)
+
+    fun markAsked(context: Context) {
+        prefs(context).edit().putBoolean(KEY_ASKED, true).apply()
+    }
+}
+
+/** Exemption from battery optimization keeps Android from throttling the connection in long sessions; asked once. */
+internal object BatteryExemption {
+    private const val KEY_ASKED = "battery_exemption_asked"
+
+    fun exempt(context: Context) =
+        context.getSystemService(android.os.PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true
+
+    fun wasAsked(context: Context) = prefs(context).getBoolean(KEY_ASKED, false)
+
+    fun markAsked(context: Context) {
+        prefs(context).edit().putBoolean(KEY_ASKED, true).apply()
+    }
+
+    @android.annotation.SuppressLint("BatteryLife")
+    fun request(context: Context): android.content.Intent =
+        android.content.Intent(
+            android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            android.net.Uri.parse("package:${context.packageName}"),
+        )
+}
+
 object GamePath {
     private const val KEY_GAME_PATH = "game_path"
+    private const val KEY_AUTO_INSTALL_DECLINED = "auto_install_declined"
 
     private val defaultPath = File(Environment.getExternalStorageDirectory(), "WoW Forever")
 
@@ -975,6 +1039,15 @@ object GamePath {
         prefs(context).edit().putString(KEY_GAME_PATH, path).apply()
     }
 
+    /** True once the player picked a folder; the default location is then no longer a given. */
+    internal fun hasChosenLocation(context: Context) = prefs(context).contains(KEY_GAME_PATH)
+
+    internal fun autoInstallDeclined(context: Context) = prefs(context).getBoolean(KEY_AUTO_INSTALL_DECLINED, false)
+
+    internal fun setAutoInstallDeclined(context: Context, declined: Boolean) {
+        prefs(context).edit().putBoolean(KEY_AUTO_INSTALL_DECLINED, declined).apply()
+    }
+
     fun isReady(context: Context, path: String = load(context)): Boolean =
         path.isNotEmpty() && status(context, path).isReady
 
@@ -987,123 +1060,6 @@ object GamePath {
         generateSequence(File(path)) { it.parentFile }.firstOrNull { it.exists() }?.usableSpace ?: 0L
 
     private fun productsOf(root: File) = WowClientDownloader.installedProducts(File(root, BUILD_INFO))
-}
-
-@Composable
-private fun InstallCard(isUpgrade: Boolean, gamePath: String, freeSpaceBytes: Long, enabled: Boolean, onChangeLocation: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth(0.9f)
-            .border(1.dp, WowGold.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2838).copy(alpha = 0.85f)),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Download, contentDescription = null, tint = WowGold, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                SectionTitle(if (isUpgrade) "WOW FOREVER HAS LAUNCHED" else "INSTALL WORLD OF WARCRAFT", WowGold)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = if (isUpgrade) {
-                    "This folder has the Forever beta, which Blizzard is retiring. Upgrade to install the full release into " +
-                        "$FLAVOR_DIR/. Your existing game data is reused, so only the new client downloads (about 100 MB)."
-                } else {
-                    "Downloads the ARM64 game client and archive indexes (about 250 MB) from Blizzard's CDN. The rest of the " +
-                        "game streams in as you play and can grow past 50 GB, so pick a location with room to spare."
-                },
-                fontSize = 12.sp,
-                color = Color(0xFFCBD5E1),
-                lineHeight = 16.sp,
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = "Install location: $gamePath (${"%.1f".format(freeSpaceBytes / 1e9)} GB free)",
-                fontSize = 11.sp,
-                color = WowSubtle,
-            )
-            if (!isUpgrade) {
-                LinkButton("Change Install Location", Icons.Default.FolderOpen, enabled = enabled, onClick = onChangeLocation)
-                Text(
-                    text = "Already copied the game from a PC? Use Locate Existing Files below.",
-                    fontSize = 11.sp,
-                    color = WowSubtle,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionTitle(text: String, color: Color) {
-    Text(text = text, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = color)
-}
-
-@Composable
-private fun PrimaryButton(text: String, icon: ImageVector, enabled: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth(0.85f).height(56.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = WowBronze, contentColor = Color.White),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(text = text, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-    }
-}
-
-@Composable
-private fun LinkButton(text: String, icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
-    TextButton(onClick = onClick, enabled = enabled) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = WowMuted)
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(text, fontSize = 12.sp, color = WowMuted)
-    }
-}
-
-@Composable
-private fun <T> OptionMenu(
-    text: String,
-    icon: ImageVector,
-    options: List<T>,
-    selected: T,
-    optionLabel: (T) -> String,
-    enabled: Boolean,
-    onSelect: (T) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        LinkButton(text, icon, enabled) { expanded = true }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(optionLabel(option)) },
-                    trailingIcon = { if (option == selected) Icon(Icons.Default.Check, contentDescription = null, tint = WowGold) },
-                    onClick = {
-                        expanded = false
-                        if (option != selected) onSelect(option)
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CheckItem(label: String, ready: Boolean) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = if (ready) Icons.Default.CheckCircle else Icons.Default.Warning,
-            contentDescription = null,
-            tint = if (ready) Color(0xFF48BB78) else Color(0xFFED8936),
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(text = label, fontSize = 13.sp, color = if (ready) Color(0xFFCBD5E1) else Color(0xFFED8936))
-    }
 }
 
 private class StorageAccessDeniedException(cause: Throwable) : Exception(cause)
@@ -1140,13 +1096,13 @@ private data class GpuProfile(val driver: String, val tuDebug: String, val scree
  * non-16:9 screens (e.g. a foldable's near-square inner display) instead of being letterboxed.
  * The pixel count stays the same as [baseSize], so GPU cost matches the 16:9 default.
  */
-private fun fitScreenSizeToWindow(context: Context, baseSize: String): String {
-    val (windowWidth, windowHeight) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        context.getSystemService(WindowManager::class.java).currentWindowMetrics.bounds.let { it.width() to it.height() }
-    } else {
-        context.resources.displayMetrics.let { it.widthPixels to it.heightPixels }
-    }
-    return fitScreenSize(baseSize, windowWidth, windowHeight)
+private fun fitScreenSizeToWindow(context: Context, baseSize: String, foldedAtStart: Boolean): String {
+    // Unfolded (or an ordinary phone): the full display, on a foldable the inner screen the game is meant for.
+    // Started folded shut on purpose: the small window, so the picture fills it; unfolding later only scales it.
+    val (curWidth, curHeight) = windowSize(context, maximum = false)
+    val (maxWidth, maxHeight) = windowSize(context, maximum = true)
+    val (width, height) = fitBasis(foldedAtStart, curWidth, curHeight, maxWidth, maxHeight)
+    return fitScreenSize(baseSize, width, height)
 }
 
 internal fun fitScreenSize(baseSize: String, windowWidth: Int, windowHeight: Int): String {
@@ -1158,22 +1114,40 @@ internal fun fitScreenSize(baseSize: String, windowWidth: Int, windowHeight: Int
     return "${(width / 2).roundToInt() * 2}x${(height / 2).roundToInt() * 2}"
 }
 
-private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, screenSize: String, onStatus: (String) -> Unit): String {
+private fun prepareLaunch(
+    context: Context,
+    gameRoot: File,
+    gpu: GpuProfile,
+    screenSize: String,
+    maxFps: Int,
+    inputMode: InputMode,
+    onStatus: (String) -> Unit,
+): String {
     installBundledComponents(context, onStatus)
+    StickSensitivity.apply(context)
+    val input = WowTouch.settingsFor(inputMode, WowTouch.wasApplied(context), app.gamenative.ui.screen.wow.klick.TouchOptionStore.load(context))
 
     check(File(gameRoot, BUILD_INFO).exists()) { "Missing $BUILD_INFO in $gameRoot. Copy it from your WoW install." }
     try {
-        ensureGameConfig(gameRoot, screenSize, GameRegion.saved(context))
+        ensureGameConfig(gameRoot, screenSize, GameRegion.saved(context), maxFps, input.interfaceStyle, graphicsCvars(GraphicsPreset.current(context)))
     } catch (e: Exception) {
         if (e.isPermissionDenied()) throw StorageAccessDeniedException(e)
         throw e
     }
 
+    // Buttons and wheel fields that store a WoW action take the keys the player has set in WoW (never fails the start).
+    WowActionSource.refresh(gameRoot)
+
+    // The addon TouchForever goes into the game folder FIRST (every start, whatever the icon setting says), before the container
+    // and the game are started, so WoW loads the current files at its start and nobody has to type /reload. Never fails the start;
+    // the result tells the app later whether a reload would help when the running addon is older (AddonSetup.diskCurrent).
+    app.gamenative.wowicons.AddonSetup.run(context, gameRoot)
+
+    // Real spell/item icons on buttons: reads what the addon wrote and loads the icons in the background
+    // (setting "Echte Symbole aus WoW"; never fails the start).
+    app.gamenative.wowicons.WowIcons.start(context, gameRoot)
+
     val arm64Exe = File(gameRoot, "$FLAVOR_DIR/$EXE_NAME")
-    BattleNetSignIn.load(context)?.let { login ->
-        BattleNetSignIn.writeLoginFile(gameRoot, login)
-        BattleNetSignIn.startLoginWatcher(gameRoot)
-    }
     if (!arm64Exe.exists()) {
         try {
             WowClientDownloader.download(gameRoot, onStatus)
@@ -1183,18 +1157,26 @@ private fun prepareLaunch(context: Context, gameRoot: File, gpu: GpuProfile, scr
         }
     }
 
-    onStatus("Configuring ${gpu.label} container...")
+    onStatus(context.getString(R.string.game_status_container, gpu.label))
     val containerManager = ContainerManager(context)
     val config = containerConfig(gameRoot, gpu, screenSize)
     val container = containerManager.getContainerById(CONTAINER_ID)
     if (container == null) {
-        onStatus("Creating prefix environment (first boot)...")
+        onStatus(context.getString(R.string.game_status_wine))
         containerManager.createContainer(CONTAINER_ID, config)
     } else {
         container.loadData(config)
         container.saveData()
     }
+    applyInputSettings(context, containerManager.getContainerById(CONTAINER_ID), input, inputMode)
+    WowTouch.markApplied(context, inputMode.isTouch)
     check(containerManager.hasContainer(CONTAINER_ID)) { "Container creation failed. Check system storage and logs." }
+
+    // Keep the plaintext credentials on disk for as short a time as possible: write login.txt only when the exe starts next.
+    BattleNetSignIn.load(context)?.let { login ->
+        BattleNetSignIn.writeLoginFile(gameRoot, login)
+        BattleNetSignIn.startLoginWatcher(gameRoot)
+    }
     return CONTAINER_ID
 }
 
@@ -1260,15 +1242,22 @@ private val CONFIG_DEFAULTS = linkedMapOf(
     "accessibilityScreenNarrationEnabled" to "\"0\"",
 )
 
-internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion?) {
+internal fun ensureGameConfig(
+    root: File,
+    screenSize: String,
+    region: GameRegion?,
+    maxFps: Int = DEFAULT_MAX_FPS,
+    interfaceStyle: String? = null,
+    graphics: Map<String, String> = emptyMap(),
+) {
     val flavorDir = File(root, FLAVOR_DIR)
     flavorDir.mkdirs()
     val flavorInfo = File(flavorDir, ".flavor.info")
     if (!flavorInfo.exists()) {
         flavorInfo.writeText("Product Flavor!STRING:0\n$TARGET_PRODUCT\n")
     }
-    // Handheld defaults are only written on first boot so in-game changes stick, with three exceptions that are
-    // forced on every launch. gxApi: DXVK only works with D3D11, and a config copied from a Mac would otherwise
+    // Handheld defaults are only written on first boot so in-game changes stick, with four exceptions that are
+    // forced on every launch (plus the graphics preset's cvars, none for "Eigene"). The FPS cap (maxFPS, maxFPSBk) is the launcher's setting, like the resolution. gxApi: DXVK only works with D3D11, and a config copied from a Mac would otherwise
     // select Metal. Resolutions match the container, which the launcher sizes: WoW's "auto" picks a 720p size
     // because it sees a low-end Intel GPU via Wine, and saves that size on exit as if the player chose it.
     // The portal is the region picked in the launcher, or kept as is (filled from the install's region when
@@ -1288,7 +1277,10 @@ internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion
     }
 
     val forced = mapOf("gxApi" to CONFIG_DEFAULTS.getValue("gxApi"), "portal" to "\"${region?.name ?: portalOf(root)}\"") +
-        RESOLUTION_KEYS.associateWith { "\"$screenSize\"" }
+        RESOLUTION_KEYS.associateWith { "\"$screenSize\"" } +
+        mapOf("maxFPS" to "\"$maxFps\"", "maxFPSBk" to "\"$BACKGROUND_FPS\"", "useMaxFPS" to "\"1\"", "useMaxFPSBk" to "\"1\"") +
+        (interfaceStyle?.let { mapOf("InputDeviceInterfaceStyle" to "\"$it\"") } ?: emptyMap()) +
+        graphics.mapValues { "\"${it.value}\"" }
     val forcedLines = forced.map { (key, value) -> "SET $key $value" }
     val original = configWtf.readLines()
     if (!original.containsAll(forcedLines)) {
@@ -1296,6 +1288,9 @@ internal fun ensureGameConfig(root: File, screenSize: String, region: GameRegion
         configWtf.writeText((kept + forcedLines).joinToString("\n") + "\n")
     }
 }
+
+internal const val DEFAULT_MAX_FPS = 60
+private const val BACKGROUND_FPS = 8
 
 private val RESOLUTION_KEYS = listOf("gxFullscreenResolution", "gxWindowedResolution")
 
@@ -1313,7 +1308,7 @@ private fun installBundledComponents(context: Context, onStatus: (String) -> Uni
 
     val protonDir = File(ImageFs.getSharedProtonDir(context), PROTON_VERSION)
     if (!File(protonDir, "profile.json").exists() || !File(protonDir, "bin/wine").exists()) {
-        onStatus("Extracting Proton 11 ARM64EC (takes ~10s)...")
+        onStatus(context.getString(R.string.game_status_proton))
         check(extractBundledWcp(context, "$PROTON_VERSION.wcp", protonDir)) { "Failed to extract Proton or graphics components." }
         File(protonDir, "bin").listFiles()?.forEach {
             it.setExecutable(true, false)
@@ -1323,7 +1318,7 @@ private fun installBundledComponents(context: Context, onStatus: (String) -> Uni
 
     val dxvkDir = File(ContentsManager.getContentTypeDir(context, ContentProfile.ContentType.CONTENT_TYPE_DXVK), DXVK_VERSION)
     if (!File(dxvkDir, "profile.json").exists()) {
-        onStatus("Extracting DXVK ARM64...")
+        onStatus(context.getString(R.string.game_status_dxvk))
         if (!extractBundledWcp(context, "dxvk-$DXVK_VERSION.wcp", dxvkDir)) Timber.e("Failed to extract DXVK")
     }
 
@@ -1334,7 +1329,7 @@ private fun installBundledComponents(context: Context, onStatus: (String) -> Uni
 private fun installDriver(context: Context, driverName: String, assetZip: String, onStatus: (String) -> Unit) {
     val driverDir = File(context.filesDir, "contents/adrenotools/$driverName")
     if (File(driverDir, "meta.json").exists()) return
-    onStatus("Installing $driverName driver...")
+    onStatus(context.getString(R.string.game_status_driver, driverName))
     driverDir.mkdirs()
     if (!FileUtils.extractZipFromAssets(context, "bundled_components/$assetZip", driverDir)) {
         Timber.e("Error extracting driver $driverName from $assetZip")
@@ -1344,4 +1339,35 @@ private fun installDriver(context: Context, driverName: String, assetZip: String
 private fun extractBundledWcp(context: Context, assetName: String, destination: File): Boolean {
     destination.mkdirs()
     return TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, context, "bundled_components/$assetName", destination)
+}
+
+/** Writes the input mode into the game container: touchscreen flag, gesture config, the stick-only profile and the "wowTouch" marker. */
+private fun applyInputSettings(context: Context, container: Container?, input: InputLaunchSettings, inputMode: InputMode) {
+    if (container == null) return
+    val hadTouchSetup = container.getExtra(WowTouch.EXTRA_KEY) == "1"
+    // The player's own values (Quick menu "Touchscreen-Modus" switch, gesture dialog) win over our defaults; the defaults
+    // are written on first setup, when another Steuerung is chosen and after "Zurücksetzen" (see TouchSetupPolicy).
+    val plan = TouchSetupPolicy.plan(
+        mode = inputMode,
+        defaults = input.gestureJson,
+        hadTouchSetup = hadTouchSetup,
+        containerTouchscreen = container.isTouchscreenMode(),
+        containerGestures = container.getGestureConfig(),
+        state = TouchSetupStore.load(context),
+    )
+    container.setTouchscreenMode(plan.touchscreenMode)
+    plan.gestureConfig?.let { container.setGestureConfig(it) }
+    if (input.touchscreenMode) {
+        // "Touch (Mein Layout)" is created from the current "Touch (WoW)" the first time; "Touch (WoW komplett)" is the
+        // bundled template (controls-7.icp), created from the asset if the update copy has not added it yet.
+        val profileId = WowTouchProfiles.resolveProfileId(context, inputMode)
+        if (profileId != null) container.putExtra("profileId", profileId.toString())
+        else Timber.w("Touch profile '%s' not found, keeping the container's profile", inputMode.profileName)
+    } else if (hadTouchSetup) {
+        // Back to Standard after Touch: drop the touch-only profile (the gestures went to the stash).
+        container.putExtra("profileId", null)
+    }
+    container.putExtra(WowTouch.EXTRA_KEY, input.wowTouchExtra)
+    container.saveData()
+    TouchSetupStore.save(context, plan.state)
 }

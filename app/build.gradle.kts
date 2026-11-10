@@ -12,12 +12,38 @@ plugins {
     alias(libs.plugins.secrets.gradle)
 }
 
-val keystorePropertiesFile = rootProject.file("app/keystores/keystore.properties")
-val keystoreProperties: Properties? = if (keystorePropertiesFile.exists()) {
+// Update feed and source link are build switches (Gradle property `-PupdateFeed=...`, `-PsourceUrl=...`, `-PgithubOwner=...`,
+// `-PgithubRepo=...`). Order: project property, then build-defaults.internal.properties (only in the internal repository, not in the
+// public export), then the public GitHub defaults. `-PupdateFeed=github` forces the GitHub release feed.
+val internalBuildDefaults = Properties().apply {
+    val file = rootProject.file("build-defaults.internal.properties")
+    if (file.exists()) FileInputStream(file).use { load(it) }
+}
+
+fun buildSwitch(name: String): String? =
+    (findProperty(name) as String?)?.trim()?.takeIf { it.isNotEmpty() }
+        ?: internalBuildDefaults.getProperty(name)?.trim()?.takeIf { it.isNotEmpty() }
+
+val githubOwner = buildSwitch("githubOwner") ?: "dienstag0815"
+val githubRepo = buildSwitch("githubRepo") ?: "wow-forever-touch"
+val githubRepoUrl = "https://github.com/$githubOwner/$githubRepo"
+val updateFeedUrl = buildSwitch("updateFeed").let { if (it == null || it == "github") "$githubRepoUrl/releases/latest/download/latest.json" else it }
+val sourceCodeUrl = buildSwitch("sourceUrl") ?: githubRepoUrl
+
+// Release signing: properties file (storeFile, storePassword, keyAlias, keyPassword) kept outside the repository. Order: Gradle property
+// `-PsigningProps=<path>`, environment variable `WOWFOREVER_SIGNING`, then app/keystores/keystore.properties. Without any of them the
+// build is signed with the debug key as before.
+val signingPropsPath = (findProperty("signingProps") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+    ?: System.getenv("WOWFOREVER_SIGNING")?.trim()?.takeIf { it.isNotEmpty() }
+val keystorePropertiesFile = signingPropsPath?.let { File(it) } ?: rootProject.file("app/keystores/keystore.properties")
+val keystoreProperties: Properties? = if (keystorePropertiesFile.isFile) {
     Properties().apply {
-        load(FileInputStream(keystorePropertiesFile))
+        FileInputStream(keystorePropertiesFile).use { load(it) }
     }
-} else null
+} else {
+    if (signingPropsPath != null) logger.warn("signingProps file not found, signing with the debug key: $signingPropsPath")
+    null
+}
 
 android {
     namespace = "app.gamenative"
@@ -45,10 +71,14 @@ android {
         manifestPlaceholders["screenOrientation"] = "unspecified"
         buildConfigField("boolean", "XR_BUILD", "false")
 
-        versionCode = 233
-        versionName = "2.3.3"
+        versionCode = 284
+        versionName = "2.3.3-touch9.0"
 
         buildConfigField("boolean", "GOLD", "false")
+        // Feed of the self-update (latest.json + APK); can be overridden in the app under "Erweitert".
+        buildConfigField("String", "UPDATE_FEED_URL", "\"$updateFeedUrl\"")
+        // Link to the source code (launcher "About" page and footer).
+        buildConfigField("String", "SOURCE_URL", "\"$sourceCodeUrl\"")
         val iconValue = "@mipmap/ic_launcher"
         val iconRoundValue = "@mipmap/ic_launcher_round"
         manifestPlaceholders.putAll(

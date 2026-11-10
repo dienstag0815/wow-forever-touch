@@ -1,5 +1,6 @@
 package app.gamenative.ui.screen.xserver
 
+import app.gamenative.ui.components.BootingSplashLogic
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color
@@ -87,6 +88,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import app.gamenative.PluviaApp
+import app.gamenative.service.GameKeepAlive
 import app.gamenative.PrefManager
 import app.gamenative.data.GyroSettings
 import app.gamenative.data.ShooterModeConfig
@@ -102,15 +104,20 @@ import app.gamenative.ui.component.QuickMenu
 import app.gamenative.ui.component.QuickMenuAction
 import app.gamenative.ui.component.parseBooleanExtra
 import app.gamenative.ui.component.parsePositiveFpsLimit
+import app.gamenative.ui.screen.xserver.editor.ControlsEditorOverlay
+import app.gamenative.ui.screen.xserver.editor.ControlsEditorSession
 import app.gamenative.ui.data.PerformanceHudConfig
 import app.gamenative.ui.data.PerformanceHudSize
 import app.gamenative.ui.data.XServerState
 import app.gamenative.ui.widget.PerformanceHudView
+import app.gamenative.ui.screen.wow.chatbar.ChatActionRunner
+import app.gamenative.ui.screen.wow.voice.VoiceChatController
 import app.gamenative.utils.AssetUtils
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.downloader.CoreDriverDownloader
 import app.gamenative.utils.LsfgQuickMenuHelper
 import app.gamenative.utils.LsfgVkManager
+import app.gamenative.utils.MachineIdentityApply
 import app.gamenative.utils.downloader.DXWrapperDownloader
 import app.gamenative.utils.downloader.GraphicsDriverDownloader
 import app.gamenative.utils.BrightnessManager
@@ -305,6 +312,21 @@ private fun normalizeProcessName(name: String): String {
     return if (lower.endsWith(".exe")) lower.removeSuffix(".exe") else lower
 }
 
+/** The WinHandler of a running game is kept when the Activity is recreated; only a fresh XServer gets a new one. */
+internal fun shouldReuseWinHandler(hasRunningXServer: Boolean, handlerRunning: Boolean): Boolean =
+    hasRunningXServer && handlerRunning
+
+/** Touch mode of the container on a TouchpadView (same rules as the first start): mouse off, or touchscreen mode with gestures. */
+private fun applyTouchpadInputMode(touchpad: TouchpadView?, container: Container) {
+    touchpad ?: return
+    if (container.isDisableMouseInput()) {
+        touchpad.setTouchscreenMouseDisabled(true)
+    } else if (container.isTouchscreenMode()) {
+        touchpad.setTouchscreenMode(true)
+        touchpad.setGestureConfig(app.gamenative.data.TouchGestureConfig.fromJson(container.getGestureConfig()))
+    }
+}
+
 internal fun parseScreenSize(screenSize: String): Pair<Int, Int>? {
     val parts = screenSize.lowercase(Locale.getDefault()).split("x")
     if (parts.size != 2) return null
@@ -313,6 +335,9 @@ internal fun parseScreenSize(screenSize: String): Pair<Int, Int>? {
     if (width <= 0 || height <= 0) return null
     return width to height
 }
+
+/** Portrait: the picture is as wide as the narrow side of the display. */
+internal fun portraitScreenWidth(widthPixels: Int, heightPixels: Int): Int = minOf(widthPixels, heightPixels)
 
 internal fun portraitGameHostHeight(
     isPortrait: Boolean,
@@ -434,8 +459,11 @@ fun XServerScreen(
 
     DisposableEffect(Unit) {
         isExiting.set(false)
+        // Wi-Fi lock, wake lock and foreground service for as long as the game screen exists.
+        GameKeepAlive.start(context)
         onDispose {
             isExiting.set(false)
+            GameKeepAlive.stop(context)
         }
     }
 
@@ -530,10 +558,8 @@ fun XServerScreen(
     var isEditMode by remember { mutableStateOf(false) }
     var gameRoot by remember { mutableStateOf<View?>(null) }
     var windowModificationListener by remember { mutableStateOf<WindowManager.OnWindowModificationListener?>(null) }
-    // Snapshot of element positions before entering edit mode (for cancel behavior)
-    var elementPositionsSnapshot by remember { mutableStateOf<Map<com.winlator.inputcontrols.ControlElement, Pair<Int, Int>>>(emptyMap()) }
-    var showElementEditor by remember { mutableStateOf(false) }
-    var elementToEdit by remember { mutableStateOf<com.winlator.inputcontrols.ControlElement?>(null) }
+    // State of the direct controls editor (selection, undo history, settings sheet); cancel restores the profile file
+    val editorSession = remember { ControlsEditorSession() }
     var showPhysicalControllerDialog by remember { mutableStateOf(false) }
     var showTouchGestureDialog by remember { mutableStateOf(false) }
     var showShooterModeDialog by remember(container.id) { mutableStateOf(false) }
@@ -545,6 +571,8 @@ fun XServerScreen(
     var currentShooterConfig by remember(container.id) {
         mutableStateOf(ShooterModeConfig.fromJson(container.getShooterConfig()))
     }
+    // "Touch (WoW)": touchscreen gestures (absolute taps, camera drag) AND the walk stick on screen, set by the WoW launcher.
+    val wowTouch = container.getExtra("wowTouch") == "1"
     fun shouldShowMouseCursor(): Boolean {
         return !container.isDisableMouseInput &&
             (!container.isTouchscreenMode || currentGestureConfig.showCursorInTouchscreenMode)
@@ -575,7 +603,7 @@ fun XServerScreen(
     var fpsLimiterEnabled by rememberSaveable(container.id) { mutableStateOf(initialFpsLimiterEnabled(container)) }
     var fpsLimiterTarget by rememberSaveable(container.id) { mutableIntStateOf(initialFpsLimiterTarget(container)) }
 
-    val gyroOverlaySuppressed = showQuickMenu || keepPausedForEditor || showElementEditor ||
+    val gyroOverlaySuppressed = showQuickMenu || keepPausedForEditor ||
         showPhysicalControllerDialog || showTouchGestureDialog || showShooterModeDialog ||
         isEditMode
     SyncGyroOverlaySuppression(
@@ -970,7 +998,7 @@ fun XServerScreen(
     }
 
     val tryCapturePointer: () -> Boolean = {
-        if (!showElementEditor && !keepPausedForEditor && !showQuickMenu && !isEditMode &&
+        if (!keepPausedForEditor && !showQuickMenu && !isEditMode &&
             !container.isTouchscreenMode) {
             PluviaApp.touchpadView?.postDelayed({
                 val view = PluviaApp.touchpadView
@@ -1007,7 +1035,7 @@ fun XServerScreen(
 
         if (!usingScreenMirror &&
             !hasInternalTouchpad && !hasPhysicalMouse && !hasPhysicalKeyboard && !hasPhysicalController &&
-            !container.isTouchscreenMode) {
+            (!container.isTouchscreenMode || wowTouch)) {
             val manager = PluviaApp.inputControlsManager
             val profiles = manager?.getProfiles(false) ?: listOf()
 
@@ -1021,9 +1049,13 @@ fun XServerScreen(
                     null
                 } ?: manager?.getProfile(0) ?: profiles.getOrNull(2) ?: profiles.first()
 
-                if (!showElementEditor && !keepPausedForEditor && !showQuickMenu && !isEditMode) {
+                if (!keepPausedForEditor && !showQuickMenu && !isEditMode) {
                     Timber.d("No external devices attached, showing on-screen controls")
-                    if (!areControlsVisible) {
+                    val wantControlsVisible = ControlsVisibilityPref.decide(
+                        ControlsVisibilityPref.load(context, container.id),
+                        true,
+                    )
+                    if (wantControlsVisible && !areControlsVisible) {
                         showInputControls(targetProfile, xServerView!!.getxServer().winHandler, container)
                         areControlsVisible = true
                     }
@@ -1050,7 +1082,7 @@ fun XServerScreen(
         if (!device.isVirtual && isExternal) {
             if (Keyboard.isKeyboardDevice(device)) {
                 hasPhysicalKeyboard = true
-                if (!showElementEditor && !keepPausedForEditor && !showQuickMenu && !isEditMode &&
+                if (!keepPausedForEditor && !showQuickMenu && !isEditMode &&
                     !container.isTouchscreenMode &&
                     !hasUpdatedScreenGamepad) {
                     hasUpdatedScreenGamepad = true
@@ -1078,7 +1110,7 @@ fun XServerScreen(
             controllerSlotStatusVersion++
             xServerView?.getxServer()?.winHandler?.setCurrentController(device.id)
             xServerView?.getxServer()?.winHandler?.refreshControllerMappingsForHotplug()
-            if (!showElementEditor && !keepPausedForEditor && !showQuickMenu && !isEditMode &&
+            if (!keepPausedForEditor && !showQuickMenu && !isEditMode &&
                 !container.isTouchscreenMode &&
                 !hasUpdatedScreenGamepad) {
                 hasUpdatedScreenGamepad = true
@@ -1112,6 +1144,15 @@ fun XServerScreen(
             }
             quickMenuWineProcessesLoading = false
             delay(QUICK_MENU_PROCESS_POLL_INTERVAL_MS)
+        }
+    }
+
+    // Voice button (Binding.VOICE_CHAT): holds the controller created with the controls overlay so it can be released.
+    val voiceChatHolder = remember { arrayOfNulls<VoiceChatController>(1) }
+    DisposableEffect(Unit) {
+        onDispose {
+            voiceChatHolder[0]?.destroy()
+            voiceChatHolder[0] = null
         }
     }
 
@@ -1160,6 +1201,7 @@ fun XServerScreen(
                     }
                 }
                 areControlsVisible = !areControlsVisible
+                ControlsVisibilityPref.save(context, container.id, areControlsVisible)
                 true
             }
 
@@ -1227,16 +1269,6 @@ fun XServerScreen(
 
                 // Enable edit mode and show controls if not visible
                 if (activeProfile != null) {
-                    // Capture snapshot of element positions before entering edit mode
-                    val profile = PluviaApp.inputControlsView?.profile
-                    if (profile != null) {
-                        val snapshot = mutableMapOf<com.winlator.inputcontrols.ControlElement, Pair<Int, Int>>()
-                        profile.elements.forEach { element ->
-                            snapshot[element] = Pair(element.x.toInt(), element.y.toInt())
-                        }
-                        elementPositionsSnapshot = snapshot
-                    }
-
                     isEditMode = true
                     PluviaApp.inputControlsView?.setEditMode(true)
                     PluviaApp.inputControlsView?.let { icView ->
@@ -1264,11 +1296,13 @@ fun XServerScreen(
                 PluviaApp.touchpadView?.setTouchscreenMode(newMode)
 
                 if (newMode) {
-                    // Apply gesture config when enabling
+                    // Apply gesture config when enabling. Re-read from the container: the Seitenmenü > Steuerung rows
+                    // (hold time, double-tap window, click wheel, two-finger tap) change it without this screen's copy.
+                    currentGestureConfig = app.gamenative.data.TouchGestureConfig.fromJson(container.getGestureConfig())
                     PluviaApp.touchpadView?.setGestureConfig(currentGestureConfig)
 
                     // Hide on-screen controls (mirrors startup priority logic)
-                    if (areControlsVisible) {
+                    if (areControlsVisible && !wowTouch) {
                         hideInputControls()
                         areControlsVisible = false
                     }
@@ -1358,6 +1392,27 @@ fun XServerScreen(
         }
     }
 
+    // Opens the quick menu (settings/editor). Used by the back gesture and by an on-screen button
+    // bound to OPEN_NAVIGATION_MENU (editor label "MENÜ (Einstellungen)").
+    val openQuickMenuNow: () -> Unit = {
+        Timber.i("BackHandler")
+
+        val controllerManager = ControllerManager.getInstance()
+        controllerManager.scanForDevices()
+        hasPhysicalController = controllerManager.getDetectedDevices().isNotEmpty()
+        PluviaApp.touchpadView?.postDelayed({
+            val view = PluviaApp.touchpadView
+            if (view != null) {
+                // Delay technically not required for the function to work but this can
+                // race against tryCapturePointer() and end up capturing after release
+                // was already called
+                view.releasePointerCapture()
+            }
+        }, 100)
+
+        showQuickMenu = true
+    }
+
     val gameBack: () -> Unit = gameBack@{
         val imeVisible = ViewCompat.getRootWindowInsets(view)
             ?.isVisible(WindowInsetsCompat.Type.ime()) == true
@@ -1380,22 +1435,7 @@ fun XServerScreen(
             return@gameBack
         }
 
-        Timber.i("BackHandler")
-
-        val controllerManager = ControllerManager.getInstance()
-        controllerManager.scanForDevices()
-        hasPhysicalController = controllerManager.getDetectedDevices().isNotEmpty()
-        PluviaApp.touchpadView?.postDelayed({
-            val view = PluviaApp.touchpadView
-            if (view != null) {
-                // Delay technically not required for the function to work but this can
-                // race against tryCapturePointer() and end up capturing after release
-                // was already called
-                view.releasePointerCapture()
-            }
-        }, 100)
-
-        showQuickMenu = true
+        openQuickMenuNow()
     }
 
     DisposableEffect(Unit) {
@@ -1476,7 +1516,10 @@ fun XServerScreen(
                 !keepPausedForEditor
         // logD("onKeyEvent(${it.event.device.sources})\n\tisGamepad: $isGamepad\n\tisKeyboard: $isKeyboard\n\t${it.event}")
 
-        if (waitingForManualResume) {
+        if (VoiceChatController.isEditing && !isGamepad) {
+            // The voice preview's edit field has the keyboard: keys belong to the text field, not to the game.
+            false
+        } else if (waitingForManualResume) {
             when (it.event.keyCode) {
                 KeyEvent.KEYCODE_ENTER,
                 KeyEvent.KEYCODE_BUTTON_A,
@@ -1488,7 +1531,7 @@ fun XServerScreen(
                 }
                 else -> false
             }
-        } else if ((showElementEditor || keepPausedForEditor || showQuickMenu || isEditMode) && (isGamepad || isKeyboard)) {
+        } else if ((keepPausedForEditor || showQuickMenu || isEditMode) && (isGamepad || isKeyboard)) {
             val escPressed = !keepPausedForEditor &&
                 isKeyboard &&
                 it.event.keyCode == KeyEvent.KEYCODE_ESCAPE
@@ -1532,16 +1575,16 @@ fun XServerScreen(
                     it.event.action == KeyEvent.ACTION_DOWN &&
                     it.event.repeatCount == 0
                 if (isShiftEscPressed &&
-                    !showElementEditor && !keepPausedForEditor && !showQuickMenu && !isEditMode) {
+                    !keepPausedForEditor && !showQuickMenu && !isEditMode) {
                     keyboardEscMenuHandler.cancel()
                     gameBack()
                     handled = true
                 } else if (isPhysicalKeyboard && keyboardEscMenuHandler.isEsc(it.event) &&
-                    !showElementEditor && !keepPausedForEditor && !showQuickMenu && !isEditMode) {
+                    !keepPausedForEditor && !showQuickMenu && !isEditMode) {
                     handled = keyboardEscMenuHandler.handleGameEsc(
                         event = it.event,
                         keyboard = keyboard,
-                        canOpenMenu = { !showElementEditor && !keepPausedForEditor && !showQuickMenu && !isEditMode },
+                        canOpenMenu = { !keepPausedForEditor && !showQuickMenu && !isEditMode },
                         openMenu = gameBack,
                     )
                 } else {
@@ -1559,7 +1602,7 @@ fun XServerScreen(
     val onMotionEvent: (AndroidEvent.MotionEvent) -> Boolean = {
         val isGamepad = ExternalController.isGameController(it.event?.device)
 
-        if ((showElementEditor || keepPausedForEditor || showQuickMenu || isEditMode) && isGamepad) {
+        if ((keepPausedForEditor || showQuickMenu || isEditMode) && isGamepad) {
             // Let Compose consume any gamepad motion while menu is visible.
             false
         } else {
@@ -1586,7 +1629,7 @@ fun XServerScreen(
                         !isExternal) {
                         // Samsung DeX Touchpad app
                         hasInternalTouchpad = true
-                        if (!showElementEditor && !keepPausedForEditor && !showQuickMenu && !isEditMode &&
+                        if (!keepPausedForEditor && !showQuickMenu && !isEditMode &&
                             !hasUpdatedScreenGamepad) {
                             hasUpdatedScreenGamepad = true
                             hideInputControls()
@@ -1804,6 +1847,10 @@ fun XServerScreen(
                     }
                 }
 
+                // A tap on the voice overlay cancels the recognition / the pending text
+                val voiceHandled = voiceChatHolder[0]?.onHostTouchEvent(event) == true
+                if (voiceHandled) return@pointerInteropFilter true
+
                 val radialMenuHandled = PluviaApp.radialMenuCoordinator?.onHostTouchEvent(event) == true
                 if (radialMenuHandled) return@pointerInteropFilter true
 
@@ -1959,7 +2006,15 @@ fun XServerScreen(
                 imeInputReceiver = imeReceiver
                 PluviaApp.imeInputReceiver = imeReceiver
 
-                getxServer().winHandler = WinHandler(getxServer(), this)
+                // Activity recreated while the game runs (fold/unfold): keep the running WinHandler. A new one would never
+                // get the INIT of winhandler.exe again and drop every mouse event, i.e. all touch input.
+                val runningWinHandler = getxServer().winHandler
+                if (shouldReuseWinHandler(existingXServer != null, runningWinHandler?.isRunning == true)) {
+                    runningWinHandler!!.attachView(this)
+                    Timber.i("Activity recreated: reusing the running WinHandler")
+                } else {
+                    getxServer().winHandler = WinHandler(getxServer(), this)
+                }
                 win32AppWorkarounds = Win32AppWorkarounds(getxServer())
                 touchMouse = TouchMouse(getxServer())
                 keyboard = Keyboard(getxServer())
@@ -2183,6 +2238,9 @@ fun XServerScreen(
                             Timber.i("Doing things once")
                             val envVars = EnvVars()
 
+                            if (!isExiting.get()) {
+                                PluviaApp.events.emit(AndroidEvent.SetBootingSplashText(BootingSplashLogic.TEXT_WINE))
+                            }
                             runBlocking {
                                 setupWineSystemFiles(
                                     context,
@@ -2197,6 +2255,9 @@ fun XServerScreen(
                                 )
                             }
 
+                            if (!isExiting.get()) {
+                                PluviaApp.events.emit(AndroidEvent.SetBootingSplashText(BootingSplashLogic.TEXT_GRAPHICS))
+                            }
                             runBlocking {
                                 extractGraphicsDriverFiles(
                                     context,
@@ -2212,6 +2273,8 @@ fun XServerScreen(
 
                             changeWineAudioDriver(xServerState.value.audioDriver, container, ImageFs.find(context))
                             setImagefsContainerVariant(context, container)
+                            // Web-Links des Spiels (Account verwalten ...) im Android-Browser statt im Wine-Browser öffnen
+                            app.gamenative.ui.screen.wow.UrlHandoff.prepare(context)
                             if (isExiting.get()) return@submit
                             PluviaApp.xEnvironment = setupXEnvironment(
                                 context,
@@ -2249,6 +2312,13 @@ fun XServerScreen(
                             setupExecutor.shutdown()
                         }
                     }
+                } else {
+                    // Activity recreated while the game runs: the setup above is not repeated, so give the new views what
+                    // the first start gave the old ones (touch mode, gestures, CPU masks for new windows).
+                    applyTouchpadInputMode(PluviaApp.touchpadView, container)
+                    taskAffinityMask = ProcessHelper.getAffinityMask(container.getCPUList(true)).toShort().toInt()
+                    taskAffinityMaskWoW64 = ProcessHelper.getAffinityMask(container.getCPUListWoW64(true)).toShort().toInt()
+                    win32AppWorkarounds?.setTaskAffinityMasks(taskAffinityMask, taskAffinityMaskWoW64)
                 }
             }
             PluviaApp.xServerView = xServerView
@@ -2269,11 +2339,12 @@ fun XServerScreen(
             (mainRoot.tag as? XServerViewReleaseBinding)?.let { binding ->
                 binding.gameHost = gameHost
                 val layoutListener = OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                    // Current display width, not the one at creation: fold/unfold changes it while the view lives on
                     updatePortraitGameHostHeight(
                         gameHost,
                         isPortrait,
                         container.isPortraitBelowCutout,
-                        screenWidth,
+                        gameHost.resources.displayMetrics.let { portraitScreenWidth(it.widthPixels, it.heightPixels) },
                         container.screenSize,
                     )
                 }
@@ -2284,7 +2355,7 @@ fun XServerScreen(
                         gameHost,
                         isPortrait,
                         container.isPortraitBelowCutout,
-                        screenWidth,
+                        gameHost.resources.displayMetrics.let { portraitScreenWidth(it.widthPixels, it.heightPixels) },
                         container.screenSize,
                     )
                 }
@@ -2390,11 +2461,32 @@ fun XServerScreen(
                 setShooterModeConfig(currentShooterConfig)
             }
             PluviaApp.inputControlsView = icView
+            // Emoji or vector symbol for WoW actions (read once here, the drawing code only reads the field)
+            app.gamenative.wowaction.BindingCaption.emojiMode = PrefManager.wowEmojiSymbols
 
             // Wire SHOW_KEYBOARD binding callback for overlay control buttons
             icView.setShowKeyboardCallback {
                 showSoftKeyboard(icView, "onscreen_keyboard_enabled_from_binding")
             }
+            // Wire OPEN_NAVIGATION_MENU binding: on-screen button opens the quick menu (same as back gesture)
+            icView.setOpenNavigationMenuCallback {
+                if (!showQuickMenu) openQuickMenuNow()
+            }
+            // Wire OPEN_CONTROLS_EDITOR binding: on-screen button starts the edit mode (same as quick menu "edit controls")
+            icView.setOpenControlsEditorCallback {
+                if (!isEditMode) onQuickMenuItemSelected(QuickMenuAction.EDIT_CONTROLS)
+            }
+            // Wire VOICE_CHAT binding: speech recognition, text goes into the WoW chat (no keyboard)
+            voiceChatHolder[0]?.destroy()
+            val voiceChat = VoiceChatController(context, frameLayout, xServerView.getxServer()) {
+                showSoftKeyboard(icView, "onscreen_keyboard_enabled_from_voice")
+            }
+            voiceChatHolder[0] = voiceChat
+            icView.setVoiceChatCallback { voiceChat.onVoiceButton() }
+            icView.setChatCommandCallback { text -> voiceChat.sendChatCommand(text) }
+            // Mini menu of the long-press context menu (whisper by voice, wave): the touch view runs the chosen entry
+            PluviaApp.touchpadView?.setWhisperVoiceCallback { voiceChat.onWhisperVoice() }
+            PluviaApp.touchpadView?.setChatCommandCallback { text -> voiceChat.sendChatCommand(text) }
             PluviaApp.radialMenuCoordinator?.bindInputControlsView(icView)
 
             xServerView.getxServer().winHandler.setInputControlsView(PluviaApp.inputControlsView)
@@ -2409,6 +2501,13 @@ fun XServerScreen(
             } else {
                 frameLayout.addView(icView)
             }
+            // Chat buttons of the profile (voice, send, keyboard, channel, cancel): run by the controls overlay when pressed
+            val chatActions = ChatActionRunner(
+                xServerView.getxServer(),
+                openKeyboard = { showSoftKeyboard(icView, "onscreen_keyboard_enabled_from_chat_button") },
+                startVoice = { chatBoxOpen -> voiceChat.onChatBarVoice(chatBoxOpen) },
+            )
+            icView.setChatActionCallback { actionId -> chatActions.perform(actionId) }
             val configuredExternalMode = ExternalDisplayInputController.fromConfig(container.externalDisplayMode)
             val swapEnabled = container.isExternalDisplaySwap
 
@@ -2503,6 +2602,7 @@ fun XServerScreen(
                         // 3. Else if physical mouse/keyboard detected → hide
                         // 4. Else → show
                         val shouldShowControls = when {
+                            wowTouch -> true
                             container.isTouchscreenMode -> false
                             hasPhysicalController -> false
                             hasPhysicalKeyboard || hasPhysicalMouse -> false
@@ -2554,7 +2654,7 @@ fun XServerScreen(
                     gameHost,
                     isPortrait,
                     container.isPortraitBelowCutout,
-                    binding.screenWidth,
+                    view.resources.displayMetrics.let { portraitScreenWidth(it.widthPixels, it.heightPixels) },
                     container.screenSize,
                 )
             }
@@ -2615,78 +2715,47 @@ fun XServerScreen(
             }
         }
 
-        // Floating toolbar for edit mode (always visible in edit mode)
+        // Direct editor for the on-screen controls: select/move/resize on the picture, settings sheet, "+" gallery, undo
         if (isEditMode && areControlsVisible) {
-            EditModeToolbar(
-                onAdd = {
-                    if (PluviaApp.inputControlsView?.addElement() == true) {
-                        // Element was added, refresh the view
-                        PluviaApp.inputControlsView?.invalidate()
-                    }
-                },
-                onEdit = {
-                    val selectedElement = PluviaApp.inputControlsView?.getSelectedElement()
-                    if (selectedElement != null) {
-                        elementToEdit = selectedElement
-                        showElementEditor = true
-                    }
-                },
-                onDelete = {
-                    PluviaApp.inputControlsView?.removeElement()
-                },
-                onSave = {
-                    // Save profile changes
-                    PluviaApp.inputControlsView?.profile?.save()
-                    PluviaApp.inputControlsView?.onControlsProfileContentChanged(false)
-                    // Clear snapshot since changes were accepted
-                    elementPositionsSnapshot = emptyMap()
-                    // Exit edit mode
-                    isEditMode = false
-                    PluviaApp.inputControlsView?.setEditMode(false)
-                    // Force redraw on next frame to ensure grid is removed
-                    PluviaApp.inputControlsView?.post {
-                        PluviaApp.inputControlsView?.invalidate()
-                    }
-                    keepPausedForEditor = false
-                    resumeIfAllowedAfterOverlay()
-                },
-                onClose = {
-                    // Restore element positions from snapshot (cancel behavior)
-                    if (elementPositionsSnapshot.isNotEmpty()) {
-                        elementPositionsSnapshot.forEach { (element, position) ->
-                            element.setX(position.first)
-                            element.setY(position.second)
-                        }
-                        elementPositionsSnapshot = emptyMap()
-                    }
-
-                    // Exit edit mode without saving
-                    isEditMode = false
-                    PluviaApp.inputControlsView?.setEditMode(false)
-                    // Force redraw on next frame to ensure grid is removed
-                    PluviaApp.inputControlsView?.post {
-                        PluviaApp.inputControlsView?.profile?.loadElements(PluviaApp.inputControlsView)
-                        PluviaApp.inputControlsView?.profile?.save()
-                        PluviaApp.inputControlsView?.invalidate()
-                    }
-                    keepPausedForEditor = false
-                    resumeIfAllowedAfterOverlay()
-                },
-                onDuplicate = { id ->
-                    val manager = PluviaApp.inputControlsManager
-                    val profile = manager?.getProfile(id)
-                    val currentProfile = PluviaApp.inputControlsView?.profile
-                    if (profile != null && currentProfile != null) {
-                        // Wait for view to be laid out before loading elements
-                        PluviaApp.inputControlsView?.let { icView ->
-                            icView.post {
-                                copyInputControlsProfileElements(profile, currentProfile, icView)
+            val editorView = PluviaApp.inputControlsView
+            if (editorView != null) {
+                ControlsEditorOverlay(
+                    session = editorSession,
+                    view = editorView,
+                    onDone = {
+                        // Save profile changes and leave edit mode
+                        editorSession.finish()
+                        isEditMode = false
+                        editorView.setEditMode(false)
+                        // Force redraw on next frame to ensure grid is removed
+                        editorView.post { editorView.invalidate() }
+                        keepPausedForEditor = false
+                        resumeIfAllowedAfterOverlay()
+                    },
+                    onCancel = {
+                        // Put the profile back the way it was before editing, then leave edit mode
+                        editorSession.cancel()
+                        isEditMode = false
+                        editorView.setEditMode(false)
+                        editorView.post { editorView.invalidate() }
+                        keepPausedForEditor = false
+                        resumeIfAllowedAfterOverlay()
+                    },
+                    onCopyFromProfile = { id ->
+                        val manager = PluviaApp.inputControlsManager
+                        val profile = manager?.getProfile(id)
+                        val currentProfile = editorView.profile
+                        if (profile != null && currentProfile != null) {
+                            // Wait for view to be laid out before loading elements
+                            editorView.post {
+                                copyInputControlsProfileElements(profile, currentProfile, editorView)
+                                editorSession.onExternalEdit()
                                 SnackbarManager.show(context.getString(R.string.toast_controls_reset))
                             }
                         }
-                    }
-                }
-            )
+                    },
+                )
+            }
         }
 
         QuickMenu(
@@ -2722,7 +2791,11 @@ fun XServerScreen(
             ),
             hasPhysicalController = hasPhysicalController,
             isTouchscreenModeActive = isTouchscreenModeActive,
-            onTouchGestureSettingsClick = { showTouchGestureDialog = true },
+            onTouchGestureSettingsClick = {
+                // The dialog starts from the container's current gestures (the Seitenmenü rows may have changed them).
+                currentGestureConfig = app.gamenative.data.TouchGestureConfig.fromJson(container.getGestureConfig())
+                showTouchGestureDialog = true
+            },
             isShooterModeActive = isShooterModeActive,
             onShooterModeSettingsClick = { showShooterModeDialog = true },
             activeToggleIds = buildSet {
@@ -2771,22 +2844,6 @@ fun XServerScreen(
         }
     }
 
-    // Element Editor Dialog
-    if (showElementEditor && elementToEdit != null && PluviaApp.inputControlsView != null) {
-        app.gamenative.ui.component.dialog.ElementEditorDialog(
-            element = elementToEdit!!,
-            view = PluviaApp.inputControlsView!!,
-            onDismiss = {
-                showElementEditor = false
-                // Keep edit mode active so user can edit other elements
-            },
-            onSave = {
-                showElementEditor = false
-                // Keep edit mode active so user can edit other elements
-            }
-        )
-    }
-
     // Touch Gesture Settings Dialog
     if (showTouchGestureDialog) {
         app.gamenative.ui.component.dialog.TouchGestureSettingsDialog(
@@ -2797,8 +2854,24 @@ fun XServerScreen(
                 container.setGestureConfig(newConfig.toJson())
                 container.saveData()
                 PluviaApp.touchpadView?.setGestureConfig(newConfig)
+                // The four launcher fields become the preferences too, so Seitenmenü and launcher show what the game uses.
+                app.gamenative.ui.screen.wow.TouchSetupStore.adoptGestures(context, newConfig)
                 applyMouseCursorVisibility()
                 showTouchGestureDialog = false
+            },
+            onReset = if (wowTouch) {
+                {
+                    // Back to the WoW launcher's touch gestures; the launcher remembers them as untouched.
+                    app.gamenative.ui.screen.wow.TouchSetupStore.resetGestures(context).also { defaults ->
+                        currentGestureConfig = defaults
+                        container.setGestureConfig(defaults.toJson())
+                        container.saveData()
+                        PluviaApp.touchpadView?.setGestureConfig(defaults)
+                        applyMouseCursorVisibility()
+                    }
+                }
+            } else {
+                null
             },
         )
     }
@@ -2951,120 +3024,6 @@ private fun ManualResumeOverlay(onResume: () -> Unit) {
                 tint = androidx.compose.ui.graphics.Color.Black,
                 modifier = Modifier.size(40.dp),
             )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun EditModeToolbar(
-    onAdd: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onSave: () -> Unit,
-    onClose: () -> Unit,
-    onDuplicate: (Int) -> Unit
-) {
-    var duplicateProfileOpen by remember { mutableStateOf(false) }
-    var toolbarOffsetX by remember { mutableStateOf(0f) }
-    var toolbarOffsetY by remember { mutableStateOf(0f) }
-    val density = LocalDensity.current
-
-    Box(
-        contentAlignment = androidx.compose.ui.Alignment.TopCenter,
-        modifier = Modifier
-            .offset(x = toolbarOffsetX.dp, y = toolbarOffsetY.dp)
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .padding(top = 16.dp)
-            .pointerInput(density) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    toolbarOffsetX += dragAmount.x / density.density
-                    toolbarOffsetY += dragAmount.y / density.density
-                }
-            }
-    ) {
-        Row(
-            modifier = Modifier
-                .wrapContentSize()
-                .background(
-                    color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.8f),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                )
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Drag handle indicator
-            Icon(
-                imageVector = Icons.Default.Menu,
-                contentDescription = "Drag to move",
-                tint = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.padding(end = 4.dp)
-            )
-
-            // Add button
-            TextButton(onClick = onAdd) {
-                Icon(Icons.Default.Add, contentDescription = "Add", tint = androidx.compose.ui.graphics.Color.White)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(stringResource(R.string.add), color = androidx.compose.ui.graphics.Color.White)
-            }
-
-            // Edit button
-            TextButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = androidx.compose.ui.graphics.Color.White)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(stringResource(R.string.edit), color = androidx.compose.ui.graphics.Color.White)
-            }
-
-            // Delete button
-            TextButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = androidx.compose.ui.graphics.Color.White)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(stringResource(R.string.delete), color = androidx.compose.ui.graphics.Color.White)
-            }
-
-            // Duplicate button with dropdown
-            Box {
-                TextButton(onClick = { duplicateProfileOpen = !duplicateProfileOpen }) {
-                    Icon(Icons.Filled.ContentCopy, contentDescription = "Copy From", tint = androidx.compose.ui.graphics.Color.White)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.copy_from), color = androidx.compose.ui.graphics.Color.White)
-                }
-
-                val knownProfiles = PluviaApp.inputControlsManager?.getProfiles(false) ?: emptyList()
-                if (knownProfiles.isNotEmpty()) {
-                    DropdownMenu(
-                        expanded = duplicateProfileOpen,
-                        onDismissRequest = { duplicateProfileOpen = false }
-                    ) {
-                        for (knownProfile in knownProfiles) {
-                            DropdownMenuItem(
-                                text = { Text(knownProfile.name) },
-                                onClick = {
-                                    onDuplicate(knownProfile.id)
-                                    duplicateProfileOpen = false
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Save button
-            TextButton(onClick = onSave) {
-                Icon(Icons.Default.Check, contentDescription = "Save", tint = androidx.compose.ui.graphics.Color.White)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(stringResource(R.string.save), color = androidx.compose.ui.graphics.Color.White)
-            }
-
-            // Close button
-            TextButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = androidx.compose.ui.graphics.Color.White)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(stringResource(R.string.close), color = androidx.compose.ui.graphics.Color.White)
-            }
         }
     }
 }
@@ -4083,6 +4042,10 @@ private suspend fun setupWineSystemFiles(
         container.putExtra("startupSelection", startupSelection)
         containerDataChanged = true
     }
+
+    // Own stable machine identity (MachineGuid, computer name, volume serial) in the WoW prefix. After
+    // everything above, so refreshSkeleton / component extraction can never leave the shared defaults.
+    MachineIdentityApply.applyToContainer(context, container)
 
     if (containerDataChanged) container.saveData()
 }

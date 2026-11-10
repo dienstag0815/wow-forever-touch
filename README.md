@@ -1,4 +1,6 @@
-# WoW Forever for Android
+# WoW Forever Touch – WoW Forever on Android touch devices
+
+[Deutsch](README.de.md)
 
 Play **World of Warcraft: Forever** on Snapdragon Android handhelds as a normal Android app. You tap the icon, press Play, and the game runs.
 

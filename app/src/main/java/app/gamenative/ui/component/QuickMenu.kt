@@ -32,6 +32,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -45,17 +47,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Gamepad
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mouse
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -77,6 +87,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -86,6 +97,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -94,6 +106,24 @@ import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.GyroSettings
 import app.gamenative.ui.component.dialog.GyroSettingsDialog
+import app.gamenative.ui.screen.wow.WindowHideMode
+import app.gamenative.ui.screen.wow.InputMode
+import app.gamenative.ui.screen.wow.LayoutResetDialog
+import app.gamenative.ui.screen.wow.QuickMenuAccordion
+import app.gamenative.ui.screen.wow.QuickMenuContext
+import app.gamenative.ui.screen.wow.QuickMenuRowKind
+import app.gamenative.ui.screen.wow.QuickMenuRowText
+import app.gamenative.ui.components.asString
+import app.gamenative.ui.screen.wow.QuickMenuValues
+import app.gamenative.ui.screen.wow.WheelActionDialog
+import app.gamenative.ui.screen.wow.WowTouchProfiles
+import app.gamenative.ui.screen.wow.klick.ClickWheel
+import app.gamenative.ui.screen.wow.quickMenuGroupSummary
+import app.gamenative.ui.screen.wow.quickMenuRowView
+import app.gamenative.ui.screen.wow.QuickMenuPage
+import app.gamenative.ui.screen.wow.QuickMenuSection
+import app.gamenative.ui.screen.wow.quickMenuSections
+import app.gamenative.ui.screen.wow.WowQuickSettings
 import app.gamenative.ui.data.PerformanceHudConfig
 import app.gamenative.ui.data.PerformanceHudSize
 import app.gamenative.ui.theme.PluviaTheme
@@ -119,6 +149,38 @@ object QuickMenuAction {
     const val SHOOTER_MODE = 9
     const val RADIAL_MENU = 10
     const val GYRO = 11
+    const val CHECK_ICONS = 12
+    const val STICK_WALK = 13
+    const val STICK_CAMERA = 14
+    const val COOLDOWNS = 15
+    const val LOGIN_FULL = 16
+    const val LOGIN_PASSWORD = 17
+    const val LOGIN_EMAIL = 18
+    const val LOGIN_NOTE = 19
+    const val TOUCH_HIDE_LOGIN = 20
+    const val TOUCH_SHOW_NOW = 21
+    const val VOICE_LANGUAGE = 22
+    const val TOUCH_HIDE_WINDOWS = 23
+    const val REPORT = 24
+    const val REPORT_NOTE = 25
+    const val ADDON_OPTIONS = 26
+    const val TOUCH_STYLE = 27
+    const val TOUCH_CONTRAST = 28
+    const val CONTEXT_MENU = 29
+    const val TAP_VIEW_ITEMS = 30
+    const val TWO_FINGER_TAP = 31
+    const val HOLD_TIME = 32
+    const val TAP_WINDOW = 33
+    const val CLICK_WHEEL = 34
+    const val WHEEL_CENTER = 35
+    const val WHEEL_UP = 36
+    const val WHEEL_RIGHT = 37
+    const val WHEEL_DOWN = 38
+    const val WHEEL_LEFT = 39
+    const val SWIPE_SCROLL = 40
+    const val SWIPE_SPEED = 41
+    const val RESET_LAYOUT = 42
+    const val COOLDOWN_GCD = 43
 }
 
 private object QuickMenuTab {
@@ -127,6 +189,7 @@ private object QuickMenuTab {
     const val EFFECTS = 2
     const val CONTROLLER = 3
     const val TOOLS = 4
+    const val SPIEL = 5
 }
 
 private class GyroQuickMenuState(private val container: Container) {
@@ -166,6 +229,8 @@ data class QuickMenuItem(
     val labelResId: Int,
     val accentColor: Color = Color.Unspecified,
     val enabled: Boolean = true,
+    // Plain text shown instead of the string resource (used by entries that have no translations).
+    val label: String? = null,
 )
 
 private enum class PerformanceHudPreset(val labelResId: Int) {
@@ -346,91 +411,91 @@ fun QuickMenu(
         accentColor = PluviaTheme.colors.accentDanger,
     )
 
+    val checkContext = androidx.compose.ui.platform.LocalContext.current
+
+    // Stick-Empfindlichkeit und Abklingzeiten wirken sofort; Werte und Klicks stecken in einer eigenen Klasse (eine Variable hier).
+    val wowQuick = remember { WowQuickSettings(checkContext) }
+    wowQuick.container = container
+
     // Kept here rather than plumbed through XServerScreen: that composable sits at the
     // dex verifier's register limit and extra locals can produce invalid bytecode.
     val gyroMenu = remember(container?.id) { container?.let(::GyroQuickMenuState) }
 
-    val controllerItems = buildList {
-        add(
-            QuickMenuItem(
-                id = QuickMenuAction.DISABLE_MOUSE,
-                icon = Icons.Filled.Mouse,
-                labelResId = R.string.disable_mouse_input,
-                accentColor = PluviaTheme.colors.accentPurple,
-            )
-        )
-        add(
-            QuickMenuItem(
-                id = QuickMenuAction.KEYBOARD,
-                icon = Icons.Default.Keyboard,
-                labelResId = R.string.keyboard,
-                accentColor = PluviaTheme.colors.accentPurple,
-            )
-        )
-        add(
-            QuickMenuItem(
-                id = QuickMenuAction.INPUT_CONTROLS,
-                icon = Icons.Default.TouchApp,
-                labelResId = R.string.input_controls,
-                accentColor = PluviaTheme.colors.accentPurple,
-            )
-        )
-        if (hasPhysicalController) {
-            add(
-                QuickMenuItem(
-                    id = QuickMenuAction.EDIT_PHYSICAL_CONTROLLER,
-                    icon = Icons.Default.Gamepad,
-                    labelResId = R.string.edit_physical_controller,
-                    accentColor = PluviaTheme.colors.accentPurple,
-                )
-            )
+    // Zeilen mit rundem Symbol (nur Reiter Hilfe) und Zeilen mit eigener Verfügbarkeit (Gyro); alle anderen Zeilen entstehen aus
+    // QuickMenuRows.kt (Titel und Wert) und werden bei Bedarf mit einem Standardsymbol als Klickziel versehen.
+    // Welche Zeile wo und unter welcher Überschrift steht, regelt QuickMenuLayout.kt (reine Daten, getestet).
+    val purple = PluviaTheme.colors.accentPurple
+    val itemsById: Map<Int, QuickMenuItem> = listOf(
+        QuickMenuItem(
+            QuickMenuAction.GYRO, Icons.Default.ScreenRotation, R.string.gyro_aiming, purple,
+            enabled = gyroMenu?.isAvailable == true,
+        ),
+        // Hilfe: Fehlerbericht als Zip erstellen und über das Teilen-Menü weitergeben (nichts wird von selbst gesendet).
+        QuickMenuItem(QuickMenuAction.REPORT, Icons.Default.BugReport, R.string.input_controls, purple, label = "Fehlerbericht erstellen"),
+        QuickMenuItem(
+            QuickMenuAction.REPORT_NOTE, Icons.Default.BugReport, R.string.input_controls,
+            label = wowQuick.reportNote.orEmpty(), enabled = false,
+        ),
+    ).associateBy { it.id }
+
+    // Im Login zeigt das Menü die Anmeldezeilen, in der Spielwelt nicht. Beim Öffnen einmal geprüft (das Spiel steht dann still),
+    // damit die Zeilen beim Schließen nicht noch springen.
+    var inLogin by remember { mutableStateOf(true) }
+    LaunchedEffect(isVisible) {
+        if (isVisible) {
+            inLogin = wowQuick.inLogin()
+            // Andere Orte schreiben dieselben Werte (Touch-Editor: Sticks, Zahnrad: Gesten): bei jedem Öffnen frisch lesen.
+            wowQuick.reload()
         }
-        add(
-            QuickMenuItem(
-                id = QuickMenuAction.EDIT_CONTROLS,
-                icon = Icons.Default.Edit,
-                labelResId = R.string.edit_controls,
-                accentColor = PluviaTheme.colors.accentPurple,
-            )
-        )
-        add(
-            QuickMenuItem(
-                id = QuickMenuAction.TOUCHSCREEN_MODE,
-                icon = Icons.Default.Fingerprint,
-                labelResId = R.string.touchscreen_mode,
-                accentColor = PluviaTheme.colors.accentPurple,
-            )
-        )
-        add(
-            QuickMenuItem(
-                id = QuickMenuAction.SHOOTER_MODE,
-                icon = Icons.Default.Gamepad,
-                labelResId = R.string.shooter_mode_toggle,
-                accentColor = PluviaTheme.colors.accentPurple,
-            )
-        )
-        add(
-            QuickMenuItem(
-                id = QuickMenuAction.RADIAL_MENU,
-                icon = Icons.Default.Settings,
-                labelResId = R.string.radial_menu,
-                accentColor = PluviaTheme.colors.accentPurple,
-            )
-        )
-        if (container != null) {
-            add(
-                QuickMenuItem(
-                    id = QuickMenuAction.GYRO,
-                    icon = Icons.Default.ScreenRotation,
-                    labelResId = R.string.gyro_aiming,
-                    accentColor = PluviaTheme.colors.accentPurple,
-                    enabled = gyroMenu?.isAvailable == true,
-                ),
-            )
+    }
+    val layoutContext = QuickMenuContext(
+        inLogin = inLogin,
+        hasSavedLogin = wowQuick.hasLogin,
+        hasLoginNote = wowQuick.loginNote != null,
+        hasReportNote = wowQuick.reportNote != null,
+        hasPhysicalController = hasPhysicalController,
+        hasContainer = container != null,
+    )
+    val spielSections = quickMenuSections(QuickMenuPage.SPIEL, layoutContext)
+    val steuerungSections = quickMenuSections(QuickMenuPage.STEUERUNG, layoutContext)
+    val hilfeSections = quickMenuSections(QuickMenuPage.HILFE, layoutContext)
+
+    val gyroEnabled = gyroMenu?.settings?.mode?.let { it != GyroSettings.MODE_DISABLED } == true
+    val isRowActive: (Int) -> Boolean = { id ->
+        when (id) {
+            QuickMenuAction.GYRO -> gyroEnabled
+            else -> id in activeToggleIds || wowQuick.isOn(id)
+        }
+    }
+    var showGyroSettingsDialog by rememberSaveable(container?.id) { mutableStateOf(false) }
+    val onRowClick: (QuickMenuItem) -> Unit = { item ->
+        if (item.id == QuickMenuAction.GYRO && gyroMenu != null) {
+            gyroMenu.setEnabled(!gyroEnabled)
+        } else if (item.id == QuickMenuAction.CHECK_ICONS) {
+            // Check of the icon data and the cooldown strip; the dialog opens over the running game.
+            app.gamenative.cooldown.CooldownCheckDialog.show(checkContext)
+            onDismiss()
+        } else if (wowQuick.handle(item.id)) {
+            // Stick-Empfindlichkeit / Abklingzeiten / Touch-Schalter: wirkt sofort, das Menü bleibt offen.
+            // Anmeldung eintippen / Touch-Steuerung zeigen / Fehlerbericht: das Menü schließt, das Spiel läuft weiter.
+            if (wowQuick.closeRequested) onDismiss()
+        } else if (onItemSelected(item.id)) {
+            onDismiss()
+        }
+    }
+    // Zweites Symbol rechts neben der Zeile: Einstellungen des Modus, solange er an ist.
+    val rowExtraFor: (Int) -> QuickMenuRowExtra? = { id ->
+        when {
+            id == QuickMenuAction.TOUCHSCREEN_MODE && isTouchscreenModeActive ->
+                QuickMenuRowExtra(R.string.gesture_settings_title, onTouchGestureSettingsClick)
+            id == QuickMenuAction.SHOOTER_MODE && isShooterModeActive ->
+                QuickMenuRowExtra(R.string.shooter_mode_settings_title, onShooterModeSettingsClick)
+            id == QuickMenuAction.GYRO && gyroEnabled ->
+                QuickMenuRowExtra(R.string.gyro_settings_title) { showGyroSettingsDialog = true }
+            else -> null
         }
     }
 
-    var showGyroSettingsDialog by rememberSaveable(container?.id) { mutableStateOf(false) }
     var lsfgPresentMode by remember(container?.id) {
         mutableStateOf(container?.let { app.gamenative.utils.LsfgQuickMenuHelper.presentMode(it) } ?: "mailbox")
     }
@@ -446,12 +511,13 @@ fun QuickMenu(
             }
         )
     }
-    val selectedTabLabelResId = when (selectedTab) {
-        QuickMenuTab.HUD -> R.string.performance_hud
-        QuickMenuTab.LSFG -> R.string.lsfg_tab_title
-        QuickMenuTab.EFFECTS -> R.string.screen_effects
-        QuickMenuTab.TOOLS -> R.string.task_manager
-        else -> R.string.quick_menu_tab_controller
+    val selectedTabTitle = when (selectedTab) {
+        QuickMenuTab.HUD -> stringResource(R.string.performance_hud)
+        QuickMenuTab.LSFG -> stringResource(R.string.lsfg_tab_title)
+        QuickMenuTab.EFFECTS -> stringResource(R.string.screen_effects)
+        QuickMenuTab.TOOLS -> stringResource(QuickMenuPage.HILFE.titleRes)
+        QuickMenuTab.SPIEL -> stringResource(QuickMenuPage.SPIEL.titleRes)
+        else -> stringResource(QuickMenuPage.STEUERUNG.titleRes)
     }
 
     val hudScrollState = rememberScrollState()
@@ -459,6 +525,9 @@ fun QuickMenu(
     val lsfgScrollState = rememberScrollState()
     val effectsTabFocusRequester = remember { FocusRequester() }
     val controllerScrollState = rememberScrollState()
+    val spielScrollState = rememberScrollState()
+    val spielTabFocusRequester = remember { FocusRequester() }
+    val spielItemFocusRequester = remember { FocusRequester() }
     val lsfgTabFocusRequester = remember { FocusRequester() }
     val hudTabFocusRequester = remember { FocusRequester() }
     val controllerTabFocusRequester = remember { FocusRequester() }
@@ -573,9 +642,34 @@ fun QuickMenu(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
+                                // Reihenfolge nach Häufigkeit: Spiel, Steuerung, dann Anzeige und Leistung, zuletzt Hilfe.
+                                QuickMenuTabButton(
+                                    icon = Icons.Default.SportsEsports,
+                                    contentDescription = stringResource(QuickMenuPage.SPIEL.titleRes),
+                                    selected = selectedTab == QuickMenuTab.SPIEL,
+                                    accentColor = PluviaTheme.colors.accentPurple,
+                                    onSelected = {
+                                        selectedTab = QuickMenuTab.SPIEL
+                                        PrefManager.quickMenuLastTab = selectedTab
+                                    },
+                                    modifier = Modifier.width(56.dp),
+                                    focusRequester = spielTabFocusRequester,
+                                )
+                                QuickMenuTabButton(
+                                    icon = Icons.Default.Gamepad,
+                                    contentDescription = stringResource(QuickMenuPage.STEUERUNG.titleRes),
+                                    selected = selectedTab == QuickMenuTab.CONTROLLER,
+                                    accentColor = PluviaTheme.colors.accentPurple,
+                                    onSelected = {
+                                        selectedTab = QuickMenuTab.CONTROLLER
+                                        PrefManager.quickMenuLastTab = selectedTab
+                                    },
+                                    modifier = Modifier.width(56.dp),
+                                    focusRequester = controllerTabFocusRequester,
+                                )
                                 QuickMenuTabButton(
                                     icon = Icons.Default.QueryStats,
-                                    contentDescriptionResId = R.string.performance_hud,
+                                    contentDescription = stringResource(R.string.performance_hud),
                                     selected = selectedTab == QuickMenuTab.HUD,
                                     accentColor = PluviaTheme.colors.accentPurple,
                                     onSelected = {
@@ -588,7 +682,7 @@ fun QuickMenu(
                                 if (isLsfgAvailable) {
                                     QuickMenuTabButton(
                                         icon = Icons.Default.Speed,
-                                        contentDescriptionResId = R.string.lsfg_tab_title,
+                                        contentDescription = stringResource(R.string.lsfg_tab_title),
                                         selected = selectedTab == QuickMenuTab.LSFG,
                                         accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
@@ -602,7 +696,7 @@ fun QuickMenu(
                                 if (renderer != null || glRenderer != null) {
                                     QuickMenuTabButton(
                                         icon = Icons.Default.AutoFixHigh,
-                                        contentDescriptionResId = R.string.screen_effects,
+                                        contentDescription = stringResource(R.string.screen_effects),
                                         selected = selectedTab == QuickMenuTab.EFFECTS,
                                         accentColor = PluviaTheme.colors.accentPurple,
                                         onSelected = {
@@ -614,20 +708,8 @@ fun QuickMenu(
                                     )
                                 }
                                 QuickMenuTabButton(
-                                    icon = Icons.Default.Gamepad,
-                                    contentDescriptionResId = R.string.quick_menu_tab_controller,
-                                    selected = selectedTab == QuickMenuTab.CONTROLLER,
-                                    accentColor = PluviaTheme.colors.accentPurple,
-                                    onSelected = {
-                                        selectedTab = QuickMenuTab.CONTROLLER
-                                        PrefManager.quickMenuLastTab = selectedTab
-                                    },
-                                    modifier = Modifier.width(56.dp),
-                                    focusRequester = controllerTabFocusRequester,
-                                )
-                                QuickMenuTabButton(
                                     icon = Icons.Default.BarChart,
-                                    contentDescriptionResId = R.string.task_manager,
+                                    contentDescription = stringResource(QuickMenuPage.HILFE.titleRes),
                                     selected = selectedTab == QuickMenuTab.TOOLS,
                                     accentColor = PluviaTheme.colors.accentPurple,
                                     onSelected = { selectedTab = QuickMenuTab.TOOLS },
@@ -669,7 +751,7 @@ fun QuickMenu(
                                 .fillMaxSize(),
                         ) {
                             Text(
-                                text = stringResource(selectedTabLabelResId),
+                                text = selectedTabTitle,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -767,12 +849,41 @@ fun QuickMenu(
 
                                     QuickMenuTab.TOOLS -> {
                                         ToolsQuickMenuTab(
+                                            helpSections = hilfeSections,
+                                            itemsById = itemsById,
+                                            isActive = isRowActive,
+                                            onItemClick = onRowClick,
                                             processes = wineProcesses,
                                             isLoadingProcesses = isWineProcessesLoading,
                                             onEndProcess = onEndWineProcess,
                                             firstItemFocusRequester = toolsItemFocusRequester,
                                             modifier = Modifier.fillMaxSize(),
                                         )
+                                    }
+
+                                    QuickMenuTab.SPIEL -> {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .verticalScroll(spielScrollState)
+                                                .focusGroup(),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                                        ) {
+                                            QuickMenuRows(
+                                                sections = spielSections,
+                                                itemsById = itemsById,
+                                                wowQuick = wowQuick,
+                                                values = wowQuick.values(
+                                                    isRowActive(QuickMenuAction.SHOOTER_MODE),
+                                                    isRowActive(QuickMenuAction.GYRO),
+                                                    isRowActive(QuickMenuAction.DISABLE_MOUSE),
+                                                ),
+                                                isActive = isRowActive,
+                                                onItemClick = onRowClick,
+                                                extraFor = rowExtraFor,
+                                                firstItemFocusRequester = spielItemFocusRequester,
+                                            )
+                                        }
                                     }
 
                                     QuickMenuTab.CONTROLLER -> {
@@ -783,47 +894,20 @@ fun QuickMenu(
                                                 .focusGroup(),
                                             verticalArrangement = Arrangement.spacedBy(4.dp),
                                         ) {
-                                            val gyroEnabled = gyroMenu?.settings?.mode
-                                                ?.let { it != GyroSettings.MODE_DISABLED } == true
-                                            controllerItems.forEachIndexed { index, item ->
-                                                QuickMenuItemRow(
-                                                    item = item,
-                                                    isActive = if (item.id == QuickMenuAction.GYRO) {
-                                                        gyroEnabled
-                                                    } else {
-                                                        item.id in activeToggleIds
-                                                    },
-                                                    onClick = {
-                                                        if (item.id == QuickMenuAction.GYRO && gyroMenu != null) {
-                                                            gyroMenu.setEnabled(!gyroEnabled)
-                                                        } else if (onItemSelected(item.id)) {
-                                                            onDismiss()
-                                                        }
-                                                    },
-                                                    focusRequester = if (index == 0) controllerItemFocusRequester else null,
-                                                    secondaryIcon = if (item.id == QuickMenuAction.TOUCHSCREEN_MODE && isTouchscreenModeActive)
-                                                        Icons.Default.Settings
-                                                    else if (item.id == QuickMenuAction.SHOOTER_MODE && isShooterModeActive)
-                                                        Icons.Default.Settings
-                                                    else if (item.id == QuickMenuAction.GYRO && gyroEnabled)
-                                                        Icons.Default.Settings
-                                                    else null,
-                                                    secondaryContentDescriptionResId = if (item.id == QuickMenuAction.TOUCHSCREEN_MODE && isTouchscreenModeActive)
-                                                        R.string.gesture_settings_title
-                                                    else if (item.id == QuickMenuAction.SHOOTER_MODE && isShooterModeActive)
-                                                        R.string.shooter_mode_settings_title
-                                                    else if (item.id == QuickMenuAction.GYRO && gyroEnabled)
-                                                        R.string.gyro_settings_title
-                                                    else null,
-                                                    onSecondaryClick = if (item.id == QuickMenuAction.TOUCHSCREEN_MODE && isTouchscreenModeActive)
-                                                        onTouchGestureSettingsClick
-                                                    else if (item.id == QuickMenuAction.SHOOTER_MODE && isShooterModeActive)
-                                                        onShooterModeSettingsClick
-                                                    else if (item.id == QuickMenuAction.GYRO && gyroEnabled)
-                                                        ({ showGyroSettingsDialog = true })
-                                                    else null,
-                                                )
-                                            }
+                                            QuickMenuRows(
+                                                sections = steuerungSections,
+                                                itemsById = itemsById,
+                                                wowQuick = wowQuick,
+                                                values = wowQuick.values(
+                                                    isRowActive(QuickMenuAction.SHOOTER_MODE),
+                                                    isRowActive(QuickMenuAction.GYRO),
+                                                    isRowActive(QuickMenuAction.DISABLE_MOUSE),
+                                                ),
+                                                isActive = isRowActive,
+                                                onItemClick = onRowClick,
+                                                extraFor = rowExtraFor,
+                                                firstItemFocusRequester = controllerItemFocusRequester,
+                                            )
                                         }
                                     }
 
@@ -836,6 +920,16 @@ fun QuickMenu(
             }
         }
     }
+
+    if (wowQuick.showCredentialDialog) {
+        // Keine Anmeldedaten gespeichert: derselbe Dialog wie im Launcher, die Daten landen verschlüsselt an derselben Stelle.
+        app.gamenative.ui.screen.wow.BattleNetCredentialDialog(
+            onDismiss = { wowQuick.showCredentialDialog = false },
+            onConfirm = { login -> wowQuick.onCredentialsSaved(login) },
+        )
+    }
+
+    QuickMenuWowDialogs(wowQuick)
 
     if (showGyroSettingsDialog && gyroMenu != null) {
         GyroSettingsDialog(
@@ -872,6 +966,7 @@ fun QuickMenu(
                         QuickMenuTab.LSFG -> lsfgItemFocusRequester.requestFocus()
                         QuickMenuTab.EFFECTS -> effectsItemFocusRequester.requestFocus()
                         QuickMenuTab.TOOLS -> toolsItemFocusRequester.requestFocus()
+                        QuickMenuTab.SPIEL -> spielItemFocusRequester.requestFocus()
                         else -> controllerItemFocusRequester.requestFocus()
                     }
                     Timber.i("QuickMenu: requestFocus succeeded for tab=%d on attempt=%d", selectedTab, attempt)
@@ -886,8 +981,51 @@ fun QuickMenu(
     }
 }
 
+/** Zweites Symbol rechts neben einer Zeile (Einstellungen des Modus), mit Beschriftung für die Bedienungshilfe. */
+private class QuickMenuRowExtra(val descResId: Int, val onClick: () -> Unit) {
+    val icon: ImageVector get() = Icons.Default.Settings
+}
+
+/**
+ * Die Zeilen mehrerer Abschnitte untereinander, je Abschnitt mit Überschrift. Die erste Zeile bekommt [firstItemFocusRequester]
+ * (der Fokus landet beim Öffnen des Reiters dort). Gehört in eine Spalte mit Abstand zwischen den Zeilen.
+ */
+@Composable
+private fun QuickMenuSectionRows(
+    sections: List<QuickMenuSection>,
+    itemsById: Map<Int, QuickMenuItem>,
+    isActive: (Int) -> Boolean,
+    onItemClick: (QuickMenuItem) -> Unit,
+    extraFor: (Int) -> QuickMenuRowExtra? = { null },
+    firstItemFocusRequester: FocusRequester? = null,
+) {
+    var first = true
+    sections.forEachIndexed { sectionIndex, section ->
+        if (sectionIndex > 0) Spacer(modifier = Modifier.height(8.dp))
+        QuickMenuSectionHeader(title = section.title.asString())
+        section.ids.forEach { id ->
+            val item = itemsById[id] ?: return@forEach
+            val extra = extraFor(id)
+            QuickMenuItemRow(
+                item = item,
+                isActive = isActive(id),
+                onClick = { onItemClick(item) },
+                focusRequester = if (first) firstItemFocusRequester else null,
+                secondaryIcon = extra?.icon,
+                secondaryContentDescriptionResId = extra?.descResId,
+                onSecondaryClick = extra?.onClick,
+            )
+            first = false
+        }
+    }
+}
+
 @Composable
 private fun ToolsQuickMenuTab(
+    helpSections: List<QuickMenuSection>,
+    itemsById: Map<Int, QuickMenuItem>,
+    isActive: (Int) -> Boolean,
+    onItemClick: (QuickMenuItem) -> Unit,
     processes: List<ProcessInfo>,
     isLoadingProcesses: Boolean,
     onEndProcess: (ProcessInfo) -> Unit,
@@ -903,8 +1041,19 @@ private fun ToolsQuickMenuTab(
             .focusGroup(),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        // Oben die Hilfe (Fehlerbericht), darunter der Task-Manager mit den laufenden Prozessen.
+        QuickMenuSectionRows(
+            sections = helpSections,
+            itemsById = itemsById,
+            isActive = isActive,
+            onItemClick = onItemClick,
+            firstItemFocusRequester = firstItemFocusRequester,
+        )
+        if (helpSections.isNotEmpty()) Spacer(modifier = Modifier.height(8.dp))
+
         QuickMenuSectionHeader(
-            title = if (isLoadingProcesses) {
+            title = stringResource(R.string.task_manager),
+            subtitle = if (isLoadingProcesses) {
                 stringResource(R.string.main_loading)
             } else {
                 stringResource(R.string.tools_wine_processes_running_hint, processes.size)
@@ -927,7 +1076,7 @@ private fun ToolsQuickMenuTab(
                     onActivate = {
                         onEndProcess(process)
                     },
-                    focusRequester = if (index == 0) firstItemFocusRequester else null,
+                    focusRequester = if (index == 0 && helpSections.isEmpty()) firstItemFocusRequester else null,
                 )
             }
         }
@@ -1415,6 +1564,594 @@ private fun LsfgQuickMenuTab(
     }
 }
 
+/**
+ * Die Zeilen der Reiter Spiel und Steuerung: je Abschnitt eine Überschrift (in der Steuerung klappbar, Akkordeon), darunter
+ * kompakte Zeilen mit Titel links und Wert rechts. Die Zeilen selbst (Art, Titel, Wert) kommen aus QuickMenuRows.kt, die Gliederung
+ * aus QuickMenuLayout.kt. Die erste Zeile bekommt [firstItemFocusRequester] (der Fokus landet beim Öffnen des Reiters dort).
+ * Gehört in eine Spalte mit Abstand zwischen den Zeilen.
+ */
+@Composable
+private fun QuickMenuRows(
+    sections: List<QuickMenuSection>,
+    itemsById: Map<Int, QuickMenuItem>,
+    wowQuick: WowQuickSettings,
+    values: QuickMenuValues,
+    isActive: (Int) -> Boolean,
+    onItemClick: (QuickMenuItem) -> Unit,
+    extraFor: (Int) -> QuickMenuRowExtra?,
+    firstItemFocusRequester: FocusRequester?,
+) {
+    val accent = PluviaTheme.colors.accentPurple
+    val open = QuickMenuAccordion.resolve(wowQuick.openGroupSaved, sections)
+    var first = true
+    sections.forEachIndexed { sectionIndex, section ->
+        if (sectionIndex > 0) Spacer(modifier = Modifier.height(4.dp))
+        val groupId = section.groupId
+        val isOpen = !section.collapsible || groupId == open
+        if (section.collapsible && groupId != null) {
+            QuickMenuGroupHeader(
+                title = section.title.asString(),
+                summary = if (isOpen) null else quickMenuGroupSummary(groupId, values).asString(),
+                open = isOpen,
+                accentColor = accent,
+                onClick = { wowQuick.toggleGroup(sections, groupId) },
+                focusRequester = if (first) firstItemFocusRequester else null,
+            )
+            first = false
+        } else {
+            QuickMenuSectionHeader(title = section.title.asString())
+        }
+        if (isOpen) {
+            section.ids.forEach { id ->
+                val view = quickMenuRowView(id, values)?.resolve(androidx.compose.ui.platform.LocalContext.current)
+                if (view != null) {
+                    val item = itemsById[id] ?: QuickMenuItem(id, Icons.Default.Settings, R.string.input_controls)
+                    QuickMenuOneRow(
+                        id = id,
+                        view = view,
+                        item = item,
+                        on = isActive(id),
+                        wowQuick = wowQuick,
+                        onItemClick = onItemClick,
+                        extra = extraFor(id),
+                        accentColor = accent,
+                        focusRequester = if (first) firstItemFocusRequester else null,
+                    )
+                    first = false
+                }
+            }
+            val note = section.note?.asString()
+            if (note != null) {
+                Text(
+                    text = note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Eine Zeile je nach Art (QuickMenuRowKind), danach ihre Anmerkung (zum Beispiel warum etwas nicht ging). */
+@Composable
+private fun QuickMenuOneRow(
+    id: Int,
+    view: QuickMenuRowText,
+    item: QuickMenuItem,
+    on: Boolean,
+    wowQuick: WowQuickSettings,
+    onItemClick: (QuickMenuItem) -> Unit,
+    extra: QuickMenuRowExtra?,
+    accentColor: Color,
+    focusRequester: FocusRequester?,
+) {
+    when (view.kind) {
+        QuickMenuRowKind.ICON -> QuickMenuItemRow(
+            item = item,
+            isActive = on,
+            onClick = { onItemClick(item) },
+            focusRequester = focusRequester,
+        )
+        QuickMenuRowKind.STEP -> QuickMenuStepLine(
+            view = view,
+            accentColor = accentColor,
+            onStep = { delta -> wowQuick.adjust(id, delta) },
+            focusRequester = focusRequester,
+        )
+        QuickMenuRowKind.CHOICE -> QuickMenuChoiceLine(
+            view = view,
+            accentColor = accentColor,
+            onChoose = { index -> wowQuick.choose(id, index) },
+            focusRequester = focusRequester,
+        )
+        QuickMenuRowKind.NOTE -> {
+            if (view.value.isNotBlank()) {
+                Text(
+                    text = view.value,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                )
+            }
+        }
+        QuickMenuRowKind.TOGGLE, QuickMenuRowKind.VALUE -> QuickMenuLine(
+            view = view,
+            on = on,
+            enabled = item.enabled && view.enabled,
+            accentColor = accentColor,
+            onClick = { onItemClick(item) },
+            extra = extra,
+            focusRequester = focusRequester,
+        )
+    }
+    val note = view.note
+    if (note != null && view.kind != QuickMenuRowKind.NOTE) {
+        Text(
+            text = note,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+        )
+    }
+}
+
+/** Dialoge des Seitenmenüs, die über dem Spiel stehen: Auswahlliste des Klick-Rads und die Rückfrage zum Layout. */
+@Composable
+private fun QuickMenuWowDialogs(wowQuick: WowQuickSettings) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val picker = wowQuick.wheelPicker
+    if (picker != null) {
+        WheelActionDialog(
+            direction = picker,
+            currentId = ClickWheel.actionFor(picker, wowQuick.touchOptions.wheelAssignment[picker]).id,
+            onPick = { actionId -> wowQuick.pickWheelAction(picker, actionId) },
+            onDismiss = { wowQuick.wheelPicker = null },
+        )
+    }
+    if (wowQuick.showResetConfirm) {
+        LayoutResetDialog(
+            text = stringResource(WowTouchProfiles.RESET_CONFIRM_TEXT, WowTouchProfiles.resetTargetName(InputMode.current(context))),
+            onConfirm = { wowQuick.confirmResetLayout() },
+            onDismiss = { wowQuick.showResetConfirm = false },
+        )
+    }
+}
+
+/** Kopf einer klappbaren Gruppe: Name, im zugeklappten Zustand die Kurzinfo der Werte, rechts der Pfeil. Auch per Controller bedienbar. */
+@Composable
+private fun QuickMenuGroupHeader(
+    title: String,
+    summary: String?,
+    open: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit,
+    focusRequester: FocusRequester?,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val fallbackFocusRequester = remember { FocusRequester() }
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .clip(shape)
+            .background(
+                if (isFocused) accentColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+            )
+            .focusRing(interactionSource, shape, width = 2.dp)
+            .focusRequester(focusRequester ?: fallbackFocusRequester)
+            .onPreviewKeyEvent { keyEvent ->
+                if (keyEvent.nativeKeyEvent.action != KeyEvent.ACTION_DOWN || !isFocused) {
+                    return@onPreviewKeyEvent false
+                }
+                when (keyEvent.nativeKeyEvent.keyCode) {
+                    KeyEvent.KEYCODE_BUTTON_A,
+                    KeyEvent.KEYCODE_DPAD_CENTER,
+                    KeyEvent.KEYCODE_ENTER,
+                    -> {
+                        onClick()
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .selectable(
+                selected = open,
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .focusable(interactionSource = interactionSource)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (isFocused) accentColor else MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!summary.isNullOrBlank()) {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Icon(
+            imageVector = if (open) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+            contentDescription = null,
+            tint = if (isFocused) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+/**
+ * Kompakte Zeile: Titel links (eine Zeile), rechts der Schalter (TOGGLE) oder der Wert (VALUE). Mit [extra] folgt rechts ein
+ * Zahnrad für die Einstellungen des Modus; vom Controller erreicht man es mit der Taste nach rechts.
+ */
+@Composable
+private fun QuickMenuLine(
+    view: QuickMenuRowText,
+    on: Boolean,
+    enabled: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit,
+    extra: QuickMenuRowExtra?,
+    focusRequester: FocusRequester?,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val fallbackFocusRequester = remember { FocusRequester() }
+    val rowFocusRequester = focusRequester ?: fallbackFocusRequester
+    val extraFocusRequester = remember { FocusRequester() }
+    val extraInteractionSource = remember { MutableInteractionSource() }
+    val isExtraFocused by extraInteractionSource.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(12.dp)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 44.dp)
+                .alpha(if (enabled) 1f else 0.45f)
+                .clip(shape)
+                .background(
+                    if (isFocused && enabled) accentColor.copy(alpha = 0.15f)
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.14f),
+                )
+                .then(if (enabled) Modifier.focusRing(interactionSource, shape, width = 2.dp) else Modifier)
+                .focusRequester(rowFocusRequester)
+                .onPreviewKeyEvent { keyEvent ->
+                    if (keyEvent.nativeKeyEvent.action != KeyEvent.ACTION_DOWN || !isFocused) {
+                        return@onPreviewKeyEvent false
+                    }
+                    when (keyEvent.nativeKeyEvent.keyCode) {
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            if (extra != null) {
+                                extraFocusRequester.requestFocus()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        KeyEvent.KEYCODE_BUTTON_A,
+                        KeyEvent.KEYCODE_DPAD_CENTER,
+                        KeyEvent.KEYCODE_ENTER,
+                        -> {
+                            if (enabled) onClick()
+                            true
+                        }
+                        else -> false
+                    }
+                }
+                .selectable(
+                    selected = isFocused,
+                    enabled = enabled,
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick,
+                )
+                .focusable(enabled = enabled, interactionSource = interactionSource)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = view.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isFocused) accentColor else MaterialTheme.colorScheme.onSurface,
+                fontWeight = if (isFocused) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (view.kind == QuickMenuRowKind.TOGGLE) {
+                QuickMenuSwitch(enabled = on, accentColor = accentColor)
+            } else {
+                Text(
+                    text = view.value,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (isFocused) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        if (extra != null) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .focusRing(extraInteractionSource, CircleShape, width = 2.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isExtraFocused) accentColor.copy(alpha = 0.2f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    )
+                    .focusRequester(extraFocusRequester)
+                    .onPreviewKeyEvent { keyEvent ->
+                        if (keyEvent.nativeKeyEvent.action != KeyEvent.ACTION_DOWN || !isExtraFocused) {
+                            return@onPreviewKeyEvent false
+                        }
+                        when (keyEvent.nativeKeyEvent.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                rowFocusRequester.requestFocus()
+                                true
+                            }
+                            KeyEvent.KEYCODE_BUTTON_A,
+                            KeyEvent.KEYCODE_DPAD_CENTER,
+                            KeyEvent.KEYCODE_ENTER,
+                            -> {
+                                extra.onClick()
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                    .clickable(
+                        interactionSource = extraInteractionSource,
+                        indication = null,
+                        role = Role.Button,
+                        onClick = extra.onClick,
+                    )
+                    .focusable(interactionSource = extraInteractionSource),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = extra.icon,
+                    contentDescription = stringResource(extra.descResId),
+                    tint = if (isExtraFocused) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Zeile mit "- Wert +": Titel links, rechts die beiden Knöpfe um den Wert. Per Controller: A sperrt die Zeile, dann ändern links und
+ * rechts den Wert, B oder A gibt sie wieder frei (damit links und rechts sonst zwischen den Reitern springen).
+ */
+@Composable
+private fun QuickMenuStepLine(
+    view: QuickMenuRowText,
+    accentColor: Color,
+    onStep: (Int) -> Unit,
+    focusRequester: FocusRequester?,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    var locked by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
+    val enabled = view.enabled
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .heightIn(min = 44.dp)
+            .alpha(if (enabled) 1f else 0.45f)
+            .clip(shape)
+            .background(
+                if (isFocused && enabled) accentColor.copy(alpha = 0.15f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.14f),
+            )
+            .then(
+                if (isFocused && !locked && enabled) Modifier.border(2.dp, accentColor.copy(alpha = 0.7f), shape) else Modifier,
+            )
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .onFocusChanged { if (!it.isFocused) locked = false }
+            .onPreviewKeyEvent { keyEvent ->
+                if (keyEvent.nativeKeyEvent.action != KeyEvent.ACTION_DOWN || !isFocused || !enabled) {
+                    return@onPreviewKeyEvent false
+                }
+                when (keyEvent.nativeKeyEvent.keyCode) {
+                    KeyEvent.KEYCODE_BUTTON_A,
+                    KeyEvent.KEYCODE_DPAD_CENTER,
+                    KeyEvent.KEYCODE_ENTER,
+                    -> {
+                        locked = !locked
+                        true
+                    }
+                    KeyEvent.KEYCODE_BUTTON_B -> {
+                        if (locked) {
+                            locked = false
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (locked) {
+                            onStep(-1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (locked) {
+                            onStep(1)
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
+                }
+            }
+            .selectable(
+                selected = isFocused,
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = {},
+            )
+            .focusable(enabled = enabled, interactionSource = interactionSource)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = view.title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (isFocused) accentColor else MaterialTheme.colorScheme.onSurface,
+            fontWeight = if (isFocused) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            QuickMenuStepButton(text = "−", locked = locked, accentColor = accentColor, enabled = enabled) { onStep(-1) }
+            Text(
+                text = view.value,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (isFocused || locked) accentColor else MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier.widthIn(min = 48.dp),
+            )
+            QuickMenuStepButton(text = "+", locked = locked, accentColor = accentColor, enabled = enabled) { onStep(1) }
+        }
+    }
+}
+
+/** Minus- oder Plusknopf der Wertzeile; nur zum Tippen (der Controller bedient die ganze Zeile, daher nicht fokussierbar). */
+@Composable
+private fun QuickMenuStepButton(
+    text: String,
+    locked: Boolean,
+    accentColor: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(shape)
+            .background(
+                if (locked) accentColor.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            )
+            .border(
+                width = if (locked) 2.dp else 1.dp,
+                color = if (locked) accentColor.copy(alpha = 0.9f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                shape = shape,
+            )
+            .focusProperties { canFocus = false }
+            .clickable(
+                enabled = enabled,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (locked) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Zeile mit Auswahlknöpfen: Titel, darunter die Knöpfe nebeneinander; darunter der volle Name des Gewählten, wenn der Knopf ihn kürzt. */
+@Composable
+private fun QuickMenuChoiceLine(
+    view: QuickMenuRowText,
+    accentColor: Color,
+    onChoose: (Int) -> Unit,
+    focusRequester: FocusRequester?,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.14f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = view.title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            view.chips.forEachIndexed { index, chip ->
+                QuickMenuChoiceChip(
+                    text = chip,
+                    selected = index == view.selected,
+                    accentColor = accentColor,
+                    onClick = { onChoose(index) },
+                    modifier = Modifier.weight(1f),
+                    focusRequester = if (index == 0) focusRequester else null,
+                    compact = true,
+                )
+            }
+        }
+        val detail = view.detail
+        if (detail != null) {
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 @Composable
 private fun QuickMenuSectionHeader(
     title: String,
@@ -1486,7 +2223,7 @@ private fun QuickMenuCloseButton(
 @Composable
 private fun QuickMenuTabButton(
     icon: ImageVector,
-    contentDescriptionResId: Int,
+    contentDescription: String,
     selected: Boolean,
     accentColor: Color,
     onSelected: () -> Unit,
@@ -1532,7 +2269,7 @@ private fun QuickMenuTabButton(
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = stringResource(contentDescriptionResId),
+            contentDescription = contentDescription,
             tint = when {
                 selected || isFocused -> accentColor
                 else -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -1616,6 +2353,7 @@ private fun QuickMenuChoiceChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    compact: Boolean = false,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -1623,7 +2361,7 @@ private fun QuickMenuChoiceChip(
 
     Box(
         modifier = modifier
-            .height(44.dp)
+            .height(if (compact) 36.dp else 44.dp)
             .then(
                 if (isFocused) {
                     Modifier.border(
@@ -1661,7 +2399,7 @@ private fun QuickMenuChoiceChip(
                 onClick = onClick,
             )
             .focusable(interactionSource = interactionSource)
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = if (compact) 4.dp else 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -1669,6 +2407,8 @@ private fun QuickMenuChoiceChip(
             style = MaterialTheme.typography.labelLarge,
             color = if (selected || isFocused) accentColor else MaterialTheme.colorScheme.onSurface,
             fontWeight = if (selected || isFocused) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = if (compact) 1 else Int.MAX_VALUE,
+            overflow = if (compact) TextOverflow.Ellipsis else TextOverflow.Clip,
         )
     }
 }
@@ -2279,7 +3019,7 @@ private fun QuickMenuItemRow(
             }
 
             Text(
-                text = stringResource(item.labelResId),
+                text = item.label ?: stringResource(item.labelResId),
                 style = MaterialTheme.typography.bodyLarge,
                 color = when {
                     !isEnabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = disabledAlpha)

@@ -4,10 +4,12 @@ import static com.winlator.core.ProcessHelper.splitCommand;
 
 import android.content.Context;
 import android.media.Image;
+import android.os.Looper;
 import android.os.Process;
 import android.util.Log;
 
 import app.gamenative.BuildConfig;
+import app.gamenative.utils.BoundedProcess;
 import com.winlator.PrefManager;
 import com.winlator.box86_64.Box86_64Preset;
 import com.winlator.box86_64.Box86_64PresetManager;
@@ -92,8 +94,19 @@ public class GlibcProgramLauncherComponent extends GuestProgramLauncherComponent
                 }
                 PluviaApp.setKeepAlive(false);
             }
-            execShellCommand("wineserver -k");
+            killWineserver();
         }
+    }
+
+    // wineserver -k mit Zeitlimit (haengt es, wird der Prozess zerstoert) und auf dem Hauptthread nie blockierend.
+    private void killWineserver() {
+        BoundedProcess.runOffMain(Looper.myLooper() == Looper.getMainLooper(), "wineserver-kill", () -> {
+            try {
+                execShellCommand("wineserver -k", true, (int) (BoundedProcess.WINESERVER_KILL_TIMEOUT_MS / 1000));
+            } catch (Exception e) {
+                Log.w("GlibcProgramLauncherComponent", "wineserver -k failed: " + e);
+            }
+        });
     }
 
     public Callback<Integer> getTerminationCallback() {
@@ -285,6 +298,11 @@ public class GlibcProgramLauncherComponent extends GuestProgramLauncherComponent
     }
 
     public String execShellCommand(String command, boolean includeStderr) {
+        return execShellCommand(command, includeStderr, -1);
+    }
+
+    /** Wie oben; timeoutSeconds > 0 zerstoert den Prozess nach dieser Zeit. */
+    public String execShellCommand(String command, boolean includeStderr, int timeoutSeconds) {
         Context context = environment.getContext();
         ImageFs imageFs = ImageFs.find(context);
         File rootDir = imageFs.getRootDir();
@@ -337,6 +355,6 @@ public class GlibcProgramLauncherComponent extends GuestProgramLauncherComponent
         // Execute the command and capture its output
         Log.d("GlibcProgramLauncherComponent", "Shell command is " + finalCommand);
         return ProcessHelper.execWithOutput(finalCommand, envVars.toStringArray(),
-                workingDir != null ? workingDir : imageFs.getRootDir(), includeStderr);
+                workingDir != null ? workingDir : imageFs.getRootDir(), includeStderr, timeoutSeconds);
     }
 }

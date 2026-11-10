@@ -208,9 +208,85 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
 
     public void setDefaultRadialMenu(RadialMenu menu) {
         if (!radialMenusLoaded) loadRadialMenus();
-        radialMenus.clear();
-        radialMenus.add(menu != null ? menu : RadialMenu.createDefault());
+        RadialMenu next = menu != null ? menu : RadialMenu.createDefault();
+        // Index 0 is the default menu; menus of radial buttons (index 1..) stay untouched.
+        if (radialMenus.isEmpty()) radialMenus.add(next);
+        else radialMenus.set(0, next);
         radialMenusLoaded = true;
+    }
+
+    /** All menus of this profile; index 0 is the default menu. */
+    public List<RadialMenu> getRadialMenus() {
+        getDefaultRadialMenu();
+        return new ArrayList<>(radialMenus);
+    }
+
+    /** Replaces all menus; the first one becomes the default menu. */
+    public void setRadialMenus(List<RadialMenu> menus) {
+        if (!radialMenusLoaded) loadRadialMenus();
+        radialMenus.clear();
+        if (menus != null) {
+            for (RadialMenu menu : menus) {
+                if (menu != null) radialMenus.add(menu);
+            }
+        }
+        if (radialMenus.isEmpty()) radialMenus.add(RadialMenu.createDefault());
+        radialMenusLoaded = true;
+    }
+
+    /** Menu with this id, or null if the id is empty or unknown. */
+    public RadialMenu findRadialMenu(String menuId) {
+        if (menuId == null || menuId.isEmpty()) return null;
+        getDefaultRadialMenu();
+        for (RadialMenu menu : radialMenus) {
+            if (menuId.equals(menu.getId())) return menu;
+        }
+        return null;
+    }
+
+    /** Menu of a radial button: its own menu, or the default menu for an empty or unknown id. */
+    public RadialMenu getRadialMenu(String menuId) {
+        RadialMenu menu = findRadialMenu(menuId);
+        return menu != null ? menu : getDefaultRadialMenu();
+    }
+
+    /** Replaces the menu with the same id, or appends it. */
+    public void putRadialMenu(RadialMenu menu) {
+        if (menu == null) return;
+        getDefaultRadialMenu();
+        for (int i = 0; i < radialMenus.size(); i++) {
+            if (radialMenus.get(i).getId().equals(menu.getId())) {
+                radialMenus.set(i, menu);
+                return;
+            }
+        }
+        radialMenus.add(menu);
+    }
+
+    /** Removes a radial-button menu; the default menu (index 0) can not be removed. */
+    public boolean removeRadialMenu(String menuId) {
+        if (menuId == null || menuId.isEmpty()) return false;
+        getDefaultRadialMenu();
+        for (int i = 1; i < radialMenus.size(); i++) {
+            if (menuId.equals(radialMenus.get(i).getId())) {
+                radialMenus.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Adds a new menu for a radial button (number keys 1..count) and returns it. */
+    public RadialMenu createButtonRadialMenu(int slotCount) {
+        getDefaultRadialMenu();
+        int number = 1;
+        String menuId;
+        do {
+            menuId = "button-" + number++;
+        } while (findRadialMenu(menuId) != null);
+        RadialMenu menu = RadialMenu.createNumberKeys(menuId, "Radial button", slotCount);
+        radialMenus.add(menu);
+        return menu;
     }
 
     public boolean isTemplate() {
@@ -348,7 +424,14 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                 element.setScale((float)elementJSONObject.getDouble("scale"));
                 element.setText(elementJSONObject.getString("text"));
                 element.setIconId(elementJSONObject.getInt("iconId"));
-                if (elementJSONObject.has("range")) element.setRange(ControlElement.Range.valueOf(elementJSONObject.getString("range")));
+                if (elementJSONObject.has("range")) {
+                    try {
+                        element.setRange(ControlElement.Range.valueOf(elementJSONObject.getString("range")));
+                    } catch (IllegalArgumentException e) {
+                        // unknown range name (newer or damaged file): the strip keeps the default A-Z
+                        Log.w("ControlsProfile", "Unknown range: " + elementJSONObject.getString("range"));
+                    }
+                }
                 if (elementJSONObject.has("orientation")) element.setOrientation((byte)elementJSONObject.getInt("orientation"));
                 if (elementJSONObject.has("scrollLocked")) element.setScrollLocked(elementJSONObject.getBoolean("scrollLocked"));
 
@@ -365,17 +448,34 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
                 if (elementJSONObject.has("buttonOpacity")) element.setButtonOpacity((float)elementJSONObject.getDouble("buttonOpacity"));
                 if (elementJSONObject.has("buttonStrokeScale")) element.setButtonStrokeScale((float)elementJSONObject.getDouble("buttonStrokeScale"));
                 if (elementJSONObject.has("shooterLookThrough")) element.setShooterLookThrough(elementJSONObject.getBoolean("shooterLookThrough"));
+                if (elementJSONObject.has("radialMenuId")) element.setRadialMenuId(elementJSONObject.optString("radialMenuId", null));
+                // Free shape, scroll wheel and key ring (all optional, missing = old behaviour)
+                element.readExtrasFromJson(elementJSONObject);
 
                 boolean hasGamepadBinding = true;
                 JSONArray bindingsJSONArray = elementJSONObject.getJSONArray("bindings");
-                element.setBindingCount(Math.max(bindingsJSONArray.length(), 4));
+                // A key strip stores its number of visible keys here, so it may have fewer than four; everything else has four slots.
+                int minBindings = element.getType() == ControlElement.Type.RANGE_BUTTON ? 1 : 4;
+                element.setBindingCount(Math.max(bindingsJSONArray.length(), minBindings));
                 for (int j = 0; j < bindingsJSONArray.length(); j++) {
                     BindingCombo binding = BindingCombo.fromJsonValue(bindingsJSONArray.get(j));
                     element.setBindingComboAt(j, binding);
                     if (!binding.isGamepadOnly()) hasGamepadBinding = false;
                 }
+                // Free key strip: never more visible keys than entries; without entries (damaged file) back to A-Z.
+                element.normalizeCustomRange();
+                element.clampRangeVisible();
+                if (elementJSONObject.has("wowAction")) {
+                    // The key of a WoW action follows the player's key bindings in WoW (resolved when the game starts).
+                    element.setWowAction(elementJSONObject.optString("wowAction", ""));
+                    element.applyWowActionBinding();
+                }
 
-                if (!virtualGamepad && hasGamepadBinding) virtualGamepad = true;
+                if (elementJSONObject.has("chatCommand")) {
+                    element.setChatCommand(elementJSONObject.optString("chatCommand", ""));
+                }
+
+                if (!virtualGamepad && (hasGamepadBinding || element.hasRingGamepadBinding())) virtualGamepad = true;
                 elements.add(element);
             }
             elementsLoaded = true;

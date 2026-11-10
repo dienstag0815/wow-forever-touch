@@ -69,6 +69,8 @@ fun TouchGestureSettingsDialog(
     gestureConfig: TouchGestureConfig,
     onDismiss: () -> Unit,
     onSave: (TouchGestureConfig) -> Unit,
+    /** WoW launcher: "WoW-Standard" button; returns the defaults, which are shown at once (null = no button). */
+    onReset: (() -> TouchGestureConfig)? = null,
 ) {
     var config by remember { mutableStateOf(gestureConfig) }
 
@@ -98,6 +100,9 @@ fun TouchGestureSettingsDialog(
                         }
                     },
                     actions = {
+                        if (onReset != null) {
+                            TextButton(onClick = { config = onReset() }) { Text("WoW-Standard") }
+                        }
                         IconButton(onClick = { onSave(config) }) {
                             Icon(Icons.Default.Check, contentDescription = stringResource(R.string.save))
                         }

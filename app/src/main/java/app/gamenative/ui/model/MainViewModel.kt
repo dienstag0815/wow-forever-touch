@@ -10,6 +10,7 @@ import app.gamenative.R
 import app.gamenative.events.AndroidEvent
 import app.gamenative.ui.enums.Orientation
 import java.util.EnumSet
+import app.gamenative.ui.components.BootingSplashLogic
 import app.gamenative.ui.data.MainState
 import app.gamenative.ui.screen.PluviaScreen
 import app.gamenative.ui.util.SnackbarManager
@@ -165,6 +166,8 @@ class MainViewModel @Inject constructor(
         PrefManager.hasAttemptedGameLaunch = true
         launchAppJob?.cancel()
         launchAppJob = viewModelScope.launch {
+            // Neuer Start: nicht mit dem Text des letzten Starts ("Launching game...") beginnen.
+            setBootingSplashText(BootingSplashLogic.TEXT_START)
             setShowBootingSplash(true)
             PluviaApp.events.emit(AndroidEvent.SetAllowedOrientation(PrefManager.allowedOrientation))
 

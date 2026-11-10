@@ -306,7 +306,7 @@ object PrefManager {
 
     private val QUICK_MENU_LAST_TAB = intPreferencesKey("quick_menu_last_tab")
     var quickMenuLastTab: Int
-        get() = getPref(QUICK_MENU_LAST_TAB, 0)
+        get() = getPref(QUICK_MENU_LAST_TAB, 5)
         set(value) {
             setPref(QUICK_MENU_LAST_TAB, value.coerceIn(0, 6))
         }
@@ -526,6 +526,15 @@ object PrefManager {
         get() = getPref(WOW64_MODE, true)
         set(value) {
             setPref(WOW64_MODE, value)
+        }
+
+    private val WOW_EMOJI_SYMBOLS = booleanPreferencesKey("wow_emoji_symbols")
+
+    /** WoW actions on ring keys, wheel fields and buttons show their emoji (true) or the own vector symbol (false). */
+    var wowEmojiSymbols: Boolean
+        get() = getPref(WOW_EMOJI_SYMBOLS, true)
+        set(value) {
+            setPref(WOW_EMOJI_SYMBOLS, value)
         }
 
     private val STARTUP_SELECTION = intPreferencesKey("startup_selection")
@@ -767,4 +776,9 @@ object PrefManager {
     var appLanguage: String
         get() = getPref(APP_LANGUAGE, "")
         set(value) = setPref(APP_LANGUAGE, value)
+
+    /** Writes the app language and waits until it is stored (a recreated activity reads it at once, a background write could lose the race). */
+    fun setAppLanguageNow(value: String) {
+        runBlocking { dataStore.edit { it[APP_LANGUAGE] = value } }
+    }
 }

@@ -48,10 +48,11 @@ class InputControlsProfileCopyTest {
         assertEquals(sourceElement.text, copiedElement.text)
         assertEquals(sourceElement.getBindingComboAt(0), copiedElement.getBindingComboAt(0))
 
-        val radialMenuCaptor = argumentCaptor<RadialMenu>()
-        verify(target).setDefaultRadialMenu(radialMenuCaptor.capture())
-        assertNotSame(sourceRadialMenu, radialMenuCaptor.firstValue)
-        assertEquals(sourceRadialMenu.toJSONObject().toString(), radialMenuCaptor.firstValue.toJSONObject().toString())
+        val radialMenuCaptor = argumentCaptor<List<RadialMenu>>()
+        verify(target).setRadialMenus(radialMenuCaptor.capture())
+        assertEquals(1, radialMenuCaptor.firstValue.size)
+        assertNotSame(sourceRadialMenu, radialMenuCaptor.firstValue[0])
+        assertEquals(sourceRadialMenu.toJSONObject().toString(), radialMenuCaptor.firstValue[0].toJSONObject().toString())
         verify(view).onControlsProfileContentChanged(true)
         verify(view).invalidate()
     }

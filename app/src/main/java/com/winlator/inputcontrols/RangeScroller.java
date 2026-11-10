@@ -15,7 +15,12 @@ public class RangeScroller {
     private float currentOffset;
     private float lastPosition;
     private long touchTime;
+    // Template strips (A-Z, ...) press one key per cell; the free list ("Eigene") presses the key combination of its entry
+    // or types its chat command once.
     private Binding binding = Binding.NONE;
+    private BindingCombo customCombo;
+    private String customChat;
+    private boolean customChatDone;
     private int activeIndex = -1;
     private boolean isActionDown = false;
     private boolean scrolling = false;
@@ -27,13 +32,19 @@ public class RangeScroller {
         this.element = element;
     }
 
+    /** Number of entries the strip scrolls through (the free list has its own count, a template a fixed one). */
+    private int count() {
+        ControlElement.Range range = element.getRange();
+        return range == ControlElement.Range.CUSTOM ? element.getRangeItemCount() : range.max;
+    }
+
     public float getElementSize() {
         Rect boundingBox = element.getBoundingBox();
         return (float)Math.max(boundingBox.width(), boundingBox.height()) / element.getBindingCount();
     }
 
     public float getScrollSize() {
-        return getElementSize() * element.getRange().max;
+        return getElementSize() * count();
     }
 
     public float getScrollOffset() {
@@ -41,9 +52,10 @@ public class RangeScroller {
     }
 
     public byte[] getRangeIndex() {
-        ControlElement.Range range = element.getRange();
-        byte from = (byte)Math.floor((scrollOffset / getElementSize()) % range.max);
-        if (from < 0) from = (byte)(range.max + from);
+        int count = count();
+        if (count <= 0) return new byte[]{0, 0};
+        byte from = (byte)Math.floor((scrollOffset / getElementSize()) % count);
+        if (from < 0) from = (byte)(count + from);
         byte to = (byte)(from + element.getBindingCount() + 1);
         return new byte[]{from, to};
     }
@@ -52,29 +64,69 @@ public class RangeScroller {
         return activeIndex;
     }
 
-    private int getIndexByPosition(float x, float y) {
-        Rect boundingBox = element.getBoundingBox();
-        ControlElement.Range range = element.getRange();
-        float offset = element.getOrientation() == 0 ? x - boundingBox.left - currentOffset : y - boundingBox.top - currentOffset;
-        int index = (int)Math.floor((offset / getElementSize()) % range.max);
-        if (index < 0) index = range.max + index;
+    /**
+     * Index of the entry under [position] (x of a horizontal strip, y of a vertical one) when the strip starts at [start] and is
+     * shifted by [currentOffset] (negative = pulled to the left/top), cells of [cellSize], [count] entries in a ring. -1 for an
+     * empty strip. This is the same cell the drawing shows there.
+     */
+    public static int indexAt(float position, float start, float currentOffset, float cellSize, int count) {
+        if (count <= 0 || cellSize <= 0.0f) return -1;
+        float offset = position - start - currentOffset;
+        int index = (int)Math.floor((offset / cellSize) % count);
+        if (index < 0) index = count + index;
         return index;
     }
 
+    private int getIndexByPosition(float x, float y) {
+        Rect boundingBox = element.getBoundingBox();
+        boolean horizontal = element.getOrientation() == 0;
+        return indexAt(horizontal ? x : y, horizontal ? boundingBox.left : boundingBox.top, currentOffset, getElementSize(), count());
+    }
+
     private Binding getBindingByIndex(int index) {
-        ControlElement.Range range = element.getRange();
-        switch (range) {
-            case FROM_A_TO_Z:
-                return Binding.valueOf("KEY_"+((char)(65 + index)));
-            case FROM_0_TO_9:
-                return Binding.valueOf("KEY_"+((index + 1) % 10));
-            case FROM_F1_TO_F12:
-                return Binding.valueOf("KEY_F"+(index + 1));
-            case FROM_NP0_TO_NP9:
-                return Binding.valueOf("KEY_KP_"+((index + 1) % 10));
-            default:
-                return Binding.NONE;
+        return element.getRange().bindingAt(index);
+    }
+
+    /** Takes over what the cell [index] presses: its key (template) or the assignment of its entry (free list). */
+    private void pickAction(int index) {
+        binding = Binding.NONE;
+        customCombo = null;
+        customChat = null;
+        customChatDone = false;
+        if (index < 0) return;
+        if (element.getRange() == ControlElement.Range.CUSTOM) {
+            RadialMenu.Slot item = element.getRangeItem(index);
+            if (item == null) return;
+            String command = item.getChatCommand();
+            if (command != null) customChat = command;
+            else {
+                BindingCombo combo = item.getBindingCombo();
+                if (combo != null && !combo.isEmpty()) customCombo = combo;
+            }
         }
+        else binding = getBindingByIndex(index);
+    }
+
+    /** A finger that rests on a cell: the key goes down, a chat command is typed (once). */
+    private void pressAction(Binding scheduledBinding, BindingCombo scheduledCombo, String scheduledChat) {
+        if (scheduledChat != null) {
+            if (!customChatDone) {
+                customChatDone = true;
+                inputControlsView.runChatCommand(scheduledChat);
+            }
+        }
+        else if (scheduledCombo != null) inputControlsView.handleInputEvent(scheduledCombo, true);
+        else if (scheduledBinding != Binding.NONE) inputControlsView.handleInputEvent(scheduledBinding, true);
+    }
+
+    private void releaseAction(Binding releasedBinding, BindingCombo releasedCombo) {
+        if (releasedCombo != null) inputControlsView.handleInputEvent(releasedCombo, false);
+        else if (customChat == null && releasedBinding != Binding.NONE) inputControlsView.handleInputEvent(releasedBinding, false);
+    }
+
+    /** False when the whole free list is visible: there is nothing to scroll to then. */
+    private boolean canScroll() {
+        return element.getRange() != ControlElement.Range.CUSTOM || count() > element.getBindingCount();
     }
 
     private boolean isTap() {
@@ -109,22 +161,24 @@ public class RangeScroller {
         scrolling = false;
         isActionDown = true;
         activeIndex = getIndexByPosition(x, y);
-        binding = getBindingByIndex(activeIndex);
+        pickAction(activeIndex);
         touchTime = currentTimeMillis();
         lastPosition = element.getOrientation() == 0 ? x : y;
         element.setBinding(Binding.NONE);
         inputControlsView.invalidate();
 
         final Binding scheduledBinding = binding;
+        final BindingCombo scheduledCombo = customCombo;
+        final String scheduledChat = customChat;
         scheduleLongPress(() -> inputControlsView.post(() -> {
             if (generation != touchGeneration || !isActionDown || scrolling) return;
-            inputControlsView.handleInputEvent(scheduledBinding, true);
+            pressAction(scheduledBinding, scheduledCombo, scheduledChat);
         }));
     }
 
     public void handleTouchMove(float x, float y) {
         if (isActionDown) {
-            if (element.isScrollLocked()) return;
+            if (element.isScrollLocked() || !canScroll()) return;
 
             float position = element.getOrientation() == 0 ? x : y;
             float deltaPosition = position - lastPosition;
@@ -154,11 +208,17 @@ public class RangeScroller {
         if (isActionDown) {
             destroyTimer();
             if (isTap() && !scrolling) {
-                inputControlsView.handleInputEvent(binding, true);
                 final Binding finalBinding = binding;
-                inputControlsView.postDelayed(() -> inputControlsView.handleInputEvent(finalBinding, false), 30);
+                final BindingCombo finalCombo = customCombo;
+                pressAction(finalBinding, finalCombo, customChat);
+                if (customChat == null && (finalCombo != null || finalBinding != Binding.NONE)) {
+                    inputControlsView.postDelayed(() -> {
+                        if (finalCombo != null) inputControlsView.handleInputEvent(finalCombo, false);
+                        else inputControlsView.handleInputEvent(finalBinding, false);
+                    }, 30);
+                }
             }
-            else inputControlsView.handleInputEvent(binding, false);
+            else releaseAction(binding, customCombo);
         }
         isActionDown = false;
         activeIndex = -1;
@@ -169,7 +229,7 @@ public class RangeScroller {
         touchGeneration++;
         if (isActionDown) {
             destroyTimer();
-            inputControlsView.handleInputEvent(binding, false);
+            releaseAction(binding, customCombo);
         }
         isActionDown = false;
         activeIndex = -1;

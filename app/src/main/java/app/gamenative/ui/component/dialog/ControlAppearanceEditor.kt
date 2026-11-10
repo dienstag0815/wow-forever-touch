@@ -3,7 +3,6 @@ package app.gamenative.ui.component.dialog
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,11 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
-import app.gamenative.ui.component.settings.SettingsTextField
-import app.gamenative.ui.theme.settingsTileColors
-import app.gamenative.ui.util.SnackbarManager
 import com.winlator.inputcontrols.ControlElement
-import com.winlator.widget.InputControlsView
 
 internal data class ControlAppearance(
     val scale: Float,
@@ -204,7 +199,7 @@ private fun ButtonPreview(
     val strokeWidth = 2.dp * strokeScale
     Box(
         modifier = Modifier
-            .then(if (shape == ControlElement.Shape.CIRCLE || shape == ControlElement.Shape.SQUARE) Modifier.size(56.dp) else Modifier.width(96.dp).height(48.dp))
+            .then(if (shape == ControlElement.Shape.CIRCLE || shape == ControlElement.Shape.SQUARE || shape == ControlElement.Shape.ARC) Modifier.size(56.dp) else Modifier.width(96.dp).height(48.dp))
             .clip(composeShape)
             .border(strokeWidth, drawColor, composeShape),
         contentAlignment = Alignment.Center
@@ -541,86 +536,6 @@ private fun buttonPreviewShape(shape: ControlElement.Shape): Shape = when (shape
     ControlElement.Shape.RECT -> RoundedCornerShape(0.dp)
     ControlElement.Shape.ROUND_RECT -> RoundedCornerShape(24.dp)
     ControlElement.Shape.SQUARE -> RoundedCornerShape(8.dp)
-}
-
-@Composable
-internal fun ControlColorField(
-    title: String,
-    subtitle: String,
-    value: String,
-    selectedColor: Int,
-    onValueChange: (String) -> Unit,
-    onPresetSelected: (Int) -> Unit
-) {
-    SettingsTextField(
-        colors = settingsTileColors(),
-        title = { Text(title) },
-        subtitle = { Text(subtitle) },
-        value = value,
-        onValueChange = onValueChange,
-        action = {
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .background(rgbToComposeColor(selectedColor), CircleShape)
-                    .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-            )
-        }
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        controlColorPresets.forEach { preset ->
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(rgbToComposeColor(preset), CircleShape)
-                    .border(
-                        width = if ((preset and 0x00ffffff) == (selectedColor and 0x00ffffff)) 3.dp else 1.dp,
-                        color = if ((preset and 0x00ffffff) == (selectedColor and 0x00ffffff)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                        shape = CircleShape
-                    )
-                    .clickable { onPresetSelected(preset) }
-            )
-        }
-    }
-}
-
-internal fun showCopyAppearanceDialog(
-    context: android.content.Context,
-    currentElement: ControlElement,
-    view: InputControlsView,
-    onAppearanceCopied: (ControlAppearance) -> Unit
-) {
-    val controls = view.profile?.elements
-        ?.filter { it != currentElement }
-        .orEmpty()
-
-    if (controls.isEmpty()) {
-        SnackbarManager.show(context.getString(R.string.toast_no_buttons_to_copy_appearance))
-        return
-    }
-
-    val names = controls.map { element ->
-        val scale = String.format(java.util.Locale.US, "%.2fx", element.scale)
-        val label = if (!element.text.isNullOrEmpty()) {
-            element.text
-        } else {
-            val binding = element.getBindingAt(0)
-            if (binding != null && binding != com.winlator.inputcontrols.Binding.NONE) binding.toString().take(15) else context.getString(R.string.binding_none)
-        }
-        "${element.type.name.replace("_", " ")} - $scale - ${rgbToHex(element.buttonColor)} - $label"
-    }.toTypedArray()
-
-    android.app.AlertDialog.Builder(context)
-        .setTitle(context.getString(R.string.copy_appearance_from_button))
-        .setItems(names) { _, which ->
-            onAppearanceCopied(ControlAppearance.capture(controls[which]))
-            SnackbarManager.show(context.getString(R.string.toast_copied_button_appearance))
-        }
-        .setNegativeButton(context.getString(R.string.cancel), null)
-        .show()
+    ControlElement.Shape.PILL -> RoundedCornerShape(percent = 50)
+    ControlElement.Shape.ARC -> CircleShape
 }

@@ -28,8 +28,10 @@ import androidx.lifecycle.lifecycleScope
 import app.gamenative.BuildConfig
 import app.gamenative.PrefManager
 import app.gamenative.events.AndroidEvent
+import app.gamenative.service.GameKeepAlive
 import app.gamenative.ui.PluviaMain
 import app.gamenative.ui.enums.Orientation
+import app.gamenative.ui.screen.wow.launcher.AppLanguage
 import app.gamenative.ui.util.LocalSnackbarHostController
 import app.gamenative.ui.util.SnackbarHostController
 import app.gamenative.utils.LocaleHelper
@@ -77,8 +79,8 @@ class MainActivity : ComponentActivity() {
         // Initialize PrefManager to read language setting
         PrefManager.init(newBase)
 
-        // Apply the saved language preference before creating the activity
-        val languageCode = PrefManager.appLanguage
+        // Apply the chosen language before creating the activity: English unless German was chosen (the system language is not read)
+        val languageCode = AppLanguage.tagFor(PrefManager.appLanguage)
         val context = LocaleHelper.applyLanguage(newBase, languageCode)
         super.attachBaseContext(context)
     }
@@ -134,6 +136,7 @@ class MainActivity : ComponentActivity() {
         }
 
         super.onDestroy()
+        if (!isChangingConfigurations) GameKeepAlive.stop(applicationContext)
 
         controllerInputManager?.unregisterInputDeviceListener(controllerDeviceListener)
         controllerInputManager = null
@@ -241,6 +244,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // Fold/unfold and similar changes are handled here (see configChanges in the manifest) instead of recreating the
+        // Activity, so the running game keeps its views and input. The system bars may come back with the new window.
+        if (!desiredSystemUiVisible) applyImmersiveMode()
         // Log.d("MainActivity", "Requested orientation: $requestedOrientation => ${Orientation.fromActivityInfoValue(requestedOrientation)}")
     }
 

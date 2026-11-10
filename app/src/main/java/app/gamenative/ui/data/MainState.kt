@@ -1,5 +1,6 @@
 package app.gamenative.ui.data
 
+import app.gamenative.ui.components.BootingSplashLogic
 import app.gamenative.ui.screen.PluviaScreen
 
 data class MainState(
@@ -11,5 +12,5 @@ data class MainState(
     val loadingDialogMessage: String = "Loading...",
     val launchedAppId: String = "",
     val showBootingSplash: Boolean = false,
-    val bootingSplashText: String = "Booting...",
+    val bootingSplashText: String = BootingSplashLogic.TEXT_ENV,
 )

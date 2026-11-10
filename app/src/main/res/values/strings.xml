@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">WoW Forever</string>
+    <string name="app_name">WoW Forever Touch</string>
     <string name="home">Home</string>
     <string name="download">Download</string>
     <string name="install">Install</string>
@@ -621,20 +621,27 @@
     <!-- Frontend Sync Settings -->
 
     <!-- Radial Menu -->
-    <string name="radial_menu">Radial Menu</string>
-    <string name="radial_menu_settings_title">Radial Menu</string>
+    <string name="radial_menu">Default radial menu (for gestures and controller)</string>
+    <string name="radial_menu_settings_title">Default radial menu</string>
     <string name="radial_menu_cancel">Cancel</string>
-    <string name="radial_menu_slot_count">Slots</string>
-    <string name="radial_menu_slot_count_subtitle">%1$d slots enabled</string>
-    <string name="radial_menu_decrease_slots">Decrease slots</string>
-    <string name="radial_menu_increase_slots">Increase slots</string>
-    <string name="radial_menu_slots">Wheel Slots</string>
-    <string name="radial_menu_slot_title">Slot %1$d</string>
+    <string name="radial_menu_slot_count">Fields</string>
+    <string name="radial_menu_slot_count_subtitle">%1$d fields (wheel sectors; empty fields are drawn as \"–\")</string>
+    <string name="radial_menu_decrease_slots">Fewer fields</string>
+    <string name="radial_menu_increase_slots">More fields</string>
+    <string name="radial_menu_slots">Fields</string>
+    <string name="radial_menu_slot_title">Field %1$d</string>
     <string name="radial_menu_slot_label_hint">Label</string>
-    <string name="radial_menu_slot_binding">Slot %1$d binding</string>
+    <string name="radial_menu_slot_title_top">Field %1$d (top)</string>
+    <string name="radial_menu_default_hint">Used by the radial-menu gesture and the controller. Buttons have their own radial menu: set it in the layout editor on the button (tile \"Radial menu of this button\").</string>
+    <string name="radial_button_menu_hint">Hold the button, drag towards a field, release to press its key. This menu belongs to this button only.</string>
+    <string name="radial_menu_preview_title">Layout</string>
+    <string name="radial_menu_preview_hint">Field 1 is at the top, the other fields follow clockwise.</string>
+    <string name="radial_menu_slot_binding">Field %1$d binding</string>
     <string name="radial_menu_slot_binding_summary">Binding: %1$s</string>
     <string name="radial_menu_preset_common">Common</string>
     <string name="radial_menu_preset_weapons">Weapons</string>
+    <string name="radial_button_edit_menu">Radial menu of this button</string>
+    <string name="radial_button_edit_menu_subtitle">Hold, drag in a direction, release</string>
     <string name="gesture_action_open_radial_menu">Open radial menu</string>
 
 

@@ -81,5 +81,22 @@ WowB-ARM64/
 Wow-ARM64/
 *.exe
 
-# Agent guidance (private)
-docs/
+# Lokale Release-APKs
+/release/
+
+# Never in the repo: signing material, local configuration, secrets, tool state.
+# (docs/ is tracked; what becomes public is decided by tools/public_export.py.)
+*.keystore
+*.p12
+*.pfx
+*.pem
+keystore.properties
+secrets.properties
+local.properties
+.secrets/
+*.env
+.env
+.env.*
+.claude/
+.orchestrator/kimi/
+.orchestrator/worker/

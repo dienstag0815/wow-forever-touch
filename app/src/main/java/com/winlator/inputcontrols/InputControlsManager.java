@@ -54,6 +54,8 @@ public class InputControlsManager {
         File profilesDir = InputControlsManager.getProfilesDir(context);
         if (FileUtils.isEmpty(profilesDir)) {
             FileUtils.copy(context, "inputcontrols/profiles", profilesDir);
+            File[] copied = profilesDir.listFiles();
+            if (copied != null) for (File f : copied) rememberProfileHash(context, f);
             return;
         }
 
@@ -92,12 +94,24 @@ public class InputControlsManager {
                 }
 
                 if (targetFile != null) {
-                    FileUtils.copy(context, assetPath, targetFile);
+                    // Only overwrite a profile the player has not touched since the app wrote it (see ProfileUpdatePolicy).
+                    byte[] assetBytes = FileUtils.read(context, assetPath);
+                    ProfileUpdatePolicy.Action action = ProfileUpdatePolicy.decide(true,
+                        ProfileUpdatePolicy.sha256Hex(FileUtils.read(targetFile)),
+                        PrefManager.getString(ProfileUpdatePolicy.hashKey(targetFile.getName()), ""),
+                        ProfileUpdatePolicy.sha256Hex(assetBytes));
+                    if (action == ProfileUpdatePolicy.Action.OVERWRITE) {
+                        FileUtils.copy(context, assetPath, targetFile);
+                        rememberProfileHash(context, targetFile);
+                    } else {
+                        Log.i("InputControlsManager", "Keeping edited profile '" + originProfile.getName() + "' (" + targetFile.getName() + ")");
+                    }
                 } else if (originProfile != null) {
                     // New asset profile — add if not already present
                     File defaultFile = new File(profilesDir, assetFile);
                     if (!defaultFile.exists()) {
                         FileUtils.copy(context, assetPath, defaultFile);
+                        rememberProfileHash(context, defaultFile);
                     } else {
                         // Filename occupied by a different profile — check if
                         // this asset profile (by name) already exists under any ID
@@ -117,6 +131,7 @@ public class InputControlsManager {
                                 JSONObject data = new JSONObject(json);
                                 data.put("id", newId);
                                 FileUtils.writeString(freeFile, data.toString());
+                                rememberProfileHash(context, freeFile);
                             } catch (Exception e) {
                                 Log.w("InputControlsManager", "Failed to create profile '" + originProfile.getName() + "' (newId=" + newId + ", file=" + freeFile + ")", e);
                             }
@@ -132,6 +147,19 @@ public class InputControlsManager {
             }
         }
         catch (IOException e) {}
+    }
+
+    /** Remembers the SHA-256 of a profile file the app has just written, so a later update can tell whether the player changed it. */
+    public static void rememberProfileHash(Context context, File file) {
+        String hash = ProfileUpdatePolicy.sha256Hex(FileUtils.read(file));
+        if (hash == null) return;
+        try {
+            PrefManager.init(context);
+            PrefManager.putString(ProfileUpdatePolicy.hashKey(file.getName()), hash).join();
+        }
+        catch (RuntimeException e) {
+            Log.w("InputControlsManager", "Could not remember hash of " + file.getName(), e);
+        }
     }
 
     public void loadProfiles(boolean ignoreTemplates) {
@@ -191,6 +219,60 @@ public class InputControlsManager {
         ControlsProfile profile = loadProfile(context, newFile);
         profiles.add(profile);
         return profile;
+    }
+
+    /**
+     * Copy of {@code source} under a fresh id and the given name. The copy is not part of the assets, so app updates
+     * never touch it. Returns null if it could not be written.
+     */
+    public ControlsProfile copyProfileAs(ControlsProfile source, String newName) {
+        getProfiles(false);
+        int newId = ++maxProfileId;
+        File newFile = ControlsProfile.getProfileFile(context, newId);
+        try {
+            String json = ProfileUpdatePolicy.copyJson(FileUtils.readString(ControlsProfile.getProfileFile(context, source.id)), newId, newName);
+            if (!FileUtils.writeString(newFile, json)) return null;
+        }
+        catch (JSONException e) {
+            return null;
+        }
+        ControlsProfile profile = loadProfile(context, newFile);
+        if (profile != null) profiles.add(profile);
+        return profile;
+    }
+
+    /**
+     * Writes the bundled asset profile over {@code target} (id and name of the target stay). If the target is the asset
+     * profile itself the file is byte-identical to the asset and its hash is remembered again, so updates treat it as unchanged.
+     */
+    public boolean resetProfileToAsset(ControlsProfile target, String assetPath) {
+        getProfiles(false);
+        File file = ControlsProfile.getProfileFile(context, target.id);
+        try {
+            String assetJson = FileUtils.readString(context, assetPath);
+            JSONObject asset = new JSONObject(assetJson);
+            boolean sameProfile = asset.optInt("id", -1) == target.id && target.getName().equals(asset.optString("name"));
+            if (sameProfile) {
+                FileUtils.copy(context, assetPath, file);
+                rememberProfileHash(context, file);
+            }
+            else if (!FileUtils.writeString(file, ProfileUpdatePolicy.copyJson(assetJson, target.id, target.getName()))) return false;
+        }
+        catch (Exception e) {
+            Log.w("InputControlsManager", "Failed to reset profile '" + target.getName() + "' from " + assetPath, e);
+            return false;
+        }
+        // The in-memory entry may hold the old elements: swap in a freshly read one.
+        ControlsProfile fresh = loadProfile(context, file);
+        if (fresh != null) {
+            for (int i = 0; i < profiles.size(); i++) {
+                if (profiles.get(i).id == target.id) {
+                    profiles.set(i, fresh);
+                    break;
+                }
+            }
+        }
+        return true;
     }
 
     public void removeProfile(ControlsProfile profile) {

@@ -13,13 +13,16 @@ internal fun copyInputControlsProfileElements(
     sourceProfile.loadElements(view)
     targetProfile.elements.toList().forEach(targetProfile::removeElement)
     sourceProfile.elements.forEach { targetProfile.addElement(it.copyForView(view)) }
-    targetProfile.setDefaultRadialMenu(sourceProfile.defaultRadialMenu.deepCopy())
+    // Index 0 is the default menu, the following ones belong to radial buttons (ControlElement.radialMenuId).
+    val radialMenus = mutableListOf(sourceProfile.defaultRadialMenu.deepCopy())
+    sourceProfile.radialMenus.drop(1).forEach { radialMenus.add(it.deepCopy()) }
+    targetProfile.setRadialMenus(radialMenus)
     view.onControlsProfileContentChanged(true)
     view.invalidate()
 }
 
 private fun RadialMenu.deepCopy(): RadialMenu {
-    return toJSONObject()?.let(RadialMenu::fromJSONObject) ?: RadialMenu.createDefault()
+    return copy()
 }
 
 private fun ControlElement.copyForView(view: InputControlsView) = ControlElement(view).also { newElement ->
@@ -32,6 +35,12 @@ private fun ControlElement.copyForView(view: InputControlsView) = ControlElement
     newElement.setIconId(iconId.toInt())
     newElement.setToggleSwitch(isToggleSwitch)
     newElement.copyButtonAppearanceFrom(this)
+    newElement.radialMenuId = radialMenuId
+    newElement.wowAction = wowAction
+    newElement.chatCommand = chatCommand
+    // Free shape (width/height, corner, arc), scroll wheel settings and the key ring of a stick
+    newElement.copyExtrasFrom(this)
+    if (type == ControlElement.Type.SCROLL_WHEEL) newElement.setOrientation(orientation)
 
     if (type == ControlElement.Type.RANGE_BUTTON) {
         newElement.setRange(range)

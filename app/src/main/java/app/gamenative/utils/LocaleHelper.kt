@@ -62,6 +62,20 @@ object LocaleHelper {
     }
 
     /**
+     * Puts the language into the resources of the Application too (they do not come from MainActivity.attachBaseContext), so code
+     * that uses the application context (notifications, snackbars, the update manager) speaks the chosen language.
+     */
+    fun applyToApplication(app: Context, languageCode: String) {
+        if (languageCode.isEmpty()) return
+        val locale = getLocaleFromCode(languageCode)
+        Locale.setDefault(locale)
+        val config = Configuration(app.resources.configuration)
+        config.setLocale(locale)
+        @Suppress("DEPRECATION")
+        app.resources.updateConfiguration(config, app.resources.displayMetrics)
+    }
+
+    /**
      * Convert a language code string to a Locale object.
      * Handles language codes with region (e.g., "pt-BR", "zh-CN").
      */

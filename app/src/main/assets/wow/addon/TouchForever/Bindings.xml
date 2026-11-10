@@ -1,0 +1,35 @@
+<Bindings>
+	<Binding name="WFB_TOGGLEBARS" header="WOWFOREVER" category="WOWFOREVER">
+		TouchForeverUI.ToggleBars()
+	</Binding>
+	<Binding name="WFB_PEEKBARS" category="WOWFOREVER">
+		TouchForeverUI.PeekBars()
+	</Binding>
+	<Binding name="WFB_TOGGLECHAT" category="WOWFOREVER">
+		TouchForeverUI.ToggleChat()
+	</Binding>
+	<Binding name="WFB_TOGGLEMINIMAP" category="WOWFOREVER">
+		TouchForeverUI.ToggleMinimap()
+	</Binding>
+	<Binding name="WFB_TOGGLEQUESTS" category="WOWFOREVER">
+		TouchForeverUI.ToggleQuests()
+	</Binding>
+	<Binding name="WFB_PEEKALL" category="WOWFOREVER">
+		TouchForeverUI.PeekAll()
+	</Binding>
+	<Binding name="WFB_OPTIONS" category="WOWFOREVER">
+		TouchForeverUI.Options()
+	</Binding>
+	<Binding name="WFB_TOGGLEMENUBAR" category="WOWFOREVER">
+		TouchForeverUI.ToggleMenuBar()
+	</Binding>
+	<Binding name="WFB_CHANNELS" category="WOWFOREVER">
+		TouchForeverUI.OpenChannels()
+	</Binding>
+	<Binding name="WFB_CHATMENU" category="WOWFOREVER">
+		TouchForeverUI.OpenChatMenu()
+	</Binding>
+	<Binding name="WFB_HOUSING" category="WOWFOREVER">
+		TouchForeverUI.OpenHousing()
+	</Binding>
+</Bindings>

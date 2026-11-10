@@ -1,6 +1,7 @@
 package app.gamenative.ui.component.dialog
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,17 +47,25 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
 import app.gamenative.ui.component.NoExtractOutlinedTextField
+import app.gamenative.ui.screen.xserver.editor.sheet.menuAngles
+import app.gamenative.ui.touchstyle.RadialArc
 import app.gamenative.ui.theme.settingsTileColors
 import app.gamenative.ui.theme.settingsTileColorsAlt
+import app.gamenative.wowaction.BindingCaption
+import app.gamenative.wowaction.WowActionCatalog
 import com.alorma.compose.settings.ui.SettingsMenuLink
 import com.winlator.inputcontrols.Binding
 import com.winlator.inputcontrols.BindingCombo
 import com.winlator.inputcontrols.ControlsProfile
 import com.winlator.inputcontrols.RadialMenu
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,11 +73,15 @@ fun RadialMenuSettingsContent(
     profile: ControlsProfile,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
+    // Menu of a radial button (ControlElement.radialMenuId); null = the profile's default menu.
+    menuId: String? = null,
+    // false: only change the menu in memory (the caller saves the profile together with its own changes).
+    persist: Boolean = true,
 ) {
-    val menu = remember(profile) { profile.defaultRadialMenu }
+    val menu = remember(profile, menuId) { profile.getRadialMenu(menuId) }
     val initialSlots = remember(menu) { menu.slots.take(RadialMenu.MAX_SLOTS) }
     var slotCount by remember {
-        mutableIntStateOf(initialSlots.size.coerceIn(1, RadialMenu.MAX_SLOTS))
+        mutableIntStateOf(initialSlots.size.coerceIn(RadialMenu.MIN_SLOTS, RadialMenu.MAX_SLOTS))
     }
     val labels = remember(menu) {
         mutableStateListOf<String>().apply {
@@ -83,17 +97,55 @@ fun RadialMenuSettingsContent(
             }
         }
     }
+    // WoW action behind a field (key follows the player's WoW bindings), null = plain key.
+    val wowActions = remember(menu) {
+        mutableStateListOf<String?>().apply {
+            repeat(RadialMenu.MAX_SLOTS) { index -> add(initialSlots.getOrNull(index)?.wowAction) }
+        }
+    }
+    // Chat text behind a field (typed into the WoW chat, e.g. "/dance"), null = key field.
+    val chatCommands = remember(menu) {
+        mutableStateListOf<String?>().apply {
+            repeat(RadialMenu.MAX_SLOTS) { index -> add(initialSlots.getOrNull(index)?.chatCommand) }
+        }
+    }
+    val wowKeys by rememberWowKeys(true)
     var bindingSlotToEdit by remember { mutableStateOf<Int?>(null) }
+    // Own menu of a radial button (ids "button-N") vs. the profile's default menu (gestures and controller).
+    val isButtonMenu = menu.id != RadialMenu.DEFAULT_ID
 
     fun updateSlotCount(nextCount: Int) {
-        slotCount = nextCount.coerceIn(1, RadialMenu.MAX_SLOTS)
+        val next = nextCount.coerceIn(RadialMenu.MIN_SLOTS, RadialMenu.MAX_SLOTS)
+        // Newly added fields get the number keys that continue the sequence (7, 8, 9, 0, -, =)
+        // instead of staying empty.
+        for (index in slotCount until next) {
+            if (labels[index].isBlank()) {
+                bindings[index] = RadialMenu.prefillForNewField(index, bindings[index])
+            }
+        }
+        slotCount = next
     }
 
     fun applyPreset(preset: List<Pair<String, Binding>>) {
-        slotCount = preset.size.coerceIn(1, RadialMenu.MAX_SLOTS)
+        slotCount = preset.size.coerceIn(RadialMenu.MIN_SLOTS, RadialMenu.MAX_SLOTS)
         for (index in 0 until RadialMenu.MAX_SLOTS) {
             labels[index] = preset.getOrNull(index)?.first.orEmpty()
             bindings[index] = BindingCombo.of(preset.getOrNull(index)?.second)
+            wowActions[index] = null
+            chatCommands[index] = null
+        }
+    }
+
+    // Template with WoW actions: the fields keep the action and the key WoW currently has for it.
+    fun applyWowTemplate(commands: List<String>) {
+        val actions = commands.mapNotNull { WowActionCatalog.find(it) }
+        slotCount = actions.size.coerceIn(RadialMenu.MIN_SLOTS, RadialMenu.MAX_SLOTS)
+        for (index in 0 until RadialMenu.MAX_SLOTS) {
+            val action = actions.getOrNull(index)
+            labels[index] = action?.wheelLabel.orEmpty()
+            bindings[index] = action?.let { wowKeys[it.command]?.combo } ?: BindingCombo.none()
+            wowActions[index] = action?.command
+            chatCommands[index] = action?.chatCommand
         }
     }
 
@@ -103,10 +155,10 @@ fun RadialMenuSettingsContent(
             name = menu.name
         }
         for (index in 0 until slotCount) {
-            nextMenu.addSlot(RadialMenu.Slot(labels[index], bindings[index]))
+            nextMenu.addSlot(RadialMenu.Slot(labels[index], bindings[index], wowActions[index], chatCommands[index]))
         }
-        profile.defaultRadialMenu = nextMenu
-        profile.save()
+        profile.putRadialMenu(nextMenu)
+        if (persist) profile.save()
         onSave()
     }
 
@@ -116,9 +168,14 @@ fun RadialMenuSettingsContent(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.radial_menu_settings_title),
+                        text = stringResource(
+                            if (isButtonMenu) R.string.radial_button_edit_menu else R.string.radial_menu_settings_title,
+                        ),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
                     )
                 },
                 navigationIcon = {
@@ -140,6 +197,15 @@ fun RadialMenuSettingsContent(
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
+            Text(
+                text = stringResource(
+                    if (isButtonMenu) R.string.radial_button_menu_hint else R.string.radial_menu_default_hint,
+                ),
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             SectionHeader(text = stringResource(R.string.radial_menu_slot_count))
             SlotCountSetting(
                 slotCount = slotCount,
@@ -148,6 +214,9 @@ fun RadialMenuSettingsContent(
 
             SectionHeader(text = stringResource(R.string.quick_presets))
             PresetButtons(
+                onGameMenusPreset = { applyWowTemplate(WowActionCatalog.GAME_MENU_COMMANDS) },
+                onAttacksPreset = { applyWowTemplate(WowActionCatalog.ATTACK_COMMANDS) },
+                onEmotesPreset = { applyWowTemplate(WowActionCatalog.EMOTE_COMMANDS) },
                 onCommonPreset = {
                     applyPreset(
                         listOf(
@@ -167,12 +236,29 @@ fun RadialMenuSettingsContent(
                 },
             )
 
+            SectionHeader(text = stringResource(R.string.radial_menu_preview_title))
+            Text(
+                text = stringResource(R.string.radial_menu_preview_hint),
+                modifier = Modifier.padding(horizontal = 16.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            RadialMenuPreview(
+                slotCount = slotCount,
+                labels = labels,
+                bindings = bindings,
+                wowActions = wowActions,
+                chatCommands = chatCommands,
+            )
+
             SectionHeader(text = stringResource(R.string.radial_menu_slots))
             for (index in 0 until slotCount) {
                 SlotSetting(
                     index = index,
                     label = labels[index],
                     binding = bindings[index],
+                    wowActionId = wowActions[index],
+                    chatCommand = chatCommands[index],
                     onLabelChange = { labels[index] = it },
                     onEditBinding = { bindingSlotToEdit = index },
                 )
@@ -190,7 +276,30 @@ fun RadialMenuSettingsContent(
             currentBindingCombo = bindings[slotIndex],
             onDismiss = { bindingSlotToEdit = null },
             onBindingSelected = {},
+            currentWowActionId = wowActions[slotIndex],
+            onWowActionSelected = { action, combo ->
+                // Name the field after the action unless the player wrote an own label.
+                val previous = WowActionCatalog.find(wowActions[slotIndex])
+                if (labels[slotIndex].isBlank() || labels[slotIndex] == previous?.wheelLabel) {
+                    labels[slotIndex] = action.wheelLabel
+                }
+                wowActions[slotIndex] = action.command
+                chatCommands[slotIndex] = action.chatCommand
+                bindings[slotIndex] = if (action.chatCommand != null) BindingCombo.none() else combo ?: BindingCombo.none()
+                bindingSlotToEdit = null
+            },
+            currentChatCommand = chatCommands[slotIndex].takeIf { wowActions[slotIndex] == null },
+            currentChatLabel = labels[slotIndex],
+            onChatCommandSelected = { label, command ->
+                wowActions[slotIndex] = null
+                chatCommands[slotIndex] = command
+                bindings[slotIndex] = BindingCombo.none()
+                labels[slotIndex] = label.ifBlank { command.take(14) }
+                bindingSlotToEdit = null
+            },
             onBindingComboSelected = { bindingCombo ->
+                wowActions[slotIndex] = null
+                chatCommands[slotIndex] = null
                 bindings[slotIndex] = if (bindingCombo?.bindings?.contains(Binding.OPEN_RADIAL_MENU) == true) {
                     BindingCombo.none()
                 } else {
@@ -215,12 +324,53 @@ private fun SectionHeader(text: String) {
 
 @Composable
 private fun PresetButtons(
+    onGameMenusPreset: () -> Unit,
+    onAttacksPreset: () -> Unit,
+    onEmotesPreset: () -> Unit,
     onCommonPreset: () -> Unit,
     onWeaponsPreset: () -> Unit,
 ) {
     val buttonColors = ButtonDefaults.outlinedButtonColors(
         contentColor = MaterialTheme.colorScheme.primary,
     )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedButton(
+            onClick = onGameMenusPreset,
+            modifier = Modifier.weight(1f),
+            colors = buttonColors,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text(stringResource(R.string.game_radial_game_menus))
+        }
+        OutlinedButton(
+            onClick = onAttacksPreset,
+            modifier = Modifier.weight(1f),
+            colors = buttonColors,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text(stringResource(R.string.game_radial_attacks))
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedButton(
+            onClick = onEmotesPreset,
+            modifier = Modifier.weight(1f),
+            colors = buttonColors,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text(stringResource(R.string.game_radial_emotes))
+        }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -252,7 +402,7 @@ private fun SlotCountSetting(
     onSlotCountChange: (Int) -> Unit,
 ) {
     fun changeSlotCount(delta: Int) {
-        onSlotCountChange((slotCount + delta).coerceIn(1, RadialMenu.MAX_SLOTS))
+        onSlotCountChange((slotCount + delta).coerceIn(RadialMenu.MIN_SLOTS, RadialMenu.MAX_SLOTS))
     }
 
     val dpadSlotCountModifier = Modifier.onPreviewKeyEvent { event ->
@@ -286,7 +436,7 @@ private fun SlotCountSetting(
     ) {
         IconButton(
             onClick = { changeSlotCount(-1) },
-            enabled = slotCount > 1,
+            enabled = slotCount > RadialMenu.MIN_SLOTS,
             modifier = Modifier.size(40.dp),
         ) {
             Icon(
@@ -298,8 +448,8 @@ private fun SlotCountSetting(
         Slider(
             value = slotCount.toFloat(),
             onValueChange = { onSlotCountChange(it.roundToInt()) },
-            valueRange = 1f..RadialMenu.MAX_SLOTS.toFloat(),
-            steps = RadialMenu.MAX_SLOTS - 2,
+            valueRange = RadialMenu.MIN_SLOTS.toFloat()..RadialMenu.MAX_SLOTS.toFloat(),
+            steps = RadialMenu.MAX_SLOTS - RadialMenu.MIN_SLOTS - 1,
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.primary,
                 activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -335,24 +485,108 @@ private fun SlotSetting(
     index: Int,
     label: String,
     binding: BindingCombo,
+    wowActionId: String?,
+    chatCommand: String?,
     onLabelChange: (String) -> Unit,
     onEditBinding: () -> Unit,
 ) {
-    val bindingText = if (binding.isEmpty) stringResource(R.string.not_set) else binding.toString()
+    val keyText = if (binding.isEmpty) stringResource(R.string.not_set) else binding.toString()
+    val bindingText = wowActionSummary(wowActionId, keyText, chatCommand)
     SettingsMenuLink(
         colors = if (index % 2 == 0) settingsTileColorsAlt() else settingsTileColors(),
-        title = { Text(stringResource(R.string.radial_menu_slot_title, index + 1)) },
+        title = {
+            Text(
+                stringResource(
+                    if (index == 0) R.string.radial_menu_slot_title_top else R.string.radial_menu_slot_title,
+                    index + 1,
+                ),
+            )
+        },
         subtitle = { Text(stringResource(R.string.radial_menu_slot_binding_summary, bindingText)) },
         action = {
-            NoExtractOutlinedTextField(
-                value = label,
-                onValueChange = onLabelChange,
-                modifier = Modifier.width(128.dp),
-                placeholder = { Text(stringResource(R.string.radial_menu_slot_label_hint)) },
-                textStyle = MaterialTheme.typography.bodySmall,
-                singleLine = true,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                NoExtractOutlinedTextField(
+                    value = label,
+                    onValueChange = onLabelChange,
+                    modifier = Modifier.width(128.dp),
+                    placeholder = { Text(stringResource(R.string.radial_menu_slot_label_hint)) },
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    singleLine = true,
+                )
+                // Emoji as label (system font); empty label = the wheel names the field itself.
+                EmojiPickerButton(onPick = { onLabelChange(label + it) }, compact = true)
+            }
         },
         onClick = onEditBinding,
     )
+}
+
+/**
+ * Small wheel preview in the layout of the game: an arc of 270 degrees open at the bottom, field 1 at its left end, the other fields
+ * clockwise (with more than eight fields the preview keeps the plain circle, a second ring does not fit this size). Fields without
+ * keys show a dash.
+ */
+@Composable
+private fun RadialMenuPreview(
+    slotCount: Int,
+    labels: List<String>,
+    bindings: List<BindingCombo>,
+    wowActions: List<String?>,
+    chatCommands: List<String?>,
+) {
+    val radius = 92f
+    val arcAngles = if (slotCount <= RadialArc.FIRST_RING_CAP) menuAngles(slotCount) else null
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(250.dp)
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        for (index in 0 until slotCount) {
+            val angle = Math.toRadians(arcAngles?.getOrNull(index)?.toDouble() ?: (-90.0 + index * 360.0 / slotCount))
+            val binding = bindings[index]
+            val wowAction = WowActionCatalog.find(wowActions[index])
+            val chat = chatCommands[index]
+            val text = labels[index].ifBlank {
+                wowAction?.let { BindingCaption.emojiForAction(it.command) ?: it.wheelLabel }
+                    ?: BindingCaption.textForSlot("", null, chat, binding).ifEmpty { "–" }
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(
+                        x = (cos(angle) * radius).toFloat().dp,
+                        y = (sin(angle) * radius).toFloat().dp,
+                    )
+                    .width(56.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (wowAction != null) {
+                    WowSymbolIcon(wowAction.symbol, MaterialTheme.colorScheme.primary, size = 22.dp)
+                } else if (chat != null) {
+                    WowSymbolIcon(WowActionCatalog.CUSTOM_CHAT_SYMBOL, MaterialTheme.colorScheme.primary, size = 22.dp)
+                } else {
+                    Text(
+                        text = (index + 1).toString(),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    color = if (binding.isEmpty && chat == null && labels[index].isBlank()) {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+            }
+        }
+    }
 }

@@ -4,16 +4,37 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
 import app.gamenative.R
+import app.gamenative.cooldown.CooldownDraw
+import app.gamenative.cooldown.CooldownService
+import app.gamenative.ui.touchstyle.RadialArc
+import app.gamenative.ui.touchstyle.RadialOpen
+import app.gamenative.ui.touchstyle.RadialPlacement
+import app.gamenative.ui.touchstyle.RadialSegmentDraw
+import app.gamenative.ui.touchstyle.RadialSlotVisibility
+import app.gamenative.ui.touchstyle.TouchRole
+import app.gamenative.ui.touchstyle.TouchStyle
+import app.gamenative.ui.touchstyle.TouchStyleMath
+import app.gamenative.ui.touchstyle.TouchStyleSettings
+import app.gamenative.wowaction.BindingCaption
+import app.gamenative.wowaction.WowActionCatalog
+import app.gamenative.wowaction.WowSymbols
+import app.gamenative.wowicons.WowIconDraw
+import app.gamenative.wowicons.WowIcons
 import com.winlator.inputcontrols.RadialMenu
-import kotlin.math.cos
 import kotlin.math.min
-import kotlin.math.sin
 
+/**
+ * The radial menus of the buttons ("WoW menu" and the others), drawn as ring segments on an arc of [RadialArc.ARC_DEG] degrees: the same
+ * building blocks and the same look as the context menu and the stick ring ([RadialArc], [RadialSegmentDraw]). The middle stays on the
+ * pressed point and the arc turns towards the middle of the screen (top edge: opens downwards, left edge: to the right, corners:
+ * diagonal), or opens the way the button is set to ([RadialOpen], [RadialPlacement]); only if no direction fits on the screen the
+ * menu is moved. The fields keep their order (field 0 at the left end of the arc, then clockwise); more than
+ * [RadialArc.FIRST_RING_CAP] fields continue on a second ring outside. Fields without an assignment, or on an action bar slot that is empty right now, are not drawn and cannot be
+ * chosen ([RadialSlotVisibility]); their place stays free.
+ */
 internal class RadialMenuOverlayView(context: Context) : View(context) {
     interface Listener {
         fun onPointerPosition(x: Float, y: Float)
@@ -21,25 +42,37 @@ internal class RadialMenuOverlayView(context: Context) : View(context) {
     }
 
     private val density = resources.displayMetrics.density
-    val radiusPx: Float = 132f * density
+    private val scaledDensity = density * resources.configuration.fontScale
+    private val arcGeometry = RadialArc.Geometry.forDensity(density)
+
+    /** Radius of the empty middle (touch there chooses nothing; the cancel label sits in it, drawn opaque so the button label below does not show). */
     val innerRadiusPx: Float = 38f * density
-    private val textRadiusPx: Float = 86f * density
-    private val textSizePx: Float = 12f * density
-    private val arcBounds = RectF()
-    private val innerArcBounds = RectF()
-    private val slicePath = Path()
+    private val textSizePx: Float = 12f * scaledDensity
+
+    private var shape: RadialArc.Shape = buildShape(DEFAULT_SLOTS, 0f)
+
+    /** Outer radius of the menu now shown; follows the number of fields, see [show]. */
+    var radiusPx: Float = shape.outerRadius
+        private set
+
+    private val frame = RadialSegmentDraw()
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-    }
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
+    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+
+    private companion object {
+        const val EMPTY_SLOT_LABEL = "–"
+        const val DEFAULT_SLOTS = 6
     }
 
     var listener: Listener? = null
     private var menu: RadialMenu? = null
     private var centerX = 0f
     private var centerY = 0f
+
+    /** Middle of the menu now shown (view pixels): the pressed point, moved only if no direction fits on the screen. */
+    val centerXPx: Float get() = centerX
+    val centerYPx: Float get() = centerY
     private var selectedIndex = -1
     private var primaryColor = Color.argb(102, 255, 255, 255)
     private var secondaryColor = Color.argb(102, 2, 119, 189)
@@ -52,24 +85,52 @@ internal class RadialMenuOverlayView(context: Context) : View(context) {
         setWillNotDraw(false)
     }
 
-    fun show(menu: RadialMenu, x: Float, y: Float) {
+    private fun buildShape(count: Int, rotationDeg: Float): RadialArc.Shape =
+        RadialArc.build(count, arcGeometry, RadialArc.Order.SEQUENTIAL, RadialArc.WIDE_STEP_DEG, RadialArc.ARC_DEG, rotationDeg)
+
+    /**
+     * Shows [menu] for the pressed point ([x], [y]) on a screen of [screenW] x [screenH]: picks the direction ([direction], automatic by
+     * the screen area) and the middle ([centerXPx], [centerYPx]); the middle stays on the pressed point unless no direction fits.
+     */
+    fun show(menu: RadialMenu, x: Float, y: Float, screenW: Float, screenH: Float, direction: RadialOpen = RadialOpen.AUTO) {
+        val count = menu.slots.size
+        val choice = RadialPlacement.choose(
+            { rotation -> buildShape(count, rotation) },
+            x, y, screenW, screenH, 8f * density, innerRadiusPx, direction,
+        )
+        shape = choice.shape
+        radiusPx = shape.outerRadius
         this.menu = menu
-        centerX = x
-        centerY = y
+        centerX = choice.centerX
+        centerY = choice.centerY
         selectedIndex = -1
         visibility = VISIBLE
         bringToFront()
+        // Cooldowns of the action bar slots on the fields are redrawn while the wheel is open.
+        CooldownService.register(this)
         invalidate()
     }
 
     fun hide() {
         visibility = GONE
+        CooldownService.unregister(this)
         menu = null
         selectedIndex = -1
         invalidate()
     }
 
     fun selectedIndex(): Int = selectedIndex
+
+    /**
+     * The field in the direction ([dx], [dy]) from the menu centre, -1 for none: inside the empty middle, in the free wedge at the bottom,
+     * or on a field that is not shown because it is empty. Same hit rules as the context menu ([RadialArc.indexAt]).
+     */
+    fun slotIndexAt(dx: Double, dy: Double): Int {
+        val slots = menu?.slots ?: return -1
+        val index = RadialArc.indexAt(shape, dx.toFloat(), dy.toFloat(), innerRadiusPx)
+        if (index !in slots.indices) return -1
+        return if (RadialSlotVisibility.isEmpty(slots[index])) -1 else index
+    }
 
     fun setControlsStyle(primaryColor: Int, secondaryColor: Int) {
         if (this.primaryColor == primaryColor && this.secondaryColor == secondaryColor) return
@@ -82,6 +143,11 @@ internal class RadialMenuOverlayView(context: Context) : View(context) {
         if (selectedIndex == index) return
         selectedIndex = index
         invalidate()
+    }
+
+    override fun onDetachedFromWindow() {
+        CooldownService.unregister(this)
+        super.onDetachedFromWindow()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -101,131 +167,108 @@ internal class RadialMenuOverlayView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val slots = menu?.enabledSlots.orEmpty()
+        val slots = menu?.slots.orEmpty()
         if (visibility != VISIBLE || slots.isEmpty()) return
 
-        val count = slots.size
-        val sweep = 360f / count
-        val clampedCenterX = clampCenterAxis(centerX, width.toFloat())
-        val clampedCenterY = clampCenterAxis(centerY, height.toFloat())
-        arcBounds.set(
-            clampedCenterX - radiusPx,
-            clampedCenterY - radiusPx,
-            clampedCenterX + radiusPx,
-            clampedCenterY + radiusPx,
-        )
-        innerArcBounds.set(
-            clampedCenterX - innerRadiusPx,
-            clampedCenterY - innerRadiusPx,
-            clampedCenterX + innerRadiusPx,
-            clampedCenterY + innerRadiusPx,
-        )
+        val style = TouchStyleSettings.style
+        val cx = centerX
+        val cy = centerY
 
         for (index in slots.indices) {
+            val seg = shape.segments.getOrNull(index) ?: continue
+            // Empty fields are not shown (and cannot be chosen); the other fields keep their place.
+            if (RadialSlotVisibility.isEmpty(slots[index])) continue
             val active = index == selectedIndex
-            val startAngle = -90f - (sweep / 2f) + index * sweep
-            drawSlice(canvas, startAngle, sweep, active)
-            drawSlotLabel(canvas, slots[index], index, sweep, clampedCenterX, clampedCenterY, active)
+            frame.drawFrame(canvas, cx, cy, seg, active, 1f, density, primaryColor and 0xFFFFFF)
+            drawSlotLabel(canvas, slots[index], seg, cx, cy, active, style)
         }
 
-        fillPaint.color = scaledAlphaColor(primaryColor, 0.18f)
-        canvas.drawCircle(clampedCenterX, clampedCenterY, innerRadiusPx, fillPaint)
-        strokePaint.color = scaledAlphaColor(primaryColor, 1.15f)
+        // The empty middle with the cancel label; opaque, so the label of the button below it does not shine through.
+        val fill = if (style == TouchStyle.CURRENT) 0x0A101C else TouchStyleMath.fillRgb(style, TouchRole.ROUND, false)
+        fillPaint.color = TouchStyleMath.withAlpha(fill, 255)
+        canvas.drawCircle(cx, cy, innerRadiusPx, fillPaint)
+        strokePaint.color = TouchStyleMath.withAlpha(edgeRgb(style), 200)
         strokePaint.strokeWidth = 1.4f * density
-        canvas.drawCircle(clampedCenterX, clampedCenterY, innerRadiusPx, strokePaint)
+        canvas.drawCircle(cx, cy, innerRadiusPx, strokePaint)
 
-        textPaint.color = readableTextColor(primaryColor)
+        textPaint.color = RadialSegmentDraw.textColor(style, false)
         textPaint.textSize = min(textSizePx * 1.05f, innerRadiusPx * 0.42f)
         textPaint.isFakeBoldText = true
-        canvas.drawText(centerLabel, clampedCenterX, centeredTextBaseline(clampedCenterY, textPaint), textPaint)
+        canvas.drawText(centerLabel, cx, centeredTextBaseline(cy, textPaint), textPaint)
     }
 
-    private fun drawSlice(canvas: Canvas, startAngle: Float, sweep: Float, active: Boolean) {
-        if (sweep >= 359.9f) {
-            drawFullRing(canvas, active)
+    private fun edgeRgb(style: TouchStyle): Int = when (style) {
+        TouchStyle.CURRENT -> primaryColor and 0xFFFFFF
+        TouchStyle.F -> TouchStyleMath.F_EDGE_LIGHT
+        TouchStyle.G -> TouchStyleMath.G_BRONZE
+    }
+
+    /** Symbol (smaller than the segment) with the name small below it; same layout as the context menu ([RadialArc.contentFor]). */
+    private fun drawSlotLabel(canvas: Canvas, slot: RadialMenu.Slot, seg: RadialArc.Segment, cx: Float, cy: Float, active: Boolean, style: TouchStyle) {
+        val content = RadialArc.contentFor(seg, arcGeometry)
+        val iconX = cx + content.iconX
+        val iconY = cy + content.iconY
+        val half = content.iconSize / 2f
+        val labelX = cx + content.labelX
+        val labelBase = cy + content.labelBaseline
+        val textColor = RadialSegmentDraw.textColor(style, active)
+        textPaint.color = textColor
+        textPaint.isFakeBoldText = active
+        val captionSize = textSizePx * 0.8f
+        // Real icon of the action bar slot (from the addon) instead of symbol/emoji; the label stays below it.
+        val addonIcon = WowIcons.bitmapFor(slot.wowAction)
+        if (addonIcon != null) {
+            val drawn = WowIconDraw.draw(
+                canvas, addonIcon, iconX - half, iconY - half, iconX + half, iconY + half,
+                WowIconDraw.KIND_ROUND, 5f * density, 255,
+            )
+            if (drawn) {
+                CooldownDraw.draw(canvas, slot.wowAction, iconX - half, iconY - half, iconX + half, iconY + half, CooldownDraw.KIND_ROUND, 5f * density)
+                textPaint.textSize = captionSize
+                val own = slot.label.isNotBlank()
+                // The own label, else the name of the spell on the slot (as written by the addon), else the action name.
+                val name = if (own) slot.label else WowIcons.nameFor(slot.wowAction)
+                    ?: WowActionCatalog.displayLabel(slot.label, slot.wowAction, slot.bindingCombo)
+                canvas.drawText(fitLabel(name.take(14), content.labelWidth), labelX, labelBase, textPaint)
+                return
+            }
+        }
+        val wowAction = WowActionCatalog.find(slot.wowAction)
+        if (wowAction != null) {
+            // WoW action: own vector symbol with the (short) name below it.
+            val emoji = BindingCaption.emojiForAction(slot.wowAction)
+            if (emoji != null) {
+                // The system font draws the emoji in colour; it takes the place of the vector symbol.
+                textPaint.textSize = half * 1.9f
+                canvas.drawText(emoji, iconX, centeredTextBaseline(iconY, textPaint), textPaint)
+            } else {
+                WowSymbols.draw(canvas, wowAction.symbol, iconX, iconY, half, textColor)
+            }
+            CooldownDraw.draw(canvas, slot.wowAction, iconX - half, iconY - half, iconX + half, iconY + half, CooldownDraw.KIND_ROUND, 5f * density)
+            textPaint.textSize = captionSize
+            val name = WowActionCatalog.displayLabel(slot.label, slot.wowAction, slot.bindingCombo)
+            canvas.drawText(fitLabel(name.take(14), content.labelWidth), labelX, labelBase, textPaint)
             return
         }
-
-        slicePath.rewind()
-        slicePath.fillType = Path.FillType.WINDING
-        slicePath.arcTo(arcBounds, startAngle, sweep)
-        slicePath.arcTo(innerArcBounds, startAngle + sweep, -sweep)
-        slicePath.close()
-
-        drawSlicePath(canvas, active)
-    }
-
-    private fun drawFullRing(canvas: Canvas, active: Boolean) {
-        slicePath.rewind()
-        slicePath.fillType = Path.FillType.EVEN_ODD
-        slicePath.addOval(arcBounds, Path.Direction.CW)
-        slicePath.addOval(innerArcBounds, Path.Direction.CW)
-        drawSlicePath(canvas, active)
-    }
-
-    private fun drawSlicePath(canvas: Canvas, active: Boolean) {
-        fillPaint.color = if (active) {
-            scaledAlphaColor(secondaryColor, 1.15f)
-        } else {
-            scaledAlphaColor(primaryColor, 0.22f)
-        }
-        canvas.drawPath(slicePath, fillPaint)
-
-        strokePaint.color = if (active) {
-            scaledAlphaColor(secondaryColor, 1.65f)
-        } else {
-            scaledAlphaColor(primaryColor, 1f)
-        }
-        strokePaint.strokeWidth = if (active) 2.4f * density else 1.2f * density
-        canvas.drawPath(slicePath, strokePaint)
-    }
-
-    private fun drawSlotLabel(
-        canvas: Canvas,
-        slot: RadialMenu.Slot,
-        index: Int,
-        sweep: Float,
-        centerX: Float,
-        centerY: Float,
-        active: Boolean,
-    ) {
-        val angleRad = Math.toRadians((-90.0 + index * sweep).toDouble())
-        val textX = centerX + cos(angleRad).toFloat() * textRadiusPx
-        val textY = centerY + sin(angleRad).toFloat() * textRadiusPx
-        textPaint.color = readableTextColor(primaryColor)
+        // Own label, else the short name of the key or chat command (see BindingCaption).
         textPaint.textSize = textSizePx
-        textPaint.isFakeBoldText = active
-        val sliceWidth = 2f * textRadiusPx * sin(Math.toRadians((sweep * 0.5f).toDouble())).toFloat()
-        val maxLabelWidth = min(radiusPx * 0.62f, (sliceWidth - 8f * density).coerceAtLeast(24f * density))
-        val label = fitLabel(slot.displayLabel.take(14), maxLabelWidth)
-        canvas.drawText(label, textX, centeredTextBaseline(textY, textPaint), textPaint)
+        val caption = BindingCaption.textForSlot(slot.label, null, slot.chatCommand, slot.bindingCombo)
+        val label = if (slot.isEnabled) fitLabel(BindingCaption.fit(caption, 14), content.labelWidth) else EMPTY_SLOT_LABEL
+        canvas.drawText(label, seg.midX() + cx, centeredTextBaseline(seg.midY() + cy, textPaint), textPaint)
     }
 
     private fun fitLabel(label: String, maxWidth: Float): String {
         var adjusted = label
         while (textPaint.measureText(adjusted) > maxWidth && adjusted.length > 3) {
-            adjusted = adjusted.dropLast(1)
+            // Never cut an emoji (surrogate pair) in half.
+            val drop = if (Character.isLowSurrogate(adjusted.last())) 2 else 1
+            adjusted = adjusted.dropLast(drop)
         }
         return if (adjusted.length < label.length && adjusted.length > 1) {
             adjusted.dropLast(1) + "."
         } else {
             adjusted
         }
-    }
-
-    private fun clampCenterAxis(value: Float, size: Float): Float {
-        val margin = radiusPx + 8f * density
-        return if (size <= margin * 2f) size * 0.5f else value.coerceIn(margin, size - margin)
-    }
-
-    private fun scaledAlphaColor(color: Int, factor: Float): Int {
-        val alpha = (Color.alpha(color) * factor).toInt().coerceIn(0, 255)
-        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
-    }
-
-    private fun readableTextColor(color: Int): Int {
-        val alpha = (Color.alpha(color) * 2.1f).toInt().coerceIn(160, 255)
-        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
     }
 
     private fun centeredTextBaseline(centerY: Float, paint: Paint): Float {

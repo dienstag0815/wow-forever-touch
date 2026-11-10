@@ -10,8 +10,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavController
 import app.gamenative.events.EventDispatcher
+import app.gamenative.service.GameKeepAlive
+import app.gamenative.ui.screen.wow.launcher.AppLanguage
 import app.gamenative.ui.screen.xserver.RadialMenuCoordinator
 import android.app.Application
+import app.gamenative.utils.LocaleHelper
 import com.winlator.container.Container
 import com.winlator.inputcontrols.InputControlsManager
 import com.winlator.widget.InputControlsView
@@ -34,6 +37,7 @@ class PluviaApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        app.gamenative.ui.components.AppText.init(this)
         android.system.Os.setenv("EVSHIM_BASE_PATH", filesDir.absolutePath, true)
 
         if (BuildConfig.DEBUG) {
@@ -44,6 +48,8 @@ class PluviaApp : Application() {
 
         CrashHandler.initialize(this)
         PrefManager.init(this)
+        // The application context (snackbars, notifications, UpdateManager) speaks the chosen language too, not the system's.
+        LocaleHelper.applyToApplication(this, AppLanguage.tagFor(PrefManager.appLanguage))
     }
 
     companion object {
@@ -108,6 +114,9 @@ class PluviaApp : Application() {
             radialMenuCoordinator = null
             keepAlive = false
             clearActiveSuspendState()
+            // Wi-Fi/wake locks and the foreground service end with the game, on every shutdown path.
+            runCatching { GameKeepAlive.stop(instance) }
+                .onFailure { Timber.e(it, "shutdownEnvironment: GameKeepAlive.stop") }
         }
 
         fun clearActiveSuspendState() {

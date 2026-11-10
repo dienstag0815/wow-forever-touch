@@ -87,4 +87,31 @@ class TouchGestureConfigTest {
 
         assertTrue(TouchGestureConfig.containsMouseButtonAction(combo))
     }
+
+    @Test
+    fun `click wheel is off for older configs and round trips`() {
+        assertFalse(TouchGestureConfig.fromJson("""{"tapEnabled":false}""").clickWheelEnabled)
+        assertFalse(TouchGestureConfig.fromJson(null).clickWheelEnabled)
+        assertFalse(TouchGestureConfig().clickWheelEnabled)
+
+        val on = TouchGestureConfig(clickWheelEnabled = true)
+        assertTrue(JSONObject(on.toJson()).getBoolean("clickWheelEnabled"))
+        assertEquals(on, TouchGestureConfig.fromJson(on.toJson()))
+    }
+
+    @Test
+    fun `hold left button is off for older configs and round trips`() {
+        val old = TouchGestureConfig.fromJson("""{"tapEnabled":false}""")
+        assertFalse(old.holdLeftEnabled)
+        assertEquals(350, old.holdLeftDelay)
+        assertEquals(250, old.tapWindowDelay)
+        assertFalse(TouchGestureConfig().holdLeftEnabled)
+
+        val on = TouchGestureConfig(holdLeftEnabled = true, holdLeftDelay = 500, tapWindowDelay = 100)
+        val json = JSONObject(on.toJson())
+        assertTrue(json.getBoolean("holdLeftEnabled"))
+        assertEquals(500, json.getInt("holdLeftDelay"))
+        assertEquals(100, json.getInt("tapWindowDelay"))
+        assertEquals(on, TouchGestureConfig.fromJson(on.toJson()))
+    }
 }

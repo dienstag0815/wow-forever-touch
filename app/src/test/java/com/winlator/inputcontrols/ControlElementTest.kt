@@ -4,6 +4,7 @@ import com.winlator.widget.InputControlsView
 import com.winlator.widget.TouchpadView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,6 +13,8 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -107,5 +110,43 @@ class ControlElementTest {
             eq(0f),
             same(sourceCaptor.firstValue),
         )
+    }
+
+    @Test
+    fun `chat command button types its text once per press and sends no key`() {
+        val view = mock<InputControlsView>()
+        whenever(view.snappingSize).thenReturn(10)
+        whenever(view.maxWidth).thenReturn(1000)
+        whenever(view.maxHeight).thenReturn(1000)
+        val element = ControlElement(view).apply {
+            setX(50)
+            setY(50)
+            setBindingAt(0, Binding.NONE)
+            setChatCommand("/dance")
+        }
+
+        assertTrue(element.handleTouchDown(7, 50f, 50f))
+        assertTrue(element.handleTouchUp(7))
+
+        verify(view, times(1)).runChatCommand("/dance")
+        verify(view, never()).handleInputEvent(any<Binding>(), any(), any())
+        assertEquals("/dance", element.toJSONObject().getString("chatCommand"))
+    }
+
+    @Test
+    fun `button without chat command does not write the field`() {
+        val view = mock<InputControlsView>()
+        whenever(view.snappingSize).thenReturn(10)
+        whenever(view.maxWidth).thenReturn(1000)
+        whenever(view.maxHeight).thenReturn(1000)
+        val element = ControlElement(view).apply {
+            setX(50)
+            setY(50)
+            setBindingAt(0, Binding.KEY_E)
+            setChatCommand("  ")
+        }
+
+        assertNull(element.chatCommand)
+        assertFalse(element.toJSONObject().has("chatCommand"))
     }
 }

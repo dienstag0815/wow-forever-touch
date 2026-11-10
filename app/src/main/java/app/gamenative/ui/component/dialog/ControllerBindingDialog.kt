@@ -1,7 +1,9 @@
 package app.gamenative.ui.component.dialog
 
+import app.gamenative.R
 import android.util.Log
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,6 +26,11 @@ import androidx.compose.ui.window.DialogProperties
 import app.gamenative.ui.component.NoExtractOutlinedTextField
 import com.winlator.inputcontrols.Binding
 import com.winlator.inputcontrols.BindingCombo
+import app.gamenative.wowaction.WowAction
+import app.gamenative.wowaction.WowActionCatalog
+
+/** Index of the "WoW-Aktion" tab in [ControllerBindingDialog] (0 to 3 are the key categories). */
+private const val WOW_ACTION_CATEGORY = 4
 
 /**
  * Dialog for selecting controller button bindings.
@@ -35,6 +42,13 @@ import com.winlator.inputcontrols.BindingCombo
  * @param currentBinding Currently assigned binding (if any)
  * @param onDismiss Callback when dialog is dismissed without selection
  * @param onBindingSelected Callback when a binding is selected (null for NONE)
+ * @param onWowActionSelected If set, the dialog offers the extra tab "WoW-Aktion": the player picks a WoW action by name and
+ *        gets the key currently set in WoW (null combo = the action has no key). Closing is up to the caller.
+ * @param currentWowActionId Action id already stored for the button/field (highlighted in the tab)
+ * @param onChatCommandSelected If set, the WoW tab offers "Eigener Chat-Befehl ..." (label and free chat text such as
+ *        "/follow" or "/s Hallo"); the callback gets (label, command). Closing is up to the caller.
+ * @param currentChatCommand Chat text already stored for the button/field (prefills the free command dialog)
+ * @param currentChatLabel Label already stored for the button/field (prefills the free command dialog)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,16 +58,41 @@ fun ControllerBindingDialog(
     currentBindingCombo: BindingCombo? = currentBinding?.let { BindingCombo.of(it) },
     onDismiss: () -> Unit,
     onBindingSelected: (Binding?) -> Unit,
-    onBindingComboSelected: ((BindingCombo?) -> Unit)? = null
+    onBindingComboSelected: ((BindingCombo?) -> Unit)? = null,
+    onWowActionSelected: ((WowAction, BindingCombo?) -> Unit)? = null,
+    currentWowActionId: String? = null,
+    onChatCommandSelected: ((String, String) -> Unit)? = null,
+    currentChatCommand: String? = null,
+    currentChatLabel: String? = null,
 ) {
-
+    val wowKeys by rememberWowKeys(onWowActionSelected != null)
+    var showCustomChat by remember { mutableStateOf(false) }
+    if (showCustomChat && onChatCommandSelected != null) {
+        CustomChatDialog(
+            initialLabel = currentChatLabel.orEmpty(),
+            initialCommand = currentChatCommand.orEmpty(),
+            onConfirm = { label, command ->
+                showCustomChat = false
+                onChatCommandSelected(label, command)
+            },
+            onDismiss = { showCustomChat = false },
+        )
+    }
     var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf<Int?>(0) } // 0 = Keyboard, 1 = Mouse, 2 = Gamepad, 3 = Extra, null = All
+    // 0 = Keyboard, 1 = Mouse, 2 = Gamepad, 3 = Extra, 4 = WoW action, null = All
+    var selectedCategory by remember {
+        mutableStateOf<Int?>(if (onWowActionSelected != null && currentWowActionId != null) WOW_ACTION_CATEGORY else 0)
+    }
+    val wowTabActive = onWowActionSelected != null && selectedCategory == WOW_ACTION_CATEGORY
     var isSearchExpanded by remember { mutableStateOf(false) }
     val selectedBindings = remember(currentBindingCombo, currentBinding) {
         mutableStateListOf<Binding>().apply {
             addAll((currentBindingCombo ?: BindingCombo.of(currentBinding)).bindings)
         }
+    }
+    // false: a new key replaces the chosen one; true: keys are added up to a combination (e.g. Shift + 1).
+    var comboMode by remember(currentBindingCombo, currentBinding) {
+        mutableStateOf((currentBindingCombo ?: BindingCombo.of(currentBinding)).bindings.size > 1)
     }
     var selectedMode by remember(currentBindingCombo, currentBinding) {
         mutableStateOf((currentBindingCombo ?: BindingCombo.of(currentBinding)).mode)
@@ -212,9 +251,54 @@ fun ControllerBindingDialog(
                     Column(
                         modifier = Modifier
                             .weight(0.4f)
-                            .fillMaxHeight(),
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // Chosen keys: "x" removes just that one key, a new key replaces them unless "combination" is on.
+                        if (selectedBindings.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                selectedBindings.toList().forEach { chosen ->
+                                    Surface(
+                                        modifier = Modifier.clickable { selectedBindings.remove(chosen) },
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        shape = MaterialTheme.shapes.small
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(chosen.toString(), style = MaterialTheme.typography.bodyMedium)
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = stringResource(app.gamenative.R.string.clear_binding),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (!wowTabActive) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Kombination (mehrere Tasten)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(checked = comboMode, onCheckedChange = { comboMode = it })
+                            }
+                        }
                         // Collapsible search - starts as icon button, expands to full search field
                         if (!isSearchExpanded) {
                             // Compact search button
@@ -241,7 +325,7 @@ fun ControllerBindingDialog(
                                 onValueChange = {
                                     searchQuery = it
                                     // When search starts, switch to "all categories" mode
-                                    if (it.isNotBlank() && selectedCategory != null) {
+                                    if (it.isNotBlank() && selectedCategory != null && selectedCategory != WOW_ACTION_CATEGORY) {
                                         selectedCategory = null
                                     }
                                 },
@@ -257,7 +341,7 @@ fun ControllerBindingDialog(
                                     IconButton(
                                         onClick = {
                                             searchQuery = ""
-                                            selectedCategory = 0 // Return to Keyboard category
+                                            if (selectedCategory != WOW_ACTION_CATEGORY) selectedCategory = 0 // Return to Keyboard category
                                             isSearchExpanded = false // Collapse search
                                         },
                                         modifier = Modifier.size(32.dp)
@@ -367,6 +451,15 @@ fun ControllerBindingDialog(
                                 }
                             }
 
+                            // WoW action tab (only where the caller can store an action)
+                            if (onWowActionSelected != null) {
+                                CategoryButton(
+                                    categoryIndex = WOW_ACTION_CATEGORY,
+                                    label = stringResource(R.string.game_wow_action),
+                                    matchCount = if (searchQuery.isBlank()) null else WowActionCatalog.search(searchQuery).size
+                                )
+                            }
+
                             // Keyboard button
                             CategoryButton(
                                 categoryIndex = 0,
@@ -396,14 +489,17 @@ fun ControllerBindingDialog(
                             )
 
                             // Clear Binding button - more compact for smaller screens
+                            // Only empties the choice; the dialog stays open and the list is ready for a new key.
+                            // The empty choice is applied with the check mark in the header.
                             if (selectedBindings.isNotEmpty()) {
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            Log.d("ControllerBindingDialog", "Clearing binding for $buttonName")
-                                            submitSelection(null)
+                                            Log.d("ControllerBindingDialog", "Clearing chosen binding for $buttonName")
+                                            selectedBindings.clear()
+                                            comboMode = false
                                         },
                                     color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
                                     shape = MaterialTheme.shapes.small
@@ -440,7 +536,16 @@ fun ControllerBindingDialog(
                             .padding(vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        if (filteredBindings.isEmpty()) {
+                        if (wowTabActive && onWowActionSelected != null) {
+                            WowActionList(
+                                query = searchQuery,
+                                keys = wowKeys,
+                                selectedId = currentWowActionId,
+                                onPick = { action -> onWowActionSelected(action, wowKeys[action.command]?.combo) },
+                                onCustomChat = if (onChatCommandSelected != null) ({ showCustomChat = true }) else null,
+                                customChatSelected = currentWowActionId == null && !currentChatCommand.isNullOrBlank(),
+                            )
+                        } else if (filteredBindings.isEmpty()) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -459,12 +564,16 @@ fun ControllerBindingDialog(
                                 BindingOption(
                                     binding = binding,
                                     isSelected = if (isNone) selectedBindings.isEmpty() else binding in selectedBindings,
-                                    enabled = isNone || binding in selectedBindings || selectedBindings.size < BindingCombo.MAX_BINDINGS,
+                                    enabled = isNone || binding in selectedBindings || !comboMode || selectedBindings.size < BindingCombo.MAX_BINDINGS,
                                     onClick = {
                                         if (isNone) {
                                             selectedBindings.clear()
                                         } else if (binding in selectedBindings) {
                                             selectedBindings.remove(binding)
+                                        } else if (!comboMode) {
+                                            // Replace: the new key takes the place of the old one, no need to clear first.
+                                            selectedBindings.clear()
+                                            selectedBindings.add(binding)
                                         } else if (selectedBindings.size < BindingCombo.MAX_BINDINGS) {
                                             selectedBindings.add(binding)
                                         }

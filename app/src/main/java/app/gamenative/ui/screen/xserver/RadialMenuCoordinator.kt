@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.findViewTreeCompositionContext
 import app.gamenative.PluviaApp
 import app.gamenative.ui.component.dialog.RadialMenuSettingsContent
 import app.gamenative.ui.theme.PluviaTheme
+import app.gamenative.ui.touchstyle.RadialOpen
 import com.winlator.container.Container
 import com.winlator.inputcontrols.Binding
 import com.winlator.inputcontrols.BindingCombo
@@ -27,7 +28,6 @@ import com.winlator.widget.InputControlsView
 import com.winlator.widget.TouchpadView
 import com.winlator.xserver.XServer
 import timber.log.Timber
-import kotlin.math.atan2
 import kotlin.math.sqrt
 
 class RadialMenuCoordinator(
@@ -93,6 +93,13 @@ class RadialMenuCoordinator(
     private var inputControlSelectionActive = false
     private var activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
     private val wheelCenter = PointF()
+
+    // Point the finger direction is measured from. For touch buttons this is the touch-down point
+    // (the wheel itself may be shifted away from screen edges), otherwise the wheel center.
+    private val selectionOrigin = PointF()
+
+    // Menu shown right now (a radial button can have its own menu instead of the profile default).
+    private var openMenu: RadialMenu? = null
     private val activeDispatchedBindings = mutableListOf<Binding>()
     private var bindingDispatchGeneration = 0
 
@@ -241,10 +248,24 @@ class RadialMenuCoordinator(
     }
 
     override fun onRadialMenuTouchStart(pointerId: Int, x: Float, y: Float) {
+        onRadialMenuTouchStart(pointerId, x, y, null)
+    }
+
+    override fun onRadialMenuTouchStart(pointerId: Int, x: Float, y: Float, menuId: String?) {
+        onRadialMenuTouchStart(pointerId, x, y, menuId, null)
+    }
+
+    /** [direction]: the "opens to" setting of the button (null = automatic, by screen area), see [RadialOpen]. */
+    override fun onRadialMenuTouchStart(pointerId: Int, x: Float, y: Float, menuId: String?, direction: String?) {
         inputControlsView?.let { view ->
             inputControlSelectionActive = true
             activeTouchPointerId = pointerId
-            openAt(pointFromView(view, x, y))
+            openAt(
+                point = pointFromView(view, x, y),
+                menu = menuForId(menuId),
+                selectFromPoint = true,
+                direction = RadialOpen.fromId(direction),
+            )
         }
     }
 
@@ -394,13 +415,26 @@ class RadialMenuCoordinator(
         openAt(pointFromView(sourceView, x, y))
     }
 
-    private fun openAt(point: PointF) {
-        val menu = activeMenu() ?: return
+    private fun menuForId(menuId: String?): RadialMenu? {
+        return activeProfile()?.getRadialMenu(menuId)
+    }
+
+    private fun openAt(
+        point: PointF,
+        menu: RadialMenu? = activeMenu(),
+        selectFromPoint: Boolean = false,
+        direction: RadialOpen = RadialOpen.AUTO,
+    ) {
+        if (menu == null) return
+        // Nothing to pick if no field has keys; empty fields still count as (empty) sectors.
         if (menu.enabledSlots.isEmpty()) return
         inputControlsView?.let { overlayView.setControlsStyle(it.primaryColor, it.secondaryColor) }
-        val center = clampCenter(point)
-        wheelCenter.set(center.x, center.y)
-        overlayView.show(menu, center.x, center.y)
+        // The middle stays on the pressed point, the arc turns towards the middle of the screen (or the way the button says); the
+        // middle only moves if no direction fits. The overlay decides, the finger direction is measured from the touch-down point.
+        overlayView.show(menu, point.x, point.y, hostWidth(), hostHeight(), direction)
+        wheelCenter.set(overlayView.centerXPx, overlayView.centerYPx)
+        if (selectFromPoint) selectionOrigin.set(point.x, point.y) else selectionOrigin.set(wheelCenter.x, wheelCenter.y)
+        openMenu = menu
     }
 
     private fun close(commit: Boolean) {
@@ -409,16 +443,21 @@ class RadialMenuCoordinator(
             inputControlSelectionActive = false
             return
         }
-        val slots = activeMenu()?.enabledSlots.orEmpty()
+        val slots = (openMenu ?: activeMenu())?.slots.orEmpty()
         val selectedIndex = overlayView.selectedIndex()
-        val selectedBinding = if (commit && selectedIndex in slots.indices) {
-            slots[selectedIndex].bindingCombo
+        val selectedSlot = if (commit && selectedIndex in slots.indices) slots[selectedIndex] else null
+        // A chat command field types its text into the WoW chat instead of sending a key.
+        val chatCommand = selectedSlot?.chatCommand
+        val selectedBinding = if (chatCommand == null && selectedSlot != null) {
+            selectedSlot.bindingCombo
         } else {
             BindingCombo.none()
         }
         overlayView.hide()
+        openMenu = null
         activeTouchPointerId = MotionEvent.INVALID_POINTER_ID
         inputControlSelectionActive = false
+        if (chatCommand != null) inputControlsView?.runChatCommand(chatCommand)
         if (!selectedBinding.isEmpty) dispatchBinding(selectedBinding)
     }
 
@@ -457,30 +496,18 @@ class RadialMenuCoordinator(
         )
     }
 
-    private fun clampCenter(point: PointF): PointF {
-        val width = host.width.takeIf { it > 0 }?.toFloat()
-            ?: context.resources.displayMetrics.widthPixels.toFloat()
-        val height = host.height.takeIf { it > 0 }?.toFloat()
-            ?: context.resources.displayMetrics.heightPixels.toFloat()
-        val margin = overlayView.radiusPx + 8f * context.resources.displayMetrics.density
-        fun clampAxis(value: Float, size: Float): Float {
-            return if (size <= margin * 2f) size * 0.5f else value.coerceIn(margin, size - margin)
-        }
-        return PointF(clampAxis(point.x, width), clampAxis(point.y, height))
-    }
+    private fun hostWidth(): Float = host.width.takeIf { it > 0 }?.toFloat()
+        ?: context.resources.displayMetrics.widthPixels.toFloat()
+
+    private fun hostHeight(): Float = host.height.takeIf { it > 0 }?.toFloat()
+        ?: context.resources.displayMetrics.heightPixels.toFloat()
 
     private fun slotIndexAt(point: PointF): Int {
-        val slots = activeMenu()?.enabledSlots.orEmpty()
-        if (slots.isEmpty()) return -1
-        val dx = point.x - wheelCenter.x
-        val dy = point.y - wheelCenter.y
-        val distance = sqrt(dx * dx + dy * dy)
-        if (distance < overlayView.innerRadiusPx) return -1
-
-        val sweep = 360f / slots.size
-        val angle = Math.toDegrees(atan2(dy, dx).toDouble()).toFloat()
-        val normalized = (angle + 90f + 360f) % 360f
-        return (((normalized + sweep / 2f) / sweep).toInt() % slots.size)
+        // Ring segments on an arc open at the bottom, empty fields not choosable: the overlay knows the layout (RadialArc).
+        return overlayView.slotIndexAt(
+            (point.x - selectionOrigin.x).toDouble(),
+            (point.y - selectionOrigin.y).toDouble(),
+        )
     }
 
     private fun dispatchBinding(bindingCombo: BindingCombo) {

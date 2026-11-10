@@ -18,6 +18,8 @@ import androidx.annotation.NonNull;
 import com.winlator.PrefManager;
 
 import app.gamenative.utils.LsfgVkManager;
+import app.gamenative.utils.MachineIdentity;
+import app.gamenative.utils.MachineIdentityApply;
 import com.winlator.box86_64.Box86_64Preset;
 import com.winlator.box86_64.Box86_64PresetManager;
 import com.winlator.container.Container;
@@ -56,6 +58,8 @@ import java.util.List;
 
 import app.gamenative.BuildConfig;
 import app.gamenative.PluviaApp;
+import app.gamenative.utils.BoundedProcess;
+import app.gamenative.utils.LibredirectChoice;
 import app.gamenative.events.AndroidEvent;
 
 public class BionicProgramLauncherComponent extends GuestProgramLauncherComponent {
@@ -91,13 +95,14 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     // W^X kernel) and legacy preloads nothing. Returns null to preload nothing.
     private String resolveLibredirectPreload(ImageFs imageFs) {
         com.winlator.xenvironment.ImageFsInstaller.ensureBionicLib(environment.getContext(), imageFs.getRootDir());
-        if (container != null && container.isDisableLibredirect()) {
-            if (BuildConfig.MODERN_ANDROID) {
-                return imageFs.getLibDir() + "/libredirect-bionic-wx-minimal.so";
-            }
-            return null;
-        }
-        return imageFs.getLibDir() + "/" + BuildConfig.PRELOAD_BIONIC_SO;
+        // Auswahl als reine Funktion (LibredirectChoice); Regel ab Android 17 vorerst aus (FORCE_ON_NEW_ANDROID).
+        String name = LibredirectChoice.pick(
+                BuildConfig.MODERN_ANDROID,
+                container != null && container.isDisableLibredirect(),
+                Build.VERSION.SDK_INT,
+                BuildConfig.PRELOAD_BIONIC_SO,
+                LibredirectChoice.FORCE_ON_NEW_ANDROID);
+        return name == null ? null : imageFs.getLibDir() + "/" + name;
     }
 
     public BionicProgramLauncherComponent(ContentsManager contentsManager, ContentProfile wineProfile) {
@@ -133,9 +138,21 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
                     Process.killProcess(subProcess.pid);
                 }
                 PluviaApp.setKeepAlive(false);
-                execShellCommand("wineserver -k");
+                killWineserver();
             }
         }
+    }
+
+    // wineserver -k mit Zeitlimit (haengt es, wird der Prozess zerstoert) und auf dem Hauptthread nie blockierend.
+    private void killWineserver() {
+        BoundedProcess.runOffMain(Looper.myLooper() == Looper.getMainLooper(), "wineserver-kill", () -> {
+            try {
+                execShellCommand("wineserver -k", true, null, null,
+                        (int) (BoundedProcess.WINESERVER_KILL_TIMEOUT_MS / 1000));
+            } catch (Exception e) {
+                Log.w("BionicProgramLauncherComponent", "wineserver -k failed: " + e);
+            }
+        });
     }
 
     public Callback<Integer> getTerminationCallback() {
@@ -338,6 +355,9 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         if (replacePath != null) ld_preload += ":" + replacePath;
 
         envVars.put("LD_PRELOAD", ld_preload);
+        // WoW container: stable own host name for the DNS shim (gethostname), see MachineIdentity.
+        String wowHostname = MachineIdentityApply.shimHostname(context, container);
+        if (wowHostname != null) envVars.put(MachineIdentity.ENV_HOSTNAME, wowHostname);
         envVars.put("EVSHIM_WINE", 1);
         envVars.put("EVSHIM_SHM_NAME", "controller-shm0");
 
@@ -537,6 +557,11 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
     }
 
     public String execShellCommand(String command, boolean includeStderr, EnvVars extraEnv, String[] unsetEnv) {
+        return execShellCommand(command, includeStderr, extraEnv, unsetEnv, -1);
+    }
+
+    /** Wie oben; timeoutSeconds > 0 zerstoert den Prozess nach dieser Zeit. */
+    public String execShellCommand(String command, boolean includeStderr, EnvVars extraEnv, String[] unsetEnv, int timeoutSeconds) {
         Context context = environment.getContext();
         ImageFs imageFs = ImageFs.find(context);
         File rootDir = imageFs.getRootDir();
@@ -595,7 +620,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         Log.d("BionicProgramLauncherComponent", "Shell command is " + finalCommand);
         return ProcessHelper.execWithOutput(finalCommand, envVars.toStringArray(),
-                workingDir != null ? workingDir : imageFs.getRootDir(), includeStderr);
+                workingDir != null ? workingDir : imageFs.getRootDir(), includeStderr, timeoutSeconds);
     }
 
     public void restartWineServer() {

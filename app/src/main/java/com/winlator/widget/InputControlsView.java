@@ -9,10 +9,11 @@ import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.Rect;
+import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.view.KeyEvent;
@@ -30,6 +31,21 @@ import androidx.core.graphics.ColorUtils;
 import app.gamenative.R;
 import app.gamenative.data.GyroSettings;
 import app.gamenative.data.ShooterModeConfig;
+import app.gamenative.cooldown.CooldownService;
+import app.gamenative.ui.screen.wow.LoginTouchGate;
+import app.gamenative.ui.screen.wow.WindowGate;
+import app.gamenative.ui.screen.wow.WindowGeometry;
+import app.gamenative.ui.screen.wow.WindowHideMode;
+import app.gamenative.ui.screen.wow.WindowHideRule;
+import app.gamenative.ui.screen.wow.WindowHideTracker;
+import app.gamenative.ui.screen.wow.WindowViewRects;
+import app.gamenative.ui.screen.wow.chatbar.ChatBarGate;
+import app.gamenative.ui.screen.wow.chatbar.ChatBarLogic;
+import app.gamenative.ui.screen.xserver.editor.EditGestureController;
+import app.gamenative.ui.screen.xserver.editor.EditorListener;
+import app.gamenative.ui.touchstyle.TouchStyleDraw;
+import app.gamenative.ui.touchstyle.TouchStyleSettings;
+import app.gamenative.wowaction.ReloadGuard;
 import com.winlator.inputcontrols.Binding;
 import com.winlator.inputcontrols.BindingCombo;
 import com.winlator.inputcontrols.ControlElement;
@@ -62,17 +78,20 @@ public class InputControlsView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
     private final ColorFilter colorFilter = new PorterDuffColorFilter(0xffffffff, PorterDuff.Mode.SRC_IN);
-    private final Point cursor = new Point();
     private boolean readyToDraw = false;
-    private boolean moveCursor = false;
+    // Login, Warteschlange, Charakterauswahl: Touch-Steuerung unsichtbar, Berührungen wirken als Maus (LoginTouchGate).
+    private boolean loginHidden = false;
+    // Offene Spielfenster (Taschen, Karte, Menüs): Elemente darunter verschwinden (WindowGate), Einblenden mit Verzögerung.
+    private final WindowHideTracker windowTracker = new WindowHideTracker(WindowHideTracker.SHOW_DELAY_MS);
     private final Set<BindingCombo> activeSequenceCombos = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<Binding, Integer> activeSequenceBindings = new EnumMap<>(Binding.class);
     private final Map<Object, Binding> activeSequenceSources = new IdentityHashMap<>();
     private int sequenceGeneration = 0;
     private int snappingSize;
-    private float offsetX;
-    private float offsetY;
     private ControlElement selectedElement;
+    // Direct editor on the game picture (touch handling and handles/guides drawing) and the editor UI behind it.
+    private EditGestureController editController;
+    private EditorListener editorListener;
     private ControlsProfile profile;
     // Retained while the overlay controls are hidden so gyro can keep targeting the active gamepad.
     private ControlsProfile gyroProfile;
@@ -141,12 +160,43 @@ public class InputControlsView extends View {
     private Runnable showKeyboardCallback;
     // Tracks whether SHOW_KEYBOARD is currently held, so the callback fires once per press (rising edge only)
     private boolean showKeyboardPressed;
+    // Callback for the VOICE_CHAT binding (speech to WoW chat), fires once per press
+    private Runnable voiceChatCallback;
+    private boolean voiceChatPressed;
+    // Callback for chat command buttons and radial fields (e.g. emotes "/dance"): types the text into the WoW chat
+    private ChatCommandCallback chatCommandCallback;
+    private ChatActionCallback chatActionCallback;
+    // Whether some button of the profile needs the chat state (reported to ChatBarGate so the strip is read only then)
+    private boolean chatDemand = false;
+    // Callback for the OPEN_NAVIGATION_MENU binding (opens the quick menu with settings/editor), fires once per press
+    private Runnable openNavigationMenuCallback;
+    private boolean openNavigationMenuPressed;
+    // Callback for the OPEN_CONTROLS_EDITOR binding (starts the edit mode of the on-screen controls), fires once per press
+    private Runnable openControlsEditorCallback;
+    private boolean openControlsEditorPressed;
     private RadialMenuListener radialMenuListener;
     private boolean radialMenuTouchActive;
     private int radialMenuTouchPointerId = MotionEvent.INVALID_POINTER_ID;
 
+    public interface ChatCommandCallback {
+        void onChatCommand(String text);
+    }
+
+    /** A chat button was pressed ([actionId]: id of a ChatButton: voice, send, keyboard, channel, cancel). */
+    public interface ChatActionCallback {
+        void onChatAction(String actionId);
+    }
+
     public interface RadialMenuListener {
         void onRadialMenuTouchStart(int pointerId, float x, float y);
+        /** Touch start of a radial button with its own menu; a null/unknown menuId means the default menu. */
+        default void onRadialMenuTouchStart(int pointerId, float x, float y, String menuId) {
+            onRadialMenuTouchStart(pointerId, x, y);
+        }
+        /** As above, with the "opens to" setting of the button (null = automatic, else "up", "down", "left", "right"). */
+        default void onRadialMenuTouchStart(int pointerId, float x, float y, String menuId, String direction) {
+            onRadialMenuTouchStart(pointerId, x, y, menuId);
+        }
         void onRadialMenuTouchMove(int pointerId, float x, float y);
         void onRadialMenuTouchEnd(int pointerId, boolean commit);
         void onRadialMenuButtonStateChanged(boolean isDown);
@@ -169,6 +219,12 @@ public class InputControlsView extends View {
     @SuppressLint("ResourceType")
     public InputControlsView(Context context) {
         super(context);
+        LoginTouchGate.reset(context); // new game session: hidden until the world is reached (if the setting is on)
+        loginHidden = LoginTouchGate.isHidden();
+        WindowGate.init(context);
+        TouchStyleSettings.init(context); // look of the touch elements (style and contrast), read once
+        TouchStyleDraw.resetSession(SystemClock.uptimeMillis()); // elements start active, rest after 4 s without touch (style G)
+        CooldownService.newSession(); // a new game session: the check of the addon build starts again
         gyroController = new GyroController(context, new GyroController.Listener() {
             @Override
             public void onGyroMouseDelta(int x, int y) {
@@ -202,8 +258,121 @@ public class InputControlsView extends View {
     public void setEditMode(boolean editMode) {
         if (this.editMode != editMode) cancelTouchRouting();
         this.editMode = editMode;
+        openControlsEditorPressed = false;
+        if (!editMode) {
+            // Leaving the editor: no element stays highlighted as selected.
+            deselectAllElements();
+            if (editController != null) editController.reset();
+            if (editorListener != null) editorListener.onSelectionChanged(null);
+        }
         gyroController.setEditMode(editMode);
         invalidate(); // Trigger redraw to show/hide grid background immediately
+    }
+
+    /** The touch controls are hidden by the login rule right now (never while the layout editor is open). */
+    private boolean isLoginHiddenNow() {
+        return !editMode && LoginTouchGate.isHidden();
+    }
+
+    /** Follows the gate on the main thread; when it flips, running touches are cancelled (no stuck button or stick). */
+    private boolean updateLoginHidden() {
+        boolean hidden = isLoginHiddenNow();
+        if (hidden != loginHidden) {
+            loginHidden = hidden;
+            cancelTouchRouting();
+        }
+        return hidden;
+    }
+
+    /**
+     * With the login rule active only the Escape and the keyboard button stay (LoginTouchGate.keepInLogin: decided by the
+     * button's binding, so it holds for every profile); everything else is neither drawn nor touchable, and a touch that
+     * hits nothing goes to the touchpad as a plain mouse touch, as always.
+     */
+    private boolean isHiddenInLogin(ControlElement element) {
+        return isLoginHiddenNow() && !LoginTouchGate.keepInLogin(element.getType(), element.getBindingAt(0));
+    }
+
+    private boolean isRendererFullscreen() {
+        return xServer != null && xServer.getRenderer() != null && xServer.getRenderer().isFullscreen();
+    }
+
+    /** The open game windows in view pixels, or null when none are reported (or the setting is off, or the editor is open). */
+    private WindowViewRects currentWindowRects() {
+        if (editMode || WindowGate.mode() == WindowHideMode.OFF) return null;
+        return WindowGate.viewRects(getWidth(), getHeight(), isRendererFullscreen());
+    }
+
+    /**
+     * An open game window hides this element (setting "Touch-Elemente über Spielfenstern ausblenden"): drawn no more and not
+     * touchable, a touch there goes to the touchpad as a plain mouse touch. Escape and the keyboard button always stay.
+     * Hiding is at once, showing again only after WindowHideTracker.SHOW_DELAY_MS without overlap; a finger that lies on
+     * the element keeps it alive until it is lifted (no running touch is cancelled).
+     */
+    private boolean isHiddenByWindow(ControlElement element, WindowViewRects windows, long nowMs, int safeKeepers) {
+        WindowHideMode mode = WindowGate.mode();
+        if (editMode || mode == WindowHideMode.OFF) {
+            windowTracker.reset();
+            return false;
+        }
+        // Per button "Bei offenen Fenstern" (automatic = the setting; keep / hide win over it, see WindowHideRule.hides).
+        boolean essential = WindowHideRule.alwaysKept(element.getType(), element.getBindingAt(0));
+        boolean covered = false;
+        if (windows != null) {
+            Rect box = element.getBoundingBox();
+            float share = mode == WindowHideMode.COVERED && !essential
+                    ? WindowGeometry.coveredShare(box.left, box.top, box.right, box.bottom, windows)
+                    : 0f;
+            covered = WindowHideRule.hides(element.getWindowRule(), mode, share, windows.count, essential, safeKeepers);
+        }
+        if (!covered && essential) return false;
+        return windowTracker.hidden(element, covered, element.isTouchHeld(), nowMs);
+    }
+
+    /**
+     * How many Escape/keyboard buttons stay visible over open windows because they are not set to "Ausblenden": the last one may not be hidden
+     * (the player must not lock himself out, see WindowHideRule.hides).
+     */
+    private int countWindowKeepers() {
+        int count = 0;
+        if (profile == null) return 0;
+        for (ControlElement element : profile.getElements()) {
+            if (WindowHideRule.alwaysKept(element.getType(), element.getBindingAt(0))
+                    && !"hide".equals(element.getWindowRule())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Keeps the chat buttons in step with the game's chat: tells the gate whether any button needs the chat state (the strip is read only
+     * then) and moves buttons that are pinned to the chat window with it. Not in the editor: there buttons stay where they are drawn and the
+     * offset is measured when the profile is saved (ControlElement.toJSONObject).
+     */
+    private void syncChatLinks() {
+        boolean demand = false;
+        float[] rect = null;
+        boolean rectRead = false;
+        for (ControlElement element : profile.getElements()) {
+            if (!element.dependsOnChat()) continue;
+            demand = true;
+            if (editMode || !element.followsChat()) continue;
+            if (!rectRead) {
+                rect = getChatRect();
+                rectRead = true;
+            }
+            element.applyChatAnchor(rect);
+        }
+        if (demand != chatDemand) {
+            chatDemand = demand;
+            ChatBarGate.setDemand(demand);
+        }
+    }
+
+    /** A button that is set to show only while the chat is visible / its line is open is hidden otherwise (never in the editor). */
+    private boolean isHiddenByChat(ControlElement element) {
+        return element.getChatShow() != null && !ChatBarLogic.isVisible(element.getChatShow(), ChatBarGate.state(), editMode);
     }
 
     private void cancelTouchRouting() {
@@ -255,19 +424,45 @@ public class InputControlsView extends View {
 
         if (editMode) {
             drawGrid(canvas);
-            drawCursor(canvas);
         }
 
         if (profile != null) {
             if (!profile.isElementsLoaded()) profile.loadElements(this);
+            syncChatLinks();
             if (showTouchscreenControls) {
+                WindowViewRects windows = currentWindowRects();
+                long nowMs = SystemClock.uptimeMillis();
+                windowTracker.beginPass();
+                int safeKeepers = countWindowKeepers();
+                boolean fingerHeld = false;
+                for (ControlElement element : profile.getElements()) {
+                    if (element.isTouchHeld()) {
+                        fingerHeld = true;
+                        break;
+                    }
+                }
+                TouchStyleDraw.beginFrame(nowMs, fingerHeld, getResources().getDisplayMetrics().density);
                 for (ControlElement element : profile.getElements()) {
                     // Hide STICK elements replaced by container shooter mode
                     if (isStickHiddenByShooterMode(element)) continue;
+                    if (isHiddenInLogin(element)) continue;
+                    if (isHiddenByWindow(element, windows, nowMs, safeKeepers)) continue;
+                    if (isHiddenByChat(element)) continue;
                     element.draw(canvas);
                 }
+                windowTracker.endPass();
+                // Draw time per frame (log) and the fade into the resting look (style G): draw again when it is due.
+                long styleWait = TouchStyleDraw.endFrame(nowMs);
+                if (styleWait == 0) postInvalidateOnAnimation();
+                else if (styleWait > 0) postInvalidateDelayed(styleWait + 5);
+                // An element that waits to come back: draw once more when its time is up (nothing else may change by then).
+                long wait = windowTracker.nextChangeIn(nowMs);
+                if (wait >= 0) postInvalidateDelayed(wait + 10);
             }
         }
+
+        // Selection frame, handles and snapping guides of the editor
+        if (editMode) editController().draw(canvas);
 
         // Draw dynamic joysticks when shooter mode is active
         boolean anyShooterActive = shooterModeActive || containerShooterModeRuntime;
@@ -281,7 +476,7 @@ public class InputControlsView extends View {
         }
 
         // Draw container shooter mode toggle button
-        if (containerShooterMode && isRuntimeToggleVisible() && !editMode) {
+        if (containerShooterMode && isRuntimeToggleVisible() && !editMode && !isLoginHiddenNow()) {
             drawContainerShooterToggle(canvas);
         }
 
@@ -315,16 +510,29 @@ public class InputControlsView extends View {
         paint.setAntiAlias(true);
     }
 
-    private void drawCursor(Canvas canvas) {
-        paint.setStyle(Paint.Style.FILL);
-        paint.setStrokeWidth(snappingSize * 0.0625f);
-        paint.setColor(0xffc62828);
+    private EditGestureController editController() {
+        if (editController == null) editController = new EditGestureController(this);
+        return editController;
+    }
 
-        paint.setAntiAlias(false);
-        canvas.drawLine(0, cursor.y, getMaxWidth(), cursor.y, paint);
-        canvas.drawLine(cursor.x, 0, cursor.x, getMaxHeight(), paint);
+    /** The editor UI (bottom sheet, toolbar) listens to selection and gesture results. */
+    public void setEditorListener(EditorListener listener) {
+        this.editorListener = listener;
+    }
 
-        paint.setAntiAlias(true);
+    /** Selects an element (null = none) from the editor and tells the editor UI. */
+    public void editorSelect(ControlElement element) {
+        selectElement(element);
+        if (editorListener != null) editorListener.onSelectionChanged(element);
+    }
+
+    /** Double tap or pencil handle: the editor UI should open the settings of the element. */
+    public void editorRequestEdit(ControlElement element) {
+        if (editorListener != null) editorListener.onEditRequested(element);
+    }
+
+    public void editorGestureFinished(boolean changed) {
+        if (editorListener != null) editorListener.onGestureFinished(changed);
     }
 
     public synchronized boolean addElement() {
@@ -508,15 +716,6 @@ public class InputControlsView extends View {
         return Color.argb((int)(overlayOpacity * 255), 2, 119, 189);
     }
 
-    private synchronized ControlElement intersectElement(float x, float y) {
-        if (profile != null) {
-            for (ControlElement element : profile.getElements()) {
-                if (element.containsPoint(x, y)) return element;
-            }
-        }
-        return null;
-    }
-
     public Paint getPaint() {
         return paint;
     }
@@ -553,6 +752,8 @@ public class InputControlsView extends View {
 
     @Override
     protected void onDetachedFromWindow() {
+        CooldownService.unregister(this);
+        ChatBarGate.detach(this);
         cancelTouchRouting();
         gyroController.onDetachedFromWindow();
         if (mouseMoveTimer != null)
@@ -563,6 +764,9 @@ public class InputControlsView extends View {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        CooldownService.register(this); // cooldowns of the action bar slots on the buttons (TouchForever strip)
+        chatDemand = false;
+        ChatBarGate.attach(this, this::postInvalidate); // chat state for chat buttons: shown while, pinned to the chat window
         gyroController.onAttachedToWindow();
     }
 
@@ -664,6 +868,43 @@ public class InputControlsView extends View {
         this.showKeyboardCallback = callback;
     }
 
+    public void setVoiceChatCallback(Runnable callback) {
+        this.voiceChatCallback = callback;
+    }
+
+    public void setChatCommandCallback(ChatCommandCallback callback) {
+        this.chatCommandCallback = callback;
+    }
+
+    /** Types [text] into the WoW chat (Enter, text, Enter); does nothing while no callback is wired. */
+    public void runChatCommand(String text) {
+        ChatCommandCallback callback = chatCommandCallback;
+        if (callback != null && text != null && !text.isEmpty()) callback.onChatCommand(text);
+    }
+
+    public void setChatActionCallback(ChatActionCallback callback) {
+        this.chatActionCallback = callback;
+    }
+
+    /** Runs the chat control [actionId] of a button; does nothing while no callback is wired. */
+    public void runChatAction(String actionId) {
+        ChatActionCallback callback = chatActionCallback;
+        if (callback != null && actionId != null) callback.onChatAction(actionId);
+    }
+
+    /** The chat window of the game in view pixels (left, top, right, bottom), or null when the addon does not report it. */
+    public float[] getChatRect() {
+        return ChatBarLogic.viewRect(ChatBarGate.state(), getWidth(), getHeight(), isRendererFullscreen());
+    }
+
+    public void setOpenNavigationMenuCallback(Runnable callback) {
+        this.openNavigationMenuCallback = callback;
+    }
+
+    public void setOpenControlsEditorCallback(Runnable callback) {
+        this.openControlsEditorCallback = callback;
+    }
+
     public void setRadialMenuListener(RadialMenuListener listener) {
         this.radialMenuListener = listener;
     }
@@ -673,9 +914,18 @@ public class InputControlsView extends View {
     }
 
     public void handleRadialMenuTouchDown(int pointerId, float x, float y) {
+        handleRadialMenuTouchDown(pointerId, x, y, null);
+    }
+
+    public void handleRadialMenuTouchDown(int pointerId, float x, float y, String menuId) {
+        handleRadialMenuTouchDown(pointerId, x, y, menuId, null);
+    }
+
+    /** [direction]: the "opens to" setting of the radial button (null = automatic, by screen area). */
+    public void handleRadialMenuTouchDown(int pointerId, float x, float y, String menuId, String direction) {
         radialMenuTouchActive = true;
         radialMenuTouchPointerId = pointerId;
-        if (radialMenuListener != null) radialMenuListener.onRadialMenuTouchStart(pointerId, x, y);
+        if (radialMenuListener != null) radialMenuListener.onRadialMenuTouchStart(pointerId, x, y, menuId, direction);
     }
 
     public void handleRadialMenuTouchMove(int pointerId, float x, float y) {
@@ -800,9 +1050,12 @@ public class InputControlsView extends View {
         return ((magnitude - deadzone) / (1.0f - deadzone)) * Mathf.sign(value);
     }
 
+    /** Fixed gain of the shooter-mode joysticks; they have their own sensitivity setting (unchanged behaviour). */
+    private static final float SHOOTER_STICK_GAIN = 3.0f;
+
     private float getStickOutputValue(float value, float deadzone, float sensitivity) {
         float adjustedValue = applyJoystickDeadzone(value, deadzone);
-        return Mathf.clamp(adjustedValue * ControlElement.STICK_SENSITIVITY * sensitivity, -1, 1);
+        return Mathf.clamp(adjustedValue * SHOOTER_STICK_GAIN * sensitivity, -1, 1);
     }
 
     private int alphaForOpacity(float opacity, int maxAlpha) {
@@ -1257,6 +1510,7 @@ public class InputControlsView extends View {
             if (isStickHiddenByShooterMode(element)) continue;
             if (element.handleTouchDown(pointerId, x, y)) {
                 performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                TouchStyleDraw.touched(SystemClock.uptimeMillis());
                 handled = true;
                 if (allowButtonLookThrough
                         && element.getType() == ControlElement.Type.BUTTON
@@ -1385,41 +1639,12 @@ public class InputControlsView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (editMode && readyToDraw) {
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN: {
-                    float x = event.getX();
-                    float y = event.getY();
-
-                    ControlElement element = intersectElement(x, y);
-                    moveCursor = true;
-                    if (element != null) {
-                        offsetX = x - element.getX();
-                        offsetY = y - element.getY();
-                        moveCursor = false;
-                    }
-
-                    selectElement(element);
-                    break;
-                }
-                case MotionEvent.ACTION_MOVE: {
-                    if (selectedElement != null) {
-                        selectedElement.setX((int)Mathf.roundTo(event.getX() - offsetX, snappingSize));
-                        selectedElement.setY((int)Mathf.roundTo(event.getY() - offsetY, snappingSize));
-                        invalidate();
-                    }
-                    break;
-                }
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL: {
-                    if (selectedElement != null && profile != null) profile.save();
-                    if (moveCursor) cursor.set((int)Mathf.roundTo(event.getX(), snappingSize), (int)Mathf.roundTo(event.getY(), snappingSize));
-                    invalidate();
-                    break;
-                }
-            }
+            // Select / move with snapping / resize / settings: see EditGestureController
+            return editController().onTouchEvent(event);
         }
 
         if (!editMode && profile != null) {
+            final boolean loginRule = updateLoginHidden();
             int actionIndex = event.getActionIndex();
             int pointerId = event.getPointerId(actionIndex);
             int actionMasked = event.getActionMasked();
@@ -1436,7 +1661,7 @@ public class InputControlsView extends View {
                     float y = event.getY(actionIndex);
 
                     // Shooter mode intercept (use containerShooterMode so toggle button is always reachable)
-                    if ((shooterModeActive || containerShooterMode)
+                    if (!loginRule && (shooterModeActive || containerShooterMode)
                             && handleShooterTouchDown(pointerId, x, y, !touchscreenMode)) {
                         break;
                     }
@@ -1444,9 +1669,16 @@ public class InputControlsView extends View {
                     touchpadView.setPointerButtonLeftEnabled(true);
                     touchpadView.setPointerButtonRightEnabled(true);
                     boolean lookThroughCandidate = false;
+                    WindowViewRects downWindows = currentWindowRects();
+                    long downMs = SystemClock.uptimeMillis();
+                    int downKeepers = countWindowKeepers();
                     for (ControlElement element : profile.getElements()) {
+                        if (loginRule && !LoginTouchGate.keepInLogin(element.getType(), element.getBindingAt(0))) continue;
+                        if (isHiddenByWindow(element, downWindows, downMs, downKeepers)) continue;
+                        if (isHiddenByChat(element)) continue;
                         if (element.handleTouchDown(pointerId, x, y)) {
                             performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                            TouchStyleDraw.touched(SystemClock.uptimeMillis());
                             handled = true;
                             if (event.getToolType(actionIndex) == MotionEvent.TOOL_TYPE_FINGER
                                     && element.getType() == ControlElement.Type.BUTTON
@@ -1545,6 +1777,8 @@ public class InputControlsView extends View {
                         }
                     }
                     for (ControlElement element : profile.getElements()) if (element.handleTouchUp(pointerId)) handled = true;
+                    TouchStyleDraw.touched(SystemClock.uptimeMillis()); // the rest timer counts from the release
+                    postInvalidateOnAnimation(); // an element kept visible by the finger may go (open game window over it)
                     if (touchpadPointers.get(pointerId)) touchpadView.onTouchEvent(event);
                     lookThroughPointerState.release(pointerId);
                     touchpadPointers.delete(pointerId);
@@ -1596,6 +1830,8 @@ public class InputControlsView extends View {
 
     public void handleInputEvent(BindingCombo bindingCombo, boolean isActionDown, float offset, Object source) {
         if (bindingCombo == null || bindingCombo.isEmpty()) return;
+        // The reload key ("Oberfläche neu laden") is locked for 2 s after a press: no double tap, whatever element sent it.
+        if (!ReloadGuard.allow(bindingCombo, isActionDown, SystemClock.uptimeMillis())) return;
         if (bindingCombo.isSequence()) {
             if (isActionDown) {
                 if (activeSequenceCombos.add(bindingCombo)) performBindingSequence(bindingCombo, offset);
@@ -1700,6 +1936,31 @@ public class InputControlsView extends View {
             return;
         }
 
+        if (binding == Binding.OPEN_NAVIGATION_MENU) {
+            if (isActionDown) {
+                if (!openNavigationMenuPressed) {
+                    openNavigationMenuPressed = true;
+                    if (openNavigationMenuCallback != null) openNavigationMenuCallback.run();
+                }
+            } else {
+                openNavigationMenuPressed = false;
+            }
+            return;
+        }
+
+        if (binding == Binding.OPEN_CONTROLS_EDITOR) {
+            if (isActionDown) {
+                // The edit mode is running already: the button must not trigger again while it is edited.
+                if (!openControlsEditorPressed && !editMode) {
+                    openControlsEditorPressed = true;
+                    if (openControlsEditorCallback != null) openControlsEditorCallback.run();
+                }
+            } else {
+                openControlsEditorPressed = false;
+            }
+            return;
+        }
+
         if (binding.isGamepad()) {
             if (profile == null) return;
             WinHandler winHandler = xServer != null ? xServer.getWinHandler() : null;
@@ -1739,6 +2000,17 @@ public class InputControlsView extends View {
             }
         }
         else {
+            if (binding == Binding.VOICE_CHAT) {
+                if (isActionDown) {
+                    if (!voiceChatPressed) {
+                        voiceChatPressed = true;
+                        if (voiceChatCallback != null) voiceChatCallback.run();
+                    }
+                } else {
+                    voiceChatPressed = false;
+                }
+                return;
+            }
             if (binding == Binding.SHOW_KEYBOARD) {
                 if (isActionDown) {
                     if (!showKeyboardPressed) {

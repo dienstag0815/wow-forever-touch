@@ -339,6 +339,9 @@ public class PresentExtension implements Extension {
             } else if (vr != null && window.attributes.isMapped()) {
                 sendCompleteNotify(window, serial, Kind.PIXMAP, Mode.COPY, ust, msc);
                 vr.onUpdateWindowContentDirect(window, pixmap.drawable, xOff, yOff);
+                // Cooldown strip of the addon (top left corner) for the sectors on the touch buttons; cheap unless a read is due.
+                app.gamenative.cooldown.CooldownService.onPresent(pixmap.drawable, window.getWidth(), window.getHeight(),
+                        client.xServer.screenInfo.width, client.xServer.screenInfo.height);
                 if (targetFps > 0) scheduleIdleNotify(window, pixmap, serial, idleFence, targetFps, vr);
                 else sendIdleNotify(window, pixmap, serial, idleFence);
             } else {

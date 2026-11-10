@@ -1,5 +1,6 @@
 package app.gamenative.ui
 
+import app.gamenative.ui.components.BootingSplashLogic
 import android.content.Context
 import android.app.Activity
 import android.content.Intent
@@ -65,6 +66,7 @@ import app.gamenative.ui.enums.Orientation
 import app.gamenative.ui.model.MainViewModel
 import app.gamenative.ui.screen.PluviaScreen
 import app.gamenative.ui.screen.wow.BattleNetSignIn
+import app.gamenative.ui.screen.wow.FoldClosedHint
 import app.gamenative.ui.screen.wow.GamePath
 import app.gamenative.ui.screen.wow.WoWForeverScreen
 import app.gamenative.ui.screen.wow.WoWLauncherState
@@ -270,9 +272,9 @@ fun PluviaMain(
                 message = msgDialogState.message,
             )
 
-            var initialSplash by remember {
-                mutableStateOf(WoWLauncherState.shouldAutoLaunch && GamePath.isReady(context))
-            }
+            // The launcher is always shown first; the automatic start is a visible countdown on the launcher screen
+            // (WoWForeverScreen, AutoStart.kt), no longer a splash that hides it.
+            var initialSplash by remember { mutableStateOf(false) }
             var preLaunchJob by remember { mutableStateOf<Job?>(null) }
 
             DisposableEffect(Unit) {
@@ -294,7 +296,7 @@ fun PluviaMain(
             Box(modifier = Modifier.zIndex(10f)) {
                 BootingSplash(
                     visible = state.showBootingSplash || initialSplash,
-                    text = if (state.showBootingSplash) state.bootingSplashText else "Booting into World of Warcraft...",
+                    text = if (state.showBootingSplash) state.bootingSplashText else BootingSplashLogic.TEXT_START,
                     onAbort = {
                         initialSplash = false
                         preLaunchJob?.cancel()
@@ -377,6 +379,8 @@ fun PluviaMain(
                             viewModel.onGameLaunchError(error)
                         },
                     )
+                    // Hint when a foldable is folded shut during play (game is sized for the inner display).
+                    FoldClosedHint()
                 }
             }
 

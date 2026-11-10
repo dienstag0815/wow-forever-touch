@@ -48,6 +48,45 @@ object BattleNetSignIn {
         }
     }
 
+    /** Ob eine Anmeldung gespeichert ist, ohne das Passwort zu entschlüsseln. */
+    fun hasSaved(context: Context): Boolean {
+        val prefs = prefs(context)
+        return prefs.getString(KEY_EMAIL, null) != null && prefs.getString(KEY_PASSWORD, null) != null
+    }
+
+    /**
+     * E-Mail und Passwort als Zeichenfelder für das Eintippen im Spiel. Das Passwort wird nie zu einem String: Aus den
+     * entschlüsselten Bytes entsteht direkt ein CharArray, die Zwischenpuffer werden überschrieben; [Secret.wipe] überschreibt
+     * die Zeichen, sobald sie getippt sind. Null, wenn nichts gespeichert oder nicht lesbar ist.
+     */
+    fun loadSecret(context: Context): Secret? {
+        val prefs = prefs(context)
+        val email = prefs.getString(KEY_EMAIL, null) ?: return null
+        val sealed = prefs.getString(KEY_PASSWORD, null) ?: return null
+        var bytes: ByteArray? = null
+        return try {
+            bytes = Crypto.decrypt(Base64.decode(sealed, Base64.NO_WRAP))
+            val buffer = Charsets.UTF_8.decode(java.nio.ByteBuffer.wrap(bytes))
+            val password = CharArray(buffer.remaining())
+            buffer.get(password)
+            if (buffer.hasArray()) java.util.Arrays.fill(buffer.array(), '\u0000')
+            Secret(email.toCharArray(), password)
+        } catch (e: Exception) {
+            Timber.w("Saved Battle.net login unreadable")
+            null
+        } finally {
+            bytes?.fill(0)
+        }
+    }
+
+    /** Anmeldedaten als Zeichenfelder; [wipe] überschreibt beide. */
+    class Secret(val email: CharArray, val password: CharArray) {
+        fun wipe() {
+            email.fill('\u0000')
+            password.fill('\u0000')
+        }
+    }
+
     fun save(context: Context, login: Login) {
         val sealed = Base64.encodeToString(Crypto.encrypt(login.password.toByteArray()), Base64.NO_WRAP)
         prefs(context).edit().putString(KEY_EMAIL, login.email).putString(KEY_PASSWORD, sealed).apply()
@@ -82,20 +121,26 @@ object BattleNetSignIn {
         }
     }
 
+    /** True once Hotfix.log is large enough to show the client has passed the login screen. */
+    internal fun loginConsumed(hotfixLogBytes: Long?): Boolean =
+        hotfixLogBytes != null && hotfixLogBytes > HOTFIX_LOG_CONSUMED_BYTES
+
     fun startLoginWatcher(gameRoot: File) {
         CoroutineScope(Dispatchers.IO).launch {
-            val hotfixLog = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "Logs/Hotfix.log")
+            val flavorDir = File(gameRoot, WowClientDownloader.FLAVOR_DIR)
+            val hotfixLog = File(flavorDir, HOTFIX_LOG)
             hotfixLog.delete()
             // A fresh install's first boot streams assets and plays the intro cinematic before reaching the login screen.
-            val deadline = System.currentTimeMillis() + 600_000L
-            while (isActive && System.currentTimeMillis() < deadline) {
-                delay(1000L)
-                if (hotfixLog.exists() && hotfixLog.length() > 50_000L) {
-                    removeLoginFile(gameRoot)
-                    return@launch
+            val deadline = System.currentTimeMillis() + LOGIN_FILE_TIMEOUT_MS
+            try {
+                while (isActive && System.currentTimeMillis() < deadline) {
+                    delay(1000L)
+                    val bytes = if (hotfixLog.exists()) hotfixLog.length() else null
+                    if (loginConsumed(bytes)) break
                 }
+            } finally {
+                removeLoginFile(gameRoot)
             }
-            removeLoginFile(gameRoot)
         }
     }
 
@@ -104,6 +149,9 @@ object BattleNetSignIn {
     private const val PREFS = "battle_net_login"
     private const val KEY_EMAIL = "email"
     private const val KEY_PASSWORD = "password"
+    private const val HOTFIX_LOG = "Logs/Hotfix.log"
+    private const val HOTFIX_LOG_CONSUMED_BYTES = 50_000L
+    private const val LOGIN_FILE_TIMEOUT_MS = 600_000L
 }
 
 @Composable

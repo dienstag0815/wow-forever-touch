@@ -1,0 +1,17 @@
+## Interface: 16001, 120105
+## Title: TouchForever
+## Title-deDE: TouchForever (Symbole für den Launcher)
+## Notes: Writes action bar slots, spellbook, mounts, toys and consumables into its SavedVariables so the WoW Forever launcher can show the real icons on its touch buttons. Also hides / shows the action bars, chat, minimap, quest tracker and the menu / bag bar by key (Bindings.xml); makes the chat compact (no side buttons, more width), the quest tracker and the experience bar smaller (or puts the bar under the minimap); settings page and touch window (/tf); draws a tiny cooldown strip the launcher reads (/tf strip).
+## Notes-deDE: Schreibt Aktionsleisten, Zauberbuch, Reittiere, Spielzeuge und Verbrauchsgüter in die SavedVariables, damit der WoW-Forever-Launcher die echten Symbole auf den Touch-Knöpfen zeigt. Blendet außerdem Aktionsleisten, Chat, Minikarte, Questverfolgung und Menü-/Taschenleiste per Taste aus/ein (Bindings.xml); macht den Chat kompakt (ohne Seitenknöpfe, breiter), die Questverfolgung und die Erfahrungsleiste kleiner (oder hängt sie unter die Minikarte); Einstellungsseite und Touch-Fenster (/tf); zeichnet einen winzigen Abklingzeit-Streifen, den der Launcher liest (/tf strip).
+## Author: WoW Forever Fold contributors
+## Version: 1.6.0
+## SavedVariablesPerCharacter: TouchForeverDB
+## IconTexture: Interface\Icons\INV_Misc_Gear_01
+
+TouchForeverLang.lua
+TouchForeverLocale.lua
+TouchForever.lua
+TouchForeverUI.lua
+TouchForeverOptions.lua
+TouchForeverCooldown.lua
+TouchForeverContext.lua

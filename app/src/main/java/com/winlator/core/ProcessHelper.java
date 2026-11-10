@@ -203,6 +203,7 @@ public abstract class ProcessHelper {
         final StringBuilder stderrBuf = new StringBuilder();
         Thread stdoutDrainer = null;
         Thread stderrDrainer = null;
+        boolean timedOut = false;
         try {
             if (BuildConfig.MODERN_ANDROID) command = "/system/bin/linker64 " + command;
 
@@ -246,14 +247,10 @@ public abstract class ProcessHelper {
             stderrDrainer.start();
 
             if (timeoutSeconds > 0) {
-                boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+                // Wartet hoechstens timeoutSeconds, zerstoert den Prozess dann und wartet nur kurz auf sein Ende.
+                boolean finished = app.gamenative.utils.BoundedProcess.awaitOrKill(process, timeoutSeconds * 1000L);
                 if (!finished) {
-                    process.destroyForcibly();
-                    try {
-                        process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
+                    timedOut = true;
                     output.append("Error: Process timeout after ").append(timeoutSeconds).append(" seconds");
                 }
             } else {
@@ -263,12 +260,14 @@ public abstract class ProcessHelper {
             try { stdoutStream.close(); } catch (IOException ignored) {}
             try { stderrStream.close(); } catch (IOException ignored) {}
 
-            stdoutDrainer.join(5_000);
+            // Nach einem Abbruch durch das Zeitlimit nicht noch einmal lange auf die Leser warten.
+            final long drainWaitMs = timedOut ? 300 : 5_000;
+            stdoutDrainer.join(drainWaitMs);
             if (stdoutDrainer.isAlive()) {
                 stdoutDrainer.interrupt();
             }
 
-            stderrDrainer.join(5_000);
+            stderrDrainer.join(drainWaitMs);
             if (stderrDrainer.isAlive()) {
                 stderrDrainer.interrupt();
             }

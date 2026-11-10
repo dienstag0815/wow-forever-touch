@@ -78,7 +78,7 @@ public class WinHandler {
     private DatagramSocket socket;
     private final ArrayList<Integer> xinputProcesses;
     private final XServer xServer;
-    private final XServerRendererView xServerView;
+    private volatile XServerRendererView xServerView;
 
     private InputControlsView inputControlsView;
     private Thread[] rumblePollerThreads = new Thread[MAX_PLAYERS];
@@ -88,7 +88,7 @@ public class WinHandler {
     private final int[] rumbleDeviceIds = new int[MAX_PLAYERS];
     private long lastStandalonePhoneRumbleMs = 0;
     private boolean isShowingAssignDialog = false;
-    private Context activity;
+    private volatile Context activity;
     private final java.util.Set<Integer> ignoredDeviceIds = new java.util.HashSet<>();
     private RandomAccessFile gamepadRaf;
     private RandomAccessFile[] extraGamepadRafs = new RandomAccessFile[MAX_PLAYERS - 1];
@@ -170,6 +170,27 @@ public class WinHandler {
         for (int i = 0; i < rumbleDeviceIds.length; i++) {
             rumbleDeviceIds[i] = -1;
         }
+    }
+
+    /**
+     * Binds this (already running) handler to a new view after the Activity was recreated while the game keeps running
+     * (e.g. fold/unfold of a foldable). The UDP link to winhandler.exe, the INIT handshake and the gamepad slots stay as
+     * they are; only the view for redraws and the Context for controllers/vibration are replaced. A fresh handler would
+     * never receive the INIT again, so every mouse event of the touch layer would be dropped (mouseEvent needs initReceived).
+     */
+    public void attachView(XServerRendererView view) {
+        this.xServerView = view;
+        Context context = view.getContext();
+        this.activity = context;
+        ExternalController primary = currentController;
+        if (primary != null) primary.setContext(context);
+        for (ExternalController extra : extraControllers) {
+            if (extra != null) extra.setContext(context);
+        }
+    }
+
+    public boolean isRunning() {
+        return running;
     }
 
     public void refreshControllerMappings() {

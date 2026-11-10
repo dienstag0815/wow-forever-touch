@@ -1,9 +1,15 @@
 package com.winlator.widget;
 
 import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.StateListDrawable;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.Log;
+import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
@@ -11,10 +17,39 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import app.gamenative.data.TouchGestureConfig;
+import app.gamenative.ui.screen.wow.ScrollGate;
+import app.gamenative.ui.screen.wow.SwipeScrollMath;
+import app.gamenative.ui.screen.wow.SwipeScrollSetting;
+import app.gamenative.ui.screen.wow.context.ContextEntry;
+import app.gamenative.ui.screen.wow.context.ContextGate;
+import app.gamenative.ui.screen.wow.context.ContextKeySender;
+import app.gamenative.ui.screen.wow.context.ContextKeys;
+import app.gamenative.ui.screen.wow.context.ContextMenuController;
+import app.gamenative.ui.screen.wow.context.ContextMenuPainter;
+import app.gamenative.ui.screen.wow.context.ContextOpen;
+import app.gamenative.ui.screen.wow.context.ContextPlan;
+import app.gamenative.ui.screen.wow.context.PlanStep;
+import app.gamenative.ui.screen.wow.klick.ClickScript;
+import app.gamenative.ui.screen.wow.klick.ClickStep;
+import app.gamenative.ui.screen.wow.klick.ClickWheel;
+import app.gamenative.ui.screen.wow.klick.ClickWheelField;
+import app.gamenative.ui.screen.wow.klick.ClickWheelPainter;
+import app.gamenative.ui.screen.wow.klick.ClickWheelSetting;
+import app.gamenative.ui.screen.wow.klick.GestureEvent;
+import app.gamenative.ui.screen.wow.klick.GestureStep;
+import app.gamenative.ui.screen.wow.klick.ModKey;
+import app.gamenative.ui.screen.wow.klick.OneFingerGesture;
+import app.gamenative.ui.screen.wow.klick.StepKind;
+import app.gamenative.ui.screen.wow.klick.StickyModifiers;
+import app.gamenative.ui.screen.wow.klick.TwoFingerTapDetector;
+import app.gamenative.ui.screen.wow.klick.WheelButton;
+import app.gamenative.ui.screen.wow.klick.WheelDirection;
+import app.gamenative.ui.screen.wow.klick.XServerKeySink;
 import timber.log.Timber;
 
 import com.winlator.core.AppUtils;
 import com.winlator.inputcontrols.Binding;
+import com.winlator.inputcontrols.ScrollWheelMath;
 import com.winlator.math.Mathf;
 import com.winlator.math.XForm;
 import com.winlator.renderer.ViewTransformation;
@@ -85,6 +120,30 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     private boolean longPressTriggered;
     private boolean longPressActionHeld, twoFingerHoldActionHeld, threeFingerHoldActionHeld;
 
+    // One-finger gestures of the touch mode (tap held back, hold = left button, tap + hold = click wheel, early drag = camera);
+    // decisions live in app.gamenative.ui.screen.wow.klick.OneFingerGesture, this view runs its single timer and its events
+    private OneFingerGesture gesture;
+    private TouchGestureConfig gestureEngineConfig;
+    private Runnable gestureTimer;
+    private boolean holdLeftActive;
+    private float holdDotX, holdDotY;
+    private Paint holdDotPaint;
+    private boolean wheelActive;
+    private ClickWheelPainter wheelPainter;
+    private int wheelScriptGeneration;
+    private ModKey wheelScriptKey;
+    private String wheelScriptButtonAction;
+    // Swipe scrolling in lists (mouse wheel steps at the touch-down point; coast after a fast swipe)
+    private int scrollFlingGeneration;
+    // Context menu on a unit (hold on a player, NPC or enemy): decisions in the OneFingerGesture (phase CONTEXT) and in
+    // app.gamenative.ui.screen.wow.context, this view draws the menu and runs the chosen entry
+    private ContextMenuController contextMenu;
+    private ContextMenuPainter contextPainter;
+    // Two-finger tap = right click at the first finger
+    private final TwoFingerTapDetector twoFingerTapDetector = new TwoFingerTapDetector(
+            TwoFingerTapDetector.MAX_DURATION_MS, TwoFingerTapDetector.MAX_TRAVEL_PX);
+    private long singleFingerDownMs;
+
     // Double-tap detection
     private long lastTapTime;
     private float lastTapX;
@@ -118,7 +177,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     // Remember which keycodes were actually pressed so releasePanKeys releases only those
     private XKeycode panLeftKey, panRightKey, panUpKey, panDownKey;
     // Long-press movement tolerance (pixels of raw finger movement before cancelling long-press)
-    private static final float LONG_PRESS_MOVE_TOLERANCE = 50f;
+    private static final float LONG_PRESS_MOVE_TOLERANCE = OneFingerGesture.MOVE_TOLERANCE_PX;
     // Raw touch-down coordinates for measuring finger travel
     private float touchDownRawX, touchDownRawY;
     // Last raw coordinates for single-finger drag delta
@@ -173,6 +232,9 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
 
     // Show keyboard callback (wired from XServerScreen)
     private Runnable showKeyboardCallback;
+    // Context menu (mini menu for players): start the voice input for a whisper, type a chat command (wired from XServerScreen)
+    private Runnable whisperVoiceCallback;
+    private java.util.function.Consumer<String> chatCommandCallback;
     private OpenRadialMenuCallback openRadialMenuCallback;
     private float radialMenuGestureX;
     private float radialMenuGestureY;
@@ -231,6 +293,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         // state. Avoids leaking pressed buttons/keys when the view is removed
         // mid-gesture (e.g., game exit while a hold is active).
         cancelTouchInput();
+        StickyModifiers.releaseAll();
         super.onDetachedFromWindow();
     }
 
@@ -255,6 +318,8 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         this.touchscreenMouseDisabled = false;
         this.isTouchscreenMode = false;
         this.xServer = xServer;
+        ScrollGate.init(context);
+        ContextGate.init(context);
         setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setBackground(createTransparentBackground());
         setClickable(true);
@@ -268,6 +333,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
             setFocusableInTouchMode(true);
             setOnCapturedPointerListener(this);
         }
+        XServerKeySink.attach(xServer);
     }
 
     @Override
@@ -291,18 +357,12 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         super.onSizeChanged(w, h, oldw, oldh);
         ScreenInfo screenInfo = this.xServer.screenInfo;
         updateXform(w, h, screenInfo.width, screenInfo.height);
+        // Fold/unfold with a finger down: the old positions no longer fit the new mapping, so let go of everything.
+        if (oldw > 0 && oldh > 0 && w != oldw) cancelTouchInput();
     }
 
     private void updateXform(int outerWidth, int outerHeight, int innerWidth, int innerHeight) {
-        ViewTransformation viewTransformation = new ViewTransformation();
-        viewTransformation.update(outerWidth, outerHeight, innerWidth, innerHeight);
-        float invAspect = 1.0f / viewTransformation.aspect;
-        if (!this.xServer.getRenderer().isFullscreen()) {
-            XForm.makeTranslation(this.xform, -viewTransformation.viewOffsetX, -viewTransformation.viewOffsetY);
-            XForm.scale(this.xform, invAspect, invAspect);
-        } else {
-            XForm.makeScale(this.xform, invAspect, invAspect);
-        }
+        TouchMapping.update(this.xform, outerWidth, outerHeight, innerWidth, innerHeight, this.xServer.getRenderer().isFullscreen());
     }
 
     private class Finger {
@@ -549,6 +609,8 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         scrollAccumY = 0;
         scrolling = false;
         suppressNextLeftTap = false;
+        gestureOwnedPointerIds.clear();
+        gestureFingerCount = 0;
         handleTsCancel();
     }
 
@@ -828,6 +890,13 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         int y = (int) pt[1];
 
         longPressTriggered = longPressActionHeld = false;
+        cancelScrollFling();
+        // A wheel left over from a touch that never ended goes away; a held-back tap click of the gesture engine stays.
+        if (wheelActive) {
+            wheelActive = false;
+            invalidate();
+        }
+        singleFingerDownMs = System.currentTimeMillis();
         doubleTapDetected = false;
         isDragging = false;
         dragButtonPressed = false;
@@ -859,6 +928,15 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
 
         if (gestureConfig.getHoldMouseButtonWhileTouchingEnabled()) {
             startHoldMouseButtonTouch(event.getX(actionIndex), event.getY(actionIndex));
+            return;
+        }
+
+        // Touch mode (WoW): tap / hold / tap + hold / camera decided by the gesture engine
+        if (useGestureEngine()) {
+            ensureGestureEngine();
+            applyGestureStep(gesture.down(touchDownRawX, touchDownRawY, System.currentTimeMillis()));
+            // A held-back click of an earlier tap may have moved the cursor away: the new touch point counts again.
+            moveCursorTo(x, y);
             return;
         }
 
@@ -903,6 +981,8 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     // ── Second+ finger down ──────────────────────────────────────────
     private void handleTsPointerDown(MotionEvent event) {
         flushPendingHoldClickRelease();
+        // A second finger cancels the click wheel without a click, lets go of a held left button and sends a held-back tap.
+        closeClickWheel();
         // Cancel any single-finger long-press.  cancelLongPressTimer only
         // clears the pending runnable; if the long-press has already fired
         // we must also release the held action before we transition into a
@@ -941,6 +1021,10 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
                 pinchLastDistance = (float) Math.hypot(
                         event.getX(idx0) - event.getX(idx1),
                         event.getY(idx0) - event.getY(idx1));
+                twoFingerTapDetector.begin(singleFingerDownMs, touchDownRawX, touchDownRawY,
+                        twoFingerLastX0, twoFingerLastY0, twoFingerLastX1, twoFingerLastY1);
+            } else {
+                twoFingerTapDetector.reset();
             }
             // Schedule two-finger hold
             if (gestureConfig.getTwoFingerHoldEnabled()) {
@@ -971,6 +1055,14 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         int x = (int) pt[0];
         int y = (int) pt[1];
 
+        // Gesture engine: wheel open = the finger only selects a field; hold = the pointer follows the finger absolutely;
+        // quiet finger = nothing yet (cursor stays at the touch-down point). Only the camera drag falls through below.
+        if (gesture != null && useGestureEngine()) {
+            applyGestureStep(gesture.move(event.getX(pointerIndex), event.getY(pointerIndex), System.currentTimeMillis()));
+            OneFingerGesture.Phase phase = gesture.getPhase();
+            if (phase != OneFingerGesture.Phase.CAMERA) return;
+        }
+
         if (holdMouseButtonTouchActive) {
             float rawX = event.getX(pointerIndex);
             float rawY = event.getY(pointerIndex);
@@ -990,8 +1082,8 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         // Measure raw finger travel from initial touch point
         float rawTravel = (float) Math.hypot(event.getX(pointerIndex) - touchDownRawX, event.getY(pointerIndex) - touchDownRawY);
 
-        // Within long-press tolerance: keep cursor at touch-down point, keep timer alive
-        if (rawTravel <= LONG_PRESS_MOVE_TOLERANCE) {
+        // Within long-press tolerance: keep cursor at touch-down point, keep timer alive (an ongoing camera drag keeps going)
+        if (rawTravel <= LONG_PRESS_MOVE_TOLERANCE && !isDragging) {
             return;
         }
 
@@ -1064,6 +1156,7 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
 
         float x0 = event.getX(idx0), y0 = event.getY(idx0);
         float x1 = event.getX(idx1), y1 = event.getY(idx1);
+        twoFingerTapDetector.move(x0, y0, x1, y1);
 
         // Compute per-frame pan and pinch deltas
         float currDist = (float) Math.hypot(x0 - x1, y0 - y1);
@@ -1197,19 +1290,21 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
             twoFingerHoldTriggered = false;
         }
         // Two-finger tap detection
-        else if (twoFingerTapPossible && !twoFingerDragging && gestureConfig.getTwoFingerTapEnabled()) {
-            // Move cursor to midpoint between the two fingers
-            float midX = (twoFingerLastX0 + twoFingerLastX1) / 2f;
-            float midY = (twoFingerLastY0 + twoFingerLastY1) / 2f;
-            float[] pt = XForm.transformPoint(xform, midX, midY);
+        else if (twoFingerTapPossible && !twoFingerDragging && gestureConfig.getTwoFingerTapEnabled()
+                && twoFingerTapDetector.isTap(System.currentTimeMillis())) {
+            // Quick tap with hardly any movement: the click goes to the FIRST finger, not to the middle
+            float tapX = twoFingerLastX0;
+            float tapY = twoFingerLastY0;
+            float[] pt = XForm.transformPoint(xform, tapX, tapY);
             moveCursorTo((int) pt[0], (int) pt[1]);
-            setRadialMenuGesturePoint(midX, midY);
+            setRadialMenuGesturePoint(tapX, tapY);
             injectClick(gestureConfig.getTwoFingerTapAction());
             injectRelease(gestureConfig.getTwoFingerTapAction());
-            notifyHighlight(midX, midY);
+            notifyHighlight(tapX, tapY);
             notifyGesture("2F Tap");
             twoFingerTapFired = true;
         }
+        twoFingerTapDetector.reset();
         releasePanKeys();
         releaseAllDragButtons();
         twoFingerDragging = false;
@@ -1229,6 +1324,16 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     private void handleTsUp(MotionEvent event, int actionIndex) {
         cancelLongPressTimer();
         stopGestureRefresh();
+
+        // Gesture engine: tap (held back), double tap, end of hold, wheel commit. A camera drag ends in the code below.
+        if (gesture != null && useGestureEngine()) {
+            OneFingerGesture.Phase phaseBefore = gesture.getPhase();
+            applyGestureStep(gesture.up(event.getX(actionIndex), event.getY(actionIndex), System.currentTimeMillis()));
+            if (phaseBefore != OneFingerGesture.Phase.CAMERA && phaseBefore != OneFingerGesture.Phase.IDLE) {
+                movedBeyondTapThreshold = false;
+                return;
+            }
+        }
 
         if (holdMouseButtonTouchActive) {
             finishHoldMouseButtonTouch();
@@ -1315,6 +1420,9 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
     // ── Cancel ───────────────────────────────────────────────────────
     private void handleTsCancel() {
         cancelLongPressTimer();
+        abortGestureEngine();
+        cancelWheelScript();
+        twoFingerTapDetector.reset();
         cancelTwoFingerHoldTimer();
         cancelThreeFingerHoldTimer();
         cancelActionSequences();
@@ -1519,6 +1627,476 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         multiFingerGestureUsed = true;
     }
 
+    // ── Click wheel ──────────────────────────────────────────────────
+
+    private ClickWheel.Geometry wheelGeometry() {
+        return ClickWheel.Geometry.Companion.forDensity(getResources().getDisplayMetrics().density);
+    }
+
+    // ── Gesture engine (tap / hold / tap + hold / camera) ────────────
+
+    /** The touch mode's one-finger gestures run through OneFingerGesture (hold = left button, tap + hold = wheel). */
+    private boolean useGestureEngine() {
+        return !gestureConfig.getHoldMouseButtonWhileTouchingEnabled()
+                && (gestureConfig.getHoldLeftEnabled() || gestureConfig.getClickWheelEnabled());
+    }
+
+    /** Builds the engine for the current gesture config; a new config replaces it (an unfinished gesture is closed first). */
+    private void ensureGestureEngine() {
+        if (gesture != null && gestureEngineConfig == gestureConfig) return;
+        if (gesture != null) applyGestureStep(gesture.abort());
+        gestureEngineConfig = gestureConfig;
+        gesture = new OneFingerGesture(
+                Math.max(100, Math.min(2000, gestureConfig.getHoldLeftDelay())),
+                gestureConfig.getHoldLeftEnabled(),
+                gestureConfig.getClickWheelEnabled(),
+                gestureConfig.getTapWindowDelay(),
+                OneFingerGesture.DEFAULT_WHEEL_HOLD_MS,
+                OneFingerGesture.MOVE_TOLERANCE_PX,
+                OneFingerGesture.SECOND_TAP_DISTANCE_PX,
+                wheelGeometry(),
+                () -> ClickWheelSetting.fields(getContext()),
+                (viewX, viewY) -> swipeScrollAreaAt(viewX, viewY),
+                () -> SwipeScrollSetting.stepPx(getContext()),
+                SwipeScrollMath.thresholdPx(getResources().getDisplayMetrics().density),
+                (downMs) -> contextController().wantsMenu(downMs));
+    }
+
+    private ContextMenuController contextController() {
+        if (contextMenu == null) contextMenu = new ContextMenuController(getContext());
+        return contextMenu;
+    }
+
+    /** Whether a touch at this view point starts inside a scrollable list that the addon reported (swipe scrolling is on). */
+    private boolean swipeScrollAreaAt(float viewX, float viewY) {
+        if (!ScrollGate.enabled()) return false;
+        float[] pt = XForm.transformPoint(xform, viewX, viewY);
+        return ScrollGate.contains(pt[0], pt[1]);
+    }
+
+    /** {@code ticks} mouse wheel steps at the pointer: positive = wheel up (the content follows a finger moving down). */
+    private void injectWheelTicks(int ticks) {
+        Pointer.Button button = ticks > 0 ? Pointer.Button.BUTTON_SCROLL_UP : Pointer.Button.BUTTON_SCROLL_DOWN;
+        for (int i = 0; i < Math.abs(ticks); i++) {
+            xServer.injectPointerButtonPress(button);
+            xServer.injectPointerButtonRelease(button);
+        }
+    }
+
+    /** After a fast swipe: a few more wheel steps with growing delays. */
+    private void startScrollFling(float viewX, float viewY, int signedTicks) {
+        moveCursorToView(viewX, viewY);
+        final int generation = ++scrollFlingGeneration;
+        scheduleScrollFling(0, Math.abs(signedTicks), signedTicks > 0, generation);
+    }
+
+    private void scheduleScrollFling(final int index, final int total, final boolean up, final int generation) {
+        postDelayed(() -> {
+            if (generation != scrollFlingGeneration) return;
+            injectWheelTicks(up ? 1 : -1);
+            if (index + 1 < total) scheduleScrollFling(index + 1, total, up, generation);
+        }, ScrollWheelMath.inertiaDelayMillis(index));
+    }
+
+    private void cancelScrollFling() {
+        scrollFlingGeneration++;
+    }
+
+    /** Runs what the engine decided: first its timer, then its events in order. */
+    private void applyGestureStep(GestureStep step) {
+        if (step.getDisarm() || step.getArmMs() >= 0) cancelGestureTimer();
+        for (GestureEvent e : step.getEvents()) executeGestureEvent(e);
+        if (step.getArmMs() >= 0 && gesture != null) {
+            gestureTimer = () -> {
+                gestureTimer = null;
+                if (gesture != null) applyGestureStep(gesture.timerFired());
+            };
+            postDelayed(gestureTimer, step.getArmMs());
+        }
+    }
+
+    private void cancelGestureTimer() {
+        if (gestureTimer != null) {
+            removeCallbacks(gestureTimer);
+            gestureTimer = null;
+        }
+    }
+
+    private void executeGestureEvent(GestureEvent e) {
+        switch (e.getKind()) {
+            case CLICK:
+                performTapClick(e.getX(), e.getY());
+                break;
+            case DOUBLE_CLICK:
+                performDoubleClick(e.getX(), e.getY());
+                break;
+            case LEFT_DOWN: {
+                // Hold: the left button goes down where the finger is and stays down until the finger lifts.
+                moveCursorToView(e.getX(), e.getY());
+                setRadialMenuGesturePoint(e.getX(), e.getY());
+                vibrateWheelOpened();
+                holdLeftActive = injectClick(TouchGestureConfig.ACTION_LEFT_CLICK);
+                holdDotX = e.getX();
+                holdDotY = e.getY();
+                notifyHighlight(e.getX(), e.getY());
+                notifyGesture("Halten = Maustaste", true);
+                invalidate();
+                break;
+            }
+            case LEFT_MOVE:
+                moveCursorToView(e.getX(), e.getY());
+                holdDotX = e.getX();
+                holdDotY = e.getY();
+                invalidate();
+                break;
+            case LEFT_UP:
+                moveCursorToView(e.getX(), e.getY());
+                if (holdLeftActive) injectRelease(TouchGestureConfig.ACTION_LEFT_CLICK);
+                holdLeftActive = false;
+                stopGestureRefresh();
+                invalidate();
+                break;
+            case WHEEL_OPENED:
+                openClickWheel(e.getX(), e.getY());
+                break;
+            case WHEEL_CHANGED:
+                invalidate();
+                break;
+            case WHEEL_COMMIT:
+                commitClickWheel(e.getField());
+                break;
+            case CAMERA_STARTED:
+            case CAMERA_ENDED:
+                // The camera drag itself is the view's drag code (right button held, relative movement).
+                break;
+            case SCROLL_STARTED:
+                // The pointer goes back to the touch-down point (inside the list) and stays there while the finger moves.
+                cancelScrollFling();
+                moveCursorToView(e.getX(), e.getY());
+                notifyGesture("Wischen = Mausrad", true);
+                break;
+            case SCROLL:
+                injectWheelTicks(e.getTicks());
+                break;
+            case SCROLL_FLING:
+                startScrollFling(e.getX(), e.getY(), e.getTicks());
+                break;
+            case CONTEXT_OPENED:
+                openContextMenu(e.getX(), e.getY());
+                break;
+            case CONTEXT_MOVED:
+                if (contextController().move(e.getX(), e.getY())) invalidate();
+                break;
+            case CONTEXT_COMMIT:
+                commitContextMenu(e.getX(), e.getY());
+                break;
+            case CONTEXT_CANCELLED:
+                contextController().close();
+                stopGestureRefresh();
+                invalidate();
+                break;
+        }
+    }
+
+    // ── Context menu ─────────────────────────────────────────────────
+
+    /**
+     * Hold on a unit: the menu opens around the finger. The unit is chosen as the target by a left click at the touch-down point (the
+     * pointer stays there; a right click would start the auto attack on an enemy). The menu's entries come from the addon's context.
+     */
+    private void openContextMenu(float fingerX, float fingerY) {
+        float density = getResources().getDisplayMetrics().density;
+        ContextOpen opened = contextController().open(fingerX, fingerY, getWidth(), getHeight(), density);
+        if (opened == ContextOpen.NONE) return;
+        vibrateWheelOpened();
+        notifyGesture("Kontextmenü", true);
+        // The menu of an item opens without a click (a left click would pick the item up), the self menu too (nothing to target).
+        // Another player: the left click chooses him as the target (the pointer rests at the finger); the mini menu's last entry
+        // "Mehr ..." then opens the game's own player menu with the addon's key.
+        if (contextController().getMenu() != null && contextController().getMenu().getSelectsTarget()) {
+            moveCursorToView(gesture.getCenterX(), gesture.getCenterY());
+            runWheelScript(contextClick(WheelButton.LEFT, false));
+        }
+        invalidate();
+    }
+
+    /** A click without modifier keys and without touching the latched modifiers (they stay for the next real click). */
+    private static List<ClickStep> contextClick(WheelButton button, boolean consume) {
+        List<ClickStep> steps = new ArrayList<>(3);
+        steps.add(new ClickStep(0L, StepKind.BUTTON_DOWN, null, button));
+        steps.add(new ClickStep(ClickScript.CLICK_MS, StepKind.BUTTON_UP, null, button));
+        if (consume) steps.add(new ClickStep(ClickScript.CLICK_MS, StepKind.DONE, null, null));
+        return steps;
+    }
+
+    /** The finger lifted over the menu: run the entry under it, nothing when it was not on one. */
+    private void commitContextMenu(float fingerX, float fingerY) {
+        stopGestureRefresh();
+        boolean hadMenu = contextController().getMenu() != null;
+        ContextEntry entry = contextController().commit(fingerX, fingerY);
+        invalidate();
+        if (entry == null) {
+            // (with the game's own menu open there was no menu of the app to close)
+            if (hadMenu) notifyGesture("Kontextmenü zu");
+            return;
+        }
+        notifyGesture(entry.getLabel());
+        // The steps (and their order: first put an item that hangs on the cursor back, then click) are decided in ContextPlan.
+        long at = 0;
+        for (final PlanStep step : ContextPlan.stepsFor(entry, contextController().cursorHadItem())) {
+            if (at <= 0) runPlanStep(step);
+            else postDelayed(() -> runPlanStep(step), at);
+            at += step.getWaitAfterMs();
+        }
+    }
+
+    private void runPlanStep(PlanStep step) {
+        switch (step.getKind()) {
+            case KEY:
+                ContextKeySender.send(xServer, ContextKeys.combo(step.getKey()));
+                break;
+            case BAR_KEY:
+                ContextKeySender.send(xServer, ContextKeys.barCombo(step.getBarSlot()));
+                break;
+            case WOW_KEY:
+                ContextKeySender.send(xServer, ContextKeys.wowCombo(step.getWowAction()));
+                break;
+            case VOICE_WHISPER:
+                if (whisperVoiceCallback != null) whisperVoiceCallback.run();
+                break;
+            case KEYBOARD:
+                if (showKeyboardCallback != null) showKeyboardCallback.run();
+                break;
+            case CHAT:
+                if (chatCommandCallback != null && step.getText() != null) chatCommandCallback.accept(step.getText());
+                break;
+            case CLICK:
+                if (gesture != null) moveCursorToView(gesture.getCenterX(), gesture.getCenterY());
+                if (step.getShift()) {
+                    ClickWheelField field = new ClickWheelField("ctx_shift", "", WheelDirection.CENTER, ModKey.SHIFT, step.getButton());
+                    runWheelScript(ClickScript.INSTANCE.build(field, StickyModifiers.held()));
+                } else {
+                    runWheelScript(contextClick(step.getButton(), false));
+                }
+                break;
+        }
+    }
+
+    private void moveCursorToView(float viewX, float viewY) {
+        float[] pt = XForm.transformPoint(xform, viewX, viewY);
+        moveCursorTo((int) pt[0], (int) pt[1]);
+    }
+
+    /** A plain tap: left click (or the configured tap action) at the point; the button is released shortly after. */
+    private void performTapClick(float viewX, float viewY) {
+        if (!gestureConfig.getTapEnabled()) return;
+        flushPendingTapRelease();
+        final String tapAction = gestureConfig.getTapAction();
+        moveCursorToView(viewX, viewY);
+        setRadialMenuGesturePoint(viewX, viewY);
+        // A tap on an item in the bags, bank or character window only looks at it (tooltip with comparison): a click would pick it up
+        // and a right click could not equip it any more. Only with fresh data from the addon; otherwise the tap clicks as ever.
+        if (gesture != null && contextController().tapIsViewOnly(gesture.getTapDownMs())) {
+            notifyHighlight(viewX, viewY);
+            notifyGesture("Ansehen");
+            return;
+        }
+        injectClick(tapAction);
+        notifyHighlight(viewX, viewY);
+        notifyGesture("Tap");
+        delayedPressAction = tapAction;
+        delayedPress = () -> {
+            injectRelease(tapAction);
+            delayedPressAction = null;
+            delayedPress = null;
+        };
+        postDelayed(delayedPress, CLICK_DELAYED_TIME);
+    }
+
+    /** Two quick taps: both clicks go out together so Windows/Wine reliably see a double click. */
+    private void performDoubleClick(float viewX, float viewY) {
+        flushPendingTapRelease();
+        moveCursorToView(viewX, viewY);
+        setRadialMenuGesturePoint(viewX, viewY);
+        injectClick(TouchGestureConfig.ACTION_LEFT_CLICK);
+        injectRelease(TouchGestureConfig.ACTION_LEFT_CLICK);
+        injectClick(TouchGestureConfig.ACTION_LEFT_CLICK);
+        injectRelease(TouchGestureConfig.ACTION_LEFT_CLICK);
+        notifyHighlight(viewX, viewY);
+        notifyGesture("Double-Tap");
+    }
+
+    /** The view goes away or the system cancelled the touch: let go of a held left button, drop a held-back tap. */
+    private void abortGestureEngine() {
+        cancelScrollFling();
+        wheelActive = false;
+        if (contextMenu != null) contextMenu.close();
+        if (gesture != null) applyGestureStep(gesture.abort());
+        cancelGestureTimer();
+        if (holdLeftActive) {
+            injectRelease(TouchGestureConfig.ACTION_LEFT_CLICK);
+            holdLeftActive = false;
+        }
+        invalidate();
+    }
+
+    // ── Click wheel ──────────────────────────────────────────────────
+
+    /** Tap + hold: show the wheel around the second touch and give a short buzz. */
+    private void openClickWheel(float centerX, float centerY) {
+        wheelActive = true;
+        setRadialMenuGesturePoint(centerX, centerY);
+        vibrateWheelOpened();
+        notifyGesture("Klick-Rad", true);
+        invalidate();
+    }
+
+    /** Closes the wheel and the gesture without a click (second finger): a held left button is let go, a held-back tap goes out. */
+    private void closeClickWheel() {
+        boolean wasOpen = wheelActive;
+        wheelActive = false;
+        if (gesture != null) applyGestureStep(gesture.cancel());
+        if (wasOpen) {
+            stopGestureRefresh();
+            invalidate();
+        }
+    }
+
+    /** The finger lifted while the wheel was open: run the field it was on, nothing when it left the circle. */
+    private void commitClickWheel(ClickWheelField field) {
+        wheelActive = false;
+        stopGestureRefresh();
+        invalidate();
+        if (field == null) {
+            notifyGesture("Klick-Rad abgebrochen");
+            return;
+        }
+        notifyGesture(field.getLabel());
+        if (field.getPointsOnly()) {
+            // Only point: the cursor stays where the finger came down. A latched Shift stays down for the tooltip
+            // comparison until the next click or key.
+            return;
+        }
+        notifyHighlight(gesture.getCenterX(), gesture.getCenterY());
+        runWheelScript(ClickScript.INSTANCE.build(field, StickyModifiers.held()));
+    }
+
+    private static String wheelButtonAction(WheelButton button) {
+        return button == WheelButton.RIGHT
+                ? TouchGestureConfig.ACTION_RIGHT_CLICK
+                : TouchGestureConfig.ACTION_LEFT_CLICK;
+    }
+
+    private void runWheelScript(List<ClickStep> steps) {
+        cancelWheelScript();
+        final int generation = ++wheelScriptGeneration;
+        for (final ClickStep step : steps) {
+            Runnable run = () -> {
+                if (generation == wheelScriptGeneration) executeWheelStep(step);
+            };
+            if (step.getAtMs() <= 0) run.run();
+            else postDelayed(run, step.getAtMs());
+        }
+    }
+
+    private void executeWheelStep(ClickStep step) {
+        switch (step.getKind()) {
+            case KEY_DOWN:
+                XServerKeySink.send(xServer, step.getKey(), true);
+                wheelScriptKey = step.getKey();
+                break;
+            case KEY_UP:
+                XServerKeySink.send(xServer, step.getKey(), false);
+                wheelScriptKey = null;
+                break;
+            case BUTTON_DOWN:
+                wheelScriptButtonAction = wheelButtonAction(step.getButton());
+                injectClick(wheelScriptButtonAction);
+                break;
+            case BUTTON_UP: {
+                String action = wheelScriptButtonAction;
+                wheelScriptButtonAction = null;
+                injectRelease(action);
+                break;
+            }
+            case DONE:
+                StickyModifiers.consume();
+                break;
+        }
+    }
+
+    /** Stops a running wheel click and lets go of whatever it still holds. */
+    private void cancelWheelScript() {
+        wheelScriptGeneration++;
+        if (wheelScriptButtonAction != null) {
+            String action = wheelScriptButtonAction;
+            wheelScriptButtonAction = null;
+            injectReleaseRaw(action);
+        }
+        if (wheelScriptKey != null) {
+            XServerKeySink.send(xServer, wheelScriptKey, false);
+            wheelScriptKey = null;
+        }
+    }
+
+    private void vibrateWheelOpened() {
+        try {
+            Vibrator vibrator = (Vibrator) getContext().getSystemService(Context.VIBRATOR_SERVICE);
+            if (vibrator != null && vibrator.hasVibrator()) {
+                vibrator.vibrate(VibrationEffect.createOneShot(WHEEL_BUZZ_MS, VibrationEffect.DEFAULT_AMPLITUDE));
+                return;
+            }
+        } catch (RuntimeException e) {
+            Log.w("TouchpadView", "Vibration failed", e);
+        }
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+    }
+
+    private static final int WHEEL_BUZZ_MS = 35;
+
+    /** A faint ring under the finger while the left button is held (hold = drag), so the player sees it is "on". */
+    private void drawHoldDot(Canvas canvas) {
+        if (holdDotPaint == null) {
+            holdDotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        }
+        float density = getResources().getDisplayMetrics().density;
+        holdDotPaint.setStyle(Paint.Style.FILL);
+        holdDotPaint.setColor(Color.argb(40, 240, 190, 70));
+        canvas.drawCircle(holdDotX, holdDotY, 22f * density, holdDotPaint);
+        holdDotPaint.setStyle(Paint.Style.STROKE);
+        holdDotPaint.setStrokeWidth(1.5f * density);
+        holdDotPaint.setColor(Color.argb(150, 240, 190, 70));
+        canvas.drawCircle(holdDotX, holdDotY, 22f * density, holdDotPaint);
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        if (wheelActive && gesture != null) {
+            if (wheelPainter == null) {
+                float density = getResources().getDisplayMetrics().density;
+                wheelPainter = new ClickWheelPainter(density, density * getResources().getConfiguration().fontScale);
+            }
+            wheelPainter.setFields(gesture.getWheelFields());
+            wheelPainter.draw(canvas, gesture.getCenterX(), gesture.getCenterY(), wheelGeometry(), gesture.getSelected());
+        }
+        if (holdLeftActive) drawHoldDot(canvas);
+        if (contextMenu != null && contextMenu.getMenu() != null) {
+            if (contextPainter == null) {
+                float density = getResources().getDisplayMetrics().density;
+                contextPainter = new ContextMenuPainter(density, density * getResources().getConfiguration().fontScale);
+            }
+            final ContextMenuController controller = contextMenu;
+            // The addon's numbers go on arriving while the menu is open (range after the target click, cooldowns).
+            controller.refresh();
+            // The menu shows itself once the unit is the target (or after a short time): no spells appearing and jumping.
+            if (controller.revealed()) {
+                contextPainter.draw(canvas, controller.getMenu(), controller::iconFor, controller::glyphIconFor);
+            }
+            postInvalidateDelayed(120);
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────
 
     private void flushPendingTapRelease() {
@@ -1657,7 +2235,22 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
         return false;
     }
 
+    /**
+     * Releases a click or key. Afterwards a single-use modifier (Shift/Ctrl/Alt tapped on the screen) is let go:
+     * it only counts for the click or key that just ended.
+     */
     private void injectRelease(String action) {
+        injectReleaseRaw(action);
+        if (action == null || TouchGestureConfig.isActionSequence(action)) return;
+        for (String part : TouchGestureConfig.actionParts(action)) {
+            if (StickyModifiers.consumedBy(part)) {
+                StickyModifiers.consume();
+                return;
+            }
+        }
+    }
+
+    private void injectReleaseRaw(String action) {
         if (action == null) return;
         if (TouchGestureConfig.isActionSequence(action)) return;
         List<String> parts = TouchGestureConfig.actionParts(action);
@@ -2386,6 +2979,14 @@ public class TouchpadView extends View implements View.OnCapturedPointerListener
 
     public TouchGestureConfig getGestureConfig() {
         return this.gestureConfig;
+    }
+
+    public void setWhisperVoiceCallback(Runnable callback) {
+        this.whisperVoiceCallback = callback;
+    }
+
+    public void setChatCommandCallback(java.util.function.Consumer<String> callback) {
+        this.chatCommandCallback = callback;
     }
 
     public void setShowKeyboardCallback(Runnable callback) {

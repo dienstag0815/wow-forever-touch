@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "stand": "2026-11-08",
+  "addons": [
+    {
+      "id": "questie",
+      "name": "Questie",
+      "kurz": "Quest-Helfer: zeigt Questgeber, Ziele und Abgabeorte auf Karte und Minikarte.",
+      "warum": "Hat eine eigene Forever-Version (Questie_Forever.toc, Interface 16001) und wird täglich gepflegt. Die Blizzard-Oberfläche zeigt Questziele nicht so; das bauen wir nicht selbst nach.",
+      "lizenz": "Uneinheitlich: das Team stellt auf GPLv3 um (Beiträge ab 21.10.2026), ältere Teile 'im Zweifel alle Rechte vorbehalten'. Wir geben nichts weiter, die App lädt das Release des Autors.",
+      "quelle": { "typ": "github", "repo": "Questie/Questie", "asset": "^Questie-.*\\.zip$", "forever": true },
+      "ordner": ["Questie", "QuestieDB"],
+      "maxMB": 110,
+      "maxEntpacktMB": 300
+    },
+    {
+      "id": "silverdragon",
+      "name": "SilverDragon",
+      "kurz": "Meldet seltene Gegner in der Nähe (Hinweis, Ton, Karte).",
+      "warum": "Nennt Forever (16001) ausdrücklich im Release, klein (unter 1 MB), aktiv gepflegt. Eine Hilfe zum Entdecken, die wir nicht selbst bauen.",
+      "lizenz": "Im Repo nicht angegeben (keine Lizenzdatei). Der Autor verteilt es frei als GitHub-Release; wir geben nichts weiter.",
+      "quelle": { "typ": "github", "repo": "kemayo/wow-silverdragon", "asset": "^SilverDragon-.*\\.zip$", "forever": true },
+      "ordner": ["SilverDragon", "SilverDragon_Overlay", "SilverDragon_RangeExtender", "SilverDragon_History"]
+    },
+    {
+      "id": "handynotes",
+      "name": "HandyNotes",
+      "kurz": "Eigene Notizen und Markierungen auf der Weltkarte; Grundlage für Kartenpunkte anderer Addons.",
+      "warum": "Nennt Forever (16001) ausdrücklich, winzig (unter 200 KB). Allein nur eigene Notizen; sinnvoll zusammen mit SilverDragon, das darüber Fundorte auf der Karte zeigt.",
+      "lizenz": "Im Repo nicht angegeben (keine Lizenzdatei). Der Autor verteilt es frei als GitHub-Release; wir geben nichts weiter.",
+      "quelle": { "typ": "github", "repo": "Nevcairiel/HandyNotes", "asset": "^HandyNotes-.*\\.zip$", "forever": true },
+      "ordner": ["HandyNotes"]
+    }
+  ]
+}

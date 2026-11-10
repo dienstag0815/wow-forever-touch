@@ -73,6 +73,18 @@ data class TouchGestureConfig(
 
     // 15. Movement mode used by mouse-button drag gestures
     val mouseDragMovementMode: String = MOUSE_DRAG_MOVEMENT_DIRECT,
+
+    // 16. Click wheel: tap, touch again and rest (tap + hold) opens a wheel (right click, modifier clicks, point only).
+    //     Off by default so older configs behave as before.
+    val clickWheelEnabled: Boolean = false,
+
+    // 17. Hold = left mouse button held (drag talents, spells, bag items, UI elements): resting a finger for holdLeftDelay ms
+    //     presses the left button, the pointer then follows the finger absolutely until it lifts. Off by default.
+    //     Click wheel (when on) then opens with tap + hold; the tap's click waits tapWindowDelay ms for that second touch
+    //     (0 = click at once).
+    val holdLeftEnabled: Boolean = false,
+    val holdLeftDelay: Int = DEFAULT_HOLD_LEFT_DELAY_MS,
+    val tapWindowDelay: Int = DEFAULT_TAP_WINDOW_MS,
 ) {
 
     // ── Serialisation ────────────────────────────────────────────────────
@@ -120,12 +132,18 @@ data class TouchGestureConfig(
             put(KEY_SHOW_CURSOR_IN_TOUCHSCREEN_MODE, showCursorInTouchscreenMode)
             put(KEY_GESTURE_THRESHOLD, gestureThreshold)
             put(KEY_MOUSE_DRAG_MOVEMENT_MODE, mouseDragMovementMode)
+            put(KEY_CLICK_WHEEL_ENABLED, clickWheelEnabled)
+            put(KEY_HOLD_LEFT_ENABLED, holdLeftEnabled)
+            put(KEY_HOLD_LEFT_DELAY, holdLeftDelay)
+            put(KEY_TAP_WINDOW_DELAY, tapWindowDelay)
         }.toString()
     }
 
     companion object {
         // ── Delay constants ──────────────────────────────────────────────
         const val DEFAULT_DELAY_MS = 300
+        const val DEFAULT_HOLD_LEFT_DELAY_MS = 350
+        const val DEFAULT_TAP_WINDOW_MS = 250
         const val DEFAULT_GESTURE_THRESHOLD = 40
         const val DOUBLE_TAP_DISTANCE_PX = 100
 
@@ -206,6 +224,10 @@ data class TouchGestureConfig(
         private const val KEY_SHOW_CURSOR_IN_TOUCHSCREEN_MODE = "showCursorInTouchscreenMode"
         private const val KEY_GESTURE_THRESHOLD = "gestureThreshold"
         private const val KEY_MOUSE_DRAG_MOVEMENT_MODE = "mouseDragMovementMode"
+        private const val KEY_CLICK_WHEEL_ENABLED = "clickWheelEnabled"
+        private const val KEY_HOLD_LEFT_ENABLED = "holdLeftEnabled"
+        private const val KEY_HOLD_LEFT_DELAY = "holdLeftDelay"
+        private const val KEY_TAP_WINDOW_DELAY = "tapWindowDelay"
 
         /**
          * Compatibility-safe defaults for existing (pre-overhaul) configs.
@@ -276,6 +298,10 @@ data class TouchGestureConfig(
                     mouseDragMovementMode = normalizeMouseDragMovementMode(
                         obj.optString(KEY_MOUSE_DRAG_MOVEMENT_MODE, MOUSE_DRAG_MOVEMENT_DIRECT),
                     ),
+                    clickWheelEnabled = obj.optBoolean(KEY_CLICK_WHEEL_ENABLED, false),
+                    holdLeftEnabled = obj.optBoolean(KEY_HOLD_LEFT_ENABLED, false),
+                    holdLeftDelay = obj.optInt(KEY_HOLD_LEFT_DELAY, DEFAULT_HOLD_LEFT_DELAY_MS),
+                    tapWindowDelay = obj.optInt(KEY_TAP_WINDOW_DELAY, DEFAULT_TAP_WINDOW_MS),
                 )
             } catch (_: Exception) {
                 compatibilityDefaults()

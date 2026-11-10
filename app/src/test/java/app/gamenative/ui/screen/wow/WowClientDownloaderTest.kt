@@ -3,6 +3,7 @@ package app.gamenative.ui.screen.wow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -166,6 +167,37 @@ class WowClientDownloaderTest {
     fun readBuildInfo_returnsNullOnMissingFile() {
         val nonExistent = File(tempFolder.root, "does_not_exist")
         assertNull(WowClientDownloader.readBuildInfo(nonExistent))
+    }
+
+    @Test
+    fun versionServiceBase_usesHttpsPerRegion() {
+        assertEquals("https://us.version.battle.net/v2/products/wowf", WowClientDownloader.versionServiceBase("us"))
+        assertEquals("https://eu.version.battle.net/v2/products/wowf", WowClientDownloader.versionServiceBase("EU"))
+        assertEquals("https://kr.version.battle.net/v2/products/wowf", WowClientDownloader.versionServiceBase(" kr "))
+        assertEquals("https://cn.version.battlenet.com.cn/v2/products/wowf", WowClientDownloader.versionServiceBase("cn"))
+        // Anything that isn't a two-letter region falls back to us instead of building a URL from it.
+        assertEquals("https://us.version.battle.net/v2/products/wowf", WowClientDownloader.versionServiceBase("evil.example/"))
+    }
+
+    @Test
+    fun secureCdnServers_keepsOnlyHttpsEntriesWithoutQuery() {
+        val servers = "http://level3.blizzard.com/?maxhosts=8 https://us.cdn.blizzard.com/?maxhosts=4&fallback=1 https://eu.cdn.blizzard.com/ https://us.cdn.blizzard.com"
+
+        assertEquals(
+            listOf("https://us.cdn.blizzard.com", "https://eu.cdn.blizzard.com"),
+            WowClientDownloader.secureCdnServers(servers),
+        )
+        assertEquals(emptyList<String>(), WowClientDownloader.secureCdnServers("http://level3.blizzard.com"))
+        assertEquals(emptyList<String>(), WowClientDownloader.secureCdnServers(null))
+    }
+
+    @Test
+    fun defaultCdnServers_containsOnlyHttpsEntries() {
+        for (region in listOf("us", "eu", "kr", "tw", "cn")) {
+            val servers = WowClientDownloader.defaultCdnServers(region)
+            assertTrue(region, servers.isNotEmpty())
+            assertTrue(region, servers.all { it.startsWith("https://") })
+        }
     }
 }
 

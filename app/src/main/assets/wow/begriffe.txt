@@ -1,0 +1,1329 @@
+# WoW-Begriffe für die Sprachkorrektur (Deutsch und Englisch, Originalschreibweise des Spiels).
+# Eine Eintrag pro Zeile. "#" = Kommentar. "=" am Anfang = gewöhnliches Wort: wird nur zusammengezogen
+# ("Todes Minen" -> "Todesminen"), aber nie unscharf ersetzt. Ohne "=" und ab 6 Buchstaben wird auch bei
+# Verhörern korrigiert: Schreibähnlichkeit (Levenshtein) und Lautähnlichkeit (Kölner Phonetik und Metaphone)
+# werden zusammen bewertet ("dead Miles" -> Deadmines, "iron Ford" -> Ironforge).
+# Kürzel und kurze Namen (bis 5 Buchstaben) werden nur bei exakter Schreibung (ohne Groß/Klein) angepasst.
+# Zeilen zwischen "#!bias" und "#!normal" gehören zum Block der englischen Client-Namen: Sie werden der
+# Spracherkennung zuerst als Hinweis mitgegeben (es gehen höchstens 200 Hinweise mit, sonst entschiede die Reihenfolge in der Datei).
+
+# --- Englische Namen des Clients (Hinweis an die Spracherkennung zuerst) ---
+#!bias
+Stormwind
+Ironforge
+Darnassus
+Orgrimmar
+Thunder Bluff
+Undercity
+Exodar
+Silvermoon
+Shattrath
+Dalaran
+Deadmines
+Wailing Caverns
+Shadowfang Keep
+Blackfathom Deeps
+The Stockade
+Gnomeregan
+Razorfen Kraul
+Razorfen Downs
+Scarlet Monastery
+Uldaman
+Zul'Farrak
+Maraudon
+Sunken Temple
+Blackrock Depths
+Blackrock Spire
+Stratholme
+Scholomance
+Dire Maul
+Ragefire Chasm
+Molten Core
+Onyxia's Lair
+Blackwing Lair
+Zul'Gurub
+Ruins of Ahn'Qiraj
+Temple of Ahn'Qiraj
+Naxxramas
+Karazhan
+Elwynn Forest
+Dun Morogh
+Teldrassil
+Durotar
+Mulgore
+Tirisfal Glades
+Eversong Woods
+Azuremyst Isle
+Bloodmyst Isle
+Northshire Valley
+Northshire Abbey
+Coldridge Valley
+Coldridge Pass
+Shadowglen
+Valley of Trials
+Camp Narache
+Echo Isles
+Deathknell
+Sunstrider Isle
+Ammen Vale
+New Tinkertown
+Anvilmar
+Kharanos
+Goldshire
+Razor Hill
+Brill
+Dolanaar
+Bloodhoof Village
+Sen'jin Village
+Westfall
+Redridge Mountains
+Duskwood
+Loch Modan
+Darkshore
+Ashenvale
+The Barrens
+Stonetalon Mountains
+Thousand Needles
+Dustwallow Marsh
+Desolace
+Feralas
+Tanaris
+Un'Goro Crater
+Silithus
+Winterspring
+Felwood
+Azshara
+Moonglade
+Hillsbrad Foothills
+Arathi Highlands
+Wetlands
+Stranglethorn Vale
+Swamp of Sorrows
+Blasted Lands
+Burning Steppes
+Searing Gorge
+Badlands
+Western Plaguelands
+Eastern Plaguelands
+Silverpine Forest
+The Hinterlands
+Hinterlands
+Booty Bay
+Gadgetzan
+Ratchet
+Menethil Harbor
+Southshore
+Tarren Mill
+Theramore
+Auberdine
+Astranaar
+Everlook
+Lakeshire
+Darkshire
+Thelsamar
+Warsong Gulch
+Arathi Basin
+Alterac Valley
+Warrior
+Paladin
+Hunter
+Rogue
+Priest
+Shaman
+Mage
+Warlock
+Druid
+Death Knight
+Night Elf
+Blood Elf
+Draenei
+Gnome
+Dwarf
+Undead
+Tauren
+Troll
+#!normal
+
+# --- Weitere Orte und Figuren (englisch) ---
+Aerie Peak
+Bloodvenom Post
+Camp Mojache
+Cenarion Hold
+Feathermoon Stronghold
+Flame Crest
+Freewind Post
+Hammerfall
+Kargath
+Light's Hope Chapel
+Morgan's Vigil
+Nethergarde Keep
+Nijel's Point
+Raven Hill
+Refuge Pointe
+Revantusk Village
+Sentinel Hill
+Splintertree Post
+Thorium Point
+Defias Brotherhood
+Princess Moira
+Arugal
+Vol'jin
+Cairne
+Anduin
+Bolvar
+
+# --- Kürzel aus dem Chat ---
+LFG
+LFM
+WTB
+WTS
+WTT
+AFK
+BRB
+DPS
+HPS
+AoE
+CC
+GG
+GZ
+OMW
+PvP
+PvE
+RP
+MS
+OS
+GDKP
+DKP
+Tank
+Heal
+Healer
+Buff
+Debuff
+Cooldown
+Aggro
+Wipe
+Pull
+Loot
+Nerf
+Respec
+Proc
+Crit
+Mana
+Rezz
+Kiting
+Farmen
+Grinden
+Questen
+Adds
+Mob
+Mobs
+Elite
+Boss
+Raid
+Lockout
+Ready Check
+=Instanz
+=Schlachtzug
+=Gilde
+=Gruppe
+=Bedarf
+=Gier
+Need
+Greed
+Pass
+
+# --- Klassen ---
+=Krieger
+Warrior
+Paladin
+=Jäger
+Hunter
+=Schurke
+Rogue
+=Priester
+Priest
+Todesritter
+Death Knight
+=Schamane
+Shaman
+=Magier
+Mage
+Hexenmeister
+Warlock
+=Mönch
+Monk
+=Druide
+Druid
+Dämonenjäger
+Demon Hunter
+Rufer
+Evoker
+
+# --- Spezialisierungen ---
+=Waffen
+=Furor
+=Schutz
+=Heilig
+Vergeltung
+Retribution
+Tierherrschaft
+Beast Mastery
+Treffsicherheit
+Marksmanship
+=Überleben
+Survival
+Meucheln
+Assassination
+Gesetzlosigkeit
+Outlaw
+Täuschung
+Subtlety
+Disziplin
+Discipline
+=Schatten
+Shadow
+=Blut
+=Frost
+Unheilig
+Unholy
+Elementar
+Elemental
+Verstärkung
+Enhancement
+Wiederherstellung
+Restoration
+Arkan
+Arcane
+=Feuer
+Gebrechen
+Affliction
+Dämonologie
+Demonology
+Zerstörung
+Destruction
+Gleichgewicht
+Balance
+Wildheit
+Feral
+=Wächter
+Guardian
+Braumeister
+Brewmaster
+Nebelwirker
+Mistweaver
+Windläufer
+Windwalker
+Verwüstung
+Devastation
+Bewahrung
+Preservation
+Rachsucht
+Vengeance
+Verheerung
+Havoc
+
+# --- Völker ---
+=Mensch
+Human
+=Zwerg
+Dwarf
+Nachtelf
+Night Elf
+Gnom
+Gnome
+Draenei
+Worgen
+Orc
+=Orc
+Untoter
+Undead
+Forsaken
+=Verlassene
+Tauren
+Troll
+Blutelf
+Blood Elf
+Goblin
+Pandaren
+Hochgeborener
+Leerenelf
+Void Elf
+Dunkeleisenzwerg
+Dark Iron Dwarf
+Nachtgeborener
+Nightborne
+Mag'har
+Kul Tiraner
+Zandalari
+
+# --- Städte und Orte (Kalimdor) ---
+Orgrimmar
+Donnerfels
+Thunder Bluff
+Darnassus
+Die Exodar
+Exodar
+Teldrassil
+Durotar
+Mulgore
+Das Brachland
+The Barrens
+Brachland
+Eschental
+Ashenvale
+Steinkrallengebirge
+Stonetalon Mountains
+Desolace
+Feralas
+Tausend Nadeln
+Thousand Needles
+Düstermarschen
+Dustwallow Marsh
+Tanaris
+Un'Goro-Krater
+Un'Goro Crater
+Silithus
+Winterquell
+Winterspring
+Teufelswald
+Felwood
+Azshara
+Mondlichtung
+Moonglade
+Dunkelküste
+Darkshore
+Azuremyst
+Bloodmyst
+Mount Hyjal
+Berg Hyjal
+Uldum
+Gadgetzan
+Ratschet
+Ratchet
+Marschallslager
+Marshal's Refuge
+Camp Taurajo
+Crossroads
+Kreuzungspunkt
+Booty Bay
+Beutebucht
+Sturmwind
+Stormwind
+Eisenschmiede
+Ironforge
+Unterstadt
+Undercity
+Silbermond
+Silvermoon
+Shattrath
+Dalaran
+Die Exodar
+Sternenruhe
+Starfall
+Rasselfinger
+
+# --- Gebiete (Östliche Königreiche) ---
+Wald von Elwynn
+Elwynn Forest
+Dun Morogh
+Westfall
+Loch Modan
+Rotkammgebirge
+Redridge Mountains
+Dämmerwald
+Duskwood
+Schlingendorntal
+Stranglethorn Vale
+Vorgebirge von Hillsbrad
+Hillsbrad Foothills
+Arathihochland
+Arathi Highlands
+Alteracgebirge
+Alterac Mountains
+Sumpfland
+Wetlands
+Ödland
+Badlands
+Sengende Schlucht
+Searing Gorge
+Brennende Steppe
+Burning Steppes
+Verwüstete Lande
+Blasted Lands
+Sümpfe des Elends
+Swamp of Sorrows
+Gebirgspass der Totenwinde
+Deadwind Pass
+Westliche Pestländer
+Western Plaguelands
+Östliche Pestländer
+Eastern Plaguelands
+Tirisfal
+Tirisfal Glades
+Silberwald
+Silverpine Forest
+Immersangwald
+Eversong Woods
+Geisterlande
+Ghostlands
+Insel von Quel'Danas
+Isle of Quel'Danas
+Hinterland
+Das Hinterland
+The Hinterlands
+
+# --- Gebiete (Scherbenwelt, Nordend, Cataclysm, Pandaria) ---
+Höllenfeuerhalbinsel
+Hellfire Peninsula
+Zangarmarschen
+Zangarmarsh
+Wälder von Terokkar
+Terokkar Forest
+Nagrand
+Schergrat
+Blade's Edge Mountains
+Nethersturm
+Netherstorm
+Schattenmondtal
+Shadowmoon Valley
+Boreanische Tundra
+Borean Tundra
+Heulender Fjord
+Howling Fjord
+Drachenöde
+Dragonblight
+Grizzlyhügel
+Grizzly Hills
+Zul'Drak
+Sholazarbecken
+Sholazar Basin
+Kristallsangwald
+Crystalsong Forest
+Die Sturmgipfel
+Storm Peaks
+Eiskrone
+Icecrown
+Tausendwintersee
+Wintergrasp
+Vashj'ir
+Tiefenheim
+Deepholm
+Schattenhochland
+Twilight Highlands
+Tol Barad
+Jadewald
+Jade Forest
+Tal der Vier Winde
+Valley of the Four Winds
+Krasarang
+Krasarang Wilds
+Kun-Lai-Gipfel
+Kun-Lai Summit
+Townlong-Steppe
+Townlong Steppes
+Schreckenswüste
+Dread Wastes
+Tal der Ewigen Blüten
+Vale of Eternal Blossoms
+Zeitlose Insel
+Timeless Isle
+Insel des Donners
+Isle of Thunder
+Pandaria
+
+# --- Dungeons (klassisch) ---
+Todesminen
+Deadmines
+Höhlen des Wehklagens
+Wailing Caverns
+Burg Schattenfang
+Shadowfang Keep
+Tiefschwarze Grotte
+Blackfathom Deeps
+Das Verlies
+The Stockade
+Gnomeregan
+Kral der Klingenhauer
+Razorfen Kraul
+Hügel der Klingenhauer
+Razorfen Downs
+Scharlachrotes Kloster
+Scarlet Monastery
+Uldaman
+Zul'Farrak
+Maraudon
+Versunkener Tempel
+Sunken Temple
+Schwarzfelstiefen
+Blackrock Depths
+Schwarzfelsspitze
+Blackrock Spire
+Untere Schwarzfelsspitze
+Obere Schwarzfelsspitze
+Stratholme
+Scholomance
+Düsterbruch
+Dire Maul
+Schwarzfels
+Blackrock Mountain
+Ragefire Chasm
+Flammenschlund
+Zul'Aman
+Zul'Gurub
+
+# --- Schlachtzüge ---
+Geschmolzener Kern
+Molten Core
+Onyxias Hort
+Onyxia's Lair
+Pechschwingenhort
+Blackwing Lair
+Ruinen von Ahn'Qiraj
+Ruins of Ahn'Qiraj
+Tempel von Ahn'Qiraj
+Temple of Ahn'Qiraj
+Naxxramas
+Karazhan
+Gruuls Unterschlupf
+Gruul's Lair
+Magtheridons Kammer
+Magtheridon's Lair
+Höhle des Schlangenschreins
+Serpentshrine Cavern
+Festung der Stürme
+Tempest Keep
+Das Auge
+Schlacht um den Berg Hyjal
+Battle for Mount Hyjal
+Der Schwarze Tempel
+Black Temple
+Sonnenbrunnenplateau
+Sunwell Plateau
+Ulduar
+Prüfung des Kreuzfahrers
+Trial of the Crusader
+Eiskronenzitadelle
+Icecrown Citadel
+Archavons Kammer
+Vault of Archavon
+Obsidiansanktum
+Obsidian Sanctum
+Das Auge der Ewigkeit
+Eye of Eternity
+Rubinsanktum
+Ruby Sanctum
+Pechschwingenabstieg
+Blackwing Descent
+Bastion des Zwielichts
+Bastion of Twilight
+Thron der Vier Winde
+Throne of the Four Winds
+Feuerlande
+Firelands
+Drachenseele
+Dragon Soul
+Mogu'shan-Gewölbe
+Mogu'shan Vaults
+Herz der Angst
+Heart of Fear
+Terrasse des Endlosen Frühlings
+Terrace of Endless Spring
+Thron des Donners
+Throne of Thunder
+Belagerung von Orgrimmar
+Siege of Orgrimmar
+
+# --- Dungeons (Scherbenwelt, Nordend, Cataclysm, Pandaria) ---
+Höllenfeuerbollwerk
+Hellfire Ramparts
+Der Blutkessel
+Blood Furnace
+Die zerschmetterten Hallen
+Shattered Halls
+Die Sklavenunterkünfte
+Slave Pens
+Der Tiefensumpf
+Underbog
+Die Dampfkammer
+Steamvault
+Die Managruft
+Mana-Tombs
+Auchenaikrypta
+Auchenai Crypts
+Sethekkhallen
+Sethekk Halls
+Schattenlabyrinth
+Shadow Labyrinth
+Die Mechanar
+Mechanar
+Die Botanika
+Botanica
+Die Arcatraz
+Arcatraz
+Vorgebirge des Alten Hillsbrad
+Old Hillsbrad Foothills
+Der Schwarze Morast
+Black Morass
+Terrasse der Magister
+Magisters' Terrace
+Burg Utgarde
+Utgarde Keep
+Turm Utgarde
+Utgarde Pinnacle
+Der Nexus
+The Nexus
+Azjol-Nerub
+Ahn'kahet
+Feste Drak'Tharon
+Drak'Tharon Keep
+Die Violette Festung
+Violet Hold
+Gundrak
+Die Hallen des Steins
+Halls of Stone
+Die Hallen des Blitzes
+Halls of Lightning
+Das Oculus
+The Oculus
+Die Befreiung von Stratholme
+Culling of Stratholme
+Prüfung des Champions
+Trial of the Champion
+Die Seelenschmiede
+Forge of Souls
+Grube von Saron
+Pit of Saron
+Die Hallen der Reflexion
+Halls of Reflection
+Grim Batol
+Der Steinerne Kern
+The Stonecore
+Der Vortexgipfel
+Vortex Pinnacle
+Thron der Gezeiten
+Throne of the Tides
+Die Hallen der Schöpfung
+Halls of Origination
+Die Verlorene Stadt der Tol'vir
+Lost City of the Tol'vir
+Endzeit
+End Time
+Quell der Ewigkeit
+Well of Eternity
+Stunde des Zwielichts
+Hour of Twilight
+Tempel der Jadeschlange
+Temple of the Jade Serpent
+Brauerei des Sturmbräu
+Stormstout Brewery
+Shado-Pan-Kloster
+Shado-Pan Monastery
+Mogu'shan-Palast
+Mogu'shan Palace
+Tor der Untergehenden Sonne
+Gate of the Setting Sun
+Belagerung des Niuzao-Tempels
+Siege of Niuzao Temple
+Scharlachrote Hallen
+Scarlet Halls
+
+# --- Schlachtfelder und Arenen ---
+Kriegshymnenschlucht
+Warsong Gulch
+Arathibecken
+Arathi Basin
+Alteractal
+Alterac Valley
+Auge des Sturms
+Eye of the Storm
+Strand der Uralten
+Strand of the Ancients
+Insel der Eroberung
+Isle of Conquest
+Zwillingsgipfel
+Twin Peaks
+Schlacht um Gilneas
+Battle for Gilneas
+=Arena
+Dungeonbrowser
+Dungeon Finder
+Schlachtzugsbrowser
+Raid Finder
+=Gruppensuche
+Looking for Group
+=Schlachtfeld
+Battleground
+
+# --- Bosse und bekannte Figuren ---
+Ragnaros
+Onyxia
+Nefarian
+Kel'Thuzad
+Sapphiron
+Patchwerk
+Grobbulus
+Gluth
+Thaddius
+Anub'Rekhan
+Großwitwe Faerlina
+Grand Widow Faerlina
+Maexxna
+Noth der Seuchenfürst
+Heigan der Unreine
+Loatheb
+Instrukteur Razuvious
+Instructor Razuvious
+Gothik der Seelenjäger
+Die vier Reiter
+Four Horsemen
+Illidan
+Illidan Stormrage
+Kil'jaeden
+Lady Vashj
+Kael'thas
+Archimonde
+Arthas
+Lichkönig
+Lich King
+Yogg-Saron
+Algalon
+Todesschwinge
+Deathwing
+Cho'gall
+Sylvanas
+Sylvanas Windläufer
+Thrall
+Garrosh
+Varian
+Jaina
+Jaina Prachtmeer
+Tirion Fordring
+Uther
+Medivh
+Nachtschrecken
+Nightbane
+Prinz Malchezaar
+Prince Malchezaar
+Moroes
+Attumen
+Gruul
+Magtheridon
+Hakkar
+Mandokir
+Edwin VanCleef
+Hogger
+Leeroy Jenkins
+Majordomus Executus
+Garr
+Baron Geddon
+Shazzrah
+Sulfuron
+Golemagg
+Lucifron
+Magmadar
+Gehennas
+Razorgore
+Vaelastrasz
+Brutwächter Dreschbringer
+Broodlord Lashlayer
+Feuerschwinge
+Firemaw
+Schattenschwinge
+Ebonroc
+Flamegor
+Chromaggus
+Ossirian
+Ouro
+C'Thun
+Viscidus
+Prinzessin Huhuran
+Princess Huhuran
+Fankriss
+Skeram
+Sartura
+Zwillingskaiser
+Twin Emperors
+Ahn'Qiraj
+Lord Kazzak
+Azuregos
+Lethon
+Emeriss
+Taerar
+Ysondre
+Alexstrasza
+Ysera
+Nozdormu
+Malygos
+Neltharion
+Kalecgos
+Sargeras
+Gul'dan
+Ner'zhul
+Bolvar Fordragon
+Muradin
+Mimiron
+Thorim
+Hodir
+Freya
+Ignis
+Razorscale
+Ulduar
+Anub'arak
+Professor Seuchenmord
+Professor Putricide
+Sindragosa
+Blutkönigin Lana'thel
+Blood-Queen Lana'thel
+Valithria Traumwandler
+Valithria Dreamwalker
+Lord Mark'gar
+Saurfang
+Deathbringer Saurfang
+Rotface
+Festergut
+Halion
+Baltharus
+Saviana
+Zarithrian
+
+# --- Zauber und Fähigkeiten (Magier) ---
+Feuerball
+Fireball
+Frostblitz
+Frostbolt
+Arkane Geschosse
+Arcane Missiles
+Pyroblast
+Verwandlung
+Polymorph
+Blinzeln
+Blink
+Gegenzauber
+Counterspell
+Eisblock
+Ice Block
+Evokation
+Evocation
+Frostnova
+Frost Nova
+Kältekegel
+Cone of Cold
+Blizzard
+Flammenstoß
+Flamestrike
+Feuerschlag
+Fire Blast
+Versengen
+Scorch
+Einäscherung
+Combustion
+Arkane Intelligenz
+Arcane Intellect
+Portal
+Teleportieren
+Teleport
+Manaschild
+Mana Shield
+Eisbarriere
+Ice Barrier
+Zeitkrümmung
+Time Warp
+Spiegelbild
+Mirror Image
+
+# --- Zauber (Krieger, Paladin, Jäger) ---
+Heldenhafter Stoß
+Heroic Strike
+Sturmangriff
+Charge
+Spott
+Taunt
+Schildwall
+Shield Wall
+Wirbelwind
+Whirlwind
+Tödlicher Stoß
+Mortal Strike
+Hinrichten
+Execute
+Blutdurst
+Bloodthirst
+Schildschlag
+Shield Slam
+Rüstung zerreißen
+Sunder Armor
+Schlachtruf
+Battle Shout
+Einschüchternder Ruf
+Intimidating Shout
+Heldenhafter Wurf
+Heroic Throw
+Handauflegen
+Lay on Hands
+Gottesschild
+Divine Shield
+Segen der Könige
+Blessing of Kings
+Segen der Macht
+Blessing of Might
+Segen der Weisheit
+Blessing of Wisdom
+Segen des Schutzes
+Blessing of Protection
+Hammer der Gerechtigkeit
+Hammer of Justice
+Weihe
+Consecration
+Heiliges Licht
+Holy Light
+Lichtblitz
+Flash of Light
+Richturteil
+Judgement
+Zorn des Rächers
+Avenging Wrath
+Göttlicher Sturm
+Divine Storm
+Aura der Hingabe
+Devotion Aura
+Gezielter Schuss
+Aimed Shot
+Mehrfachschuss
+Multi-Shot
+Arkaner Schuss
+Arcane Shot
+Mal des Jägers
+Hunter's Mark
+Totstellen
+Feign Death
+Eiskältefalle
+Freezing Trap
+Irreführung
+Misdirection
+Schnellfeuer
+Rapid Fire
+Tötungsbefehl
+Kill Command
+Aspekt des Falken
+Aspect of the Hawk
+Abschreckung
+Deterrence
+Gegenangriff
+Counterattack
+
+# --- Zauber (Schurke, Priester, Schamane) ---
+Meucheln
+Backstab
+Finsterer Stoß
+Sinister Strike
+Ausweiden
+Eviscerate
+Verschwinden
+Vanish
+Kopfnuss
+Sap
+Nierenhieb
+Kidney Shot
+Hinterhältiger Schlag
+Cheap Shot
+Verstohlenheit
+Stealth
+Sprinten
+Sprint
+Ausweichen
+Evasion
+Blenden
+Blind
+Solarplexus
+Gouge
+Tritt
+Kick
+Machtwort: Schild
+Power Word: Shield
+Blitzheilung
+Flash Heal
+Große Heilung
+Greater Heal
+Erneuerung
+Renew
+Gebet der Heilung
+Prayer of Healing
+Schattenwort: Schmerz
+Shadow Word: Pain
+Gedankenschlag
+Mind Blast
+Psychischer Schrei
+Psychic Scream
+Magie bannen
+Dispel Magic
+Auferstehung
+Resurrection
+Furcht
+Fear
+Seelenstein
+Soulstone
+Kettenblitz
+Chain Lightning
+Blitzschlag
+Lightning Bolt
+Erdschock
+Earth Shock
+Welle der Heilung
+Healing Wave
+Kampfrausch
+Bloodlust
+Heldentum
+Heroism
+Totem
+Windzorn
+Windfury
+Geisterwolf
+Ghost Wolf
+Wiedergeburt
+Reincarnation
+
+# --- Zauber (Hexenmeister, Druide, Todesritter) ---
+Schattenblitz
+Shadow Bolt
+Verderbnis
+Corruption
+Fluch der Pein
+Curse of Agony
+Gesundheitsstein
+Healthstone
+Wichtel
+Imp
+Leerwandler
+Voidwalker
+Sukkubus
+Succubus
+Teufelsjäger
+Felhunter
+Teufelswache
+Felguard
+Höllenfeuer
+Hellfire
+Blutsauger
+Drain Life
+Feuerregen
+Rain of Fire
+Aderlass
+Life Tap
+Metamorphose
+Metamorphosis
+Dämonenportal
+Demonic Circle
+Verjüngung
+Rejuvenation
+Nachwachsen
+Regrowth
+Blühendes Leben
+Lifebloom
+Anregen
+Innervate
+Mal der Wildnis
+Mark of the Wild
+Dornen
+Thorns
+Wucherwurzeln
+Entangling Roots
+Wirbelsturm
+Cyclone
+Mondfeuer
+Moonfire
+Sternenfeuer
+Starfire
+Bärengestalt
+Bear Form
+Katzengestalt
+Cat Form
+Reisegestalt
+Travel Form
+Schleichen
+Prowl
+Spurt
+Dash
+Todesgriff
+Death Grip
+Tod und Verfall
+Death and Decay
+Auslöschen
+Obliterate
+Antimagische Hülle
+Anti-Magic Shell
+Eisige Gegenwehr
+Icebound Fortitude
+Armee der Toten
+Army of the Dead
+Eisketten
+Chains of Ice
+Runenwaffe
+Rune Strike
+Heulende Böe
+Howling Blast
+
+# --- Spielbegriffe ---
+Ruhestein
+Hearthstone
+=Reittier
+Mount
+Flugmount
+Flying Mount
+=Auktionshaus
+Auction House
+=Flugmeister
+Flight Master
+=Gildenbank
+Guild Bank
+=Bankfach
+=Briefkasten
+Mailbox
+=Händler
+Vendor
+Schmiedekunst
+Blacksmithing
+=Alchemie
+Alchemy
+Verzauberkunst
+Enchanting
+Ingenieurskunst
+Engineering
+=Kräuterkunde
+Herbalism
+Juwelenschleifen
+Jewelcrafting
+Inschriftenkunde
+Inscription
+=Kürschnerei
+Skinning
+Lederverarbeitung
+Leatherworking
+=Bergbau
+Mining
+=Schneiderei
+Tailoring
+=Kochkunst
+Cooking
+=Angeln
+Fishing
+=Erste Hilfe
+First Aid
+Archäologie
+Archaeology
+=Talente
+Talents
+=Glyphen
+Glyphs
+=Ausrüstung
+Gear
+Epic
+Legendär
+Legendary
+Seltene Gegenstände
+=Weltboss
+World Boss
+=Weltereignis
+World Event
+=Dailys
+=Wochenquest
+=Erfahrung
+=Ehre
+Honor
+=Ruf
+Reputation
+=Marken
+Badges
+=Wappen
+=Gold
+=Silber
+=Kupfer
+Silver
+Copper
+=Goldverkäufer
+=Quest
+=Questgeber
+=Questreihe
+=Instanzen
+=Heroisch
+Heroic
+=Normal
+=Hardmode
+=Zehnerschlachtzug
+=Fünfundzwanziger
+Weltrangliste
+=Gildenchat
+=Flüstern
+Whisper
+=Schreien
+Yell
+=Sagen
+=Zonenchat
+=Handelschat
+Trade Chat
+=Allgemein
+=LookingForGroup
+=Ausschlafen
+=Rastbereich
+Resting
+=Spielzeit
+=Anmeldung
+Authenticator
+Battle.net
+Blizzard
+Warcraft
+World of Warcraft
+WoW Forever
+Azeroth
+Kalimdor
+Östliche Königreiche
+Eastern Kingdoms
+=Scherbenwelt
+Outland
+=Nordend
+Northrend
+=Die Horde
+=Horde
+=Allianz
+Alliance
+=Neutral
+Sturmwinder
+Brennende Legion
+Burning Legion
+=Geißel
+Scourge
+Lichkönigs
+Argentumkreuzzug
+Argent Crusade
+Kirin Tor
+Cenarius
+Elune
+Malfurion
+Tyrande
+Furion
+
+
+# --- Gewöhnliche Wörter, die Namen oben ähneln (nur Schutz, nie ersetzt) ---
+=Heiler
+=Arkane
+=Thorium
+=Mithril
+=Arkanit
+=Eisenerz
+=Kupfererz
+=Wahrsilber
+=Truesilver
+=Heilung
+=Heilungen
+=Feuerbälle
+=Frostbälle
+=Portale
+=Hexer
+=Hexe
+=Zauberer
+=Dungeon
+=Dungeons
+=Schmied
+=Wache
+=Wachen
+Malchezaar
+Windläufer
