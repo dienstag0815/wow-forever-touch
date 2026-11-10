@@ -1,6 +1,7 @@
 package app.gamenative
 
 import android.content.Context
+import android.content.Intent
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -9,11 +10,15 @@ import java.io.StringWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.system.exitProcess
 
 /**
  * A local running crash handler.
  * Any uncaught exceptions will be saved located locally in a text file, aka: Crash Report.
  * File location: /<user storage>/Android/data/app.gamenative/files/crash_logs/
+ *
+ * Besides the file, the report is shown on screen by [CrashReportActivity] (own process ":crash") so that a user without adb can
+ * copy or share it. The main process then ends itself; if the screen cannot be started, the system's own handler runs as before.
  */
 class CrashHandler(
     private val context: Context,
@@ -23,6 +28,7 @@ class CrashHandler(
     companion object {
         private const val LOG_CAT_COUNT = 256
         private const val CRASH_FILE_HISTORY_COUNT = 1
+        private const val SHOWN_MARKER = "crash_report_shown"
 
         val timestamp: String
             get() = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date())
@@ -90,8 +96,40 @@ class CrashHandler(
     }
 
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
+        // The screen first (the system starts it asynchronously), then the file with the logcat, which takes longer.
+        val shown = showCrashReport(throwable)
         saveCrashToFile(throwable)
+        if (shown) {
+            android.os.Process.killProcess(android.os.Process.myPid())
+            exitProcess(10)
+        }
         defaultHandler?.uncaughtException(thread, throwable)
+    }
+
+    /** Starts [CrashReportActivity] with the report; false when it was not started (too soon after the last one, or an error). */
+    private fun showCrashReport(throwable: Throwable): Boolean {
+        return try {
+            val marker = File(context.filesDir, SHOWN_MARKER)
+            val now = System.currentTimeMillis()
+            if (!CrashReport.shouldShow(marker.lastModified(), now)) return false
+            val stackTrace = StringWriter().also { throwable.printStackTrace(PrintWriter(it)) }.toString()
+            val report = CrashReport.build(
+                appVersion = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                androidVersion = "${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})",
+                device = "${android.os.Build.MANUFACTURER} - ${android.os.Build.BRAND} - ${android.os.Build.MODEL}",
+                stackTrace = stackTrace,
+            )
+            marker.writeText(now.toString())
+            marker.setLastModified(now)
+            val intent = Intent(context, CrashReportActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                .putExtra(CrashReport.EXTRA_REPORT, report)
+                .putExtra(CrashReport.EXTRA_LANGUAGE, Locale.getDefault().language)
+            context.startActivity(intent)
+            true
+        } catch (e: Throwable) {
+            false
+        }
     }
 
     private fun saveCrashToFile(throwable: Throwable) {
@@ -127,7 +165,7 @@ class CrashHandler(
 
             cleanupOldCrashFiles()
         } catch (e: Exception) {
-            defaultHandler?.uncaughtException(Thread.currentThread(), throwable)
+            // The file is only a copy; the caller decides what happens to the process.
         }
     }
 }

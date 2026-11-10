@@ -4,6 +4,17 @@ Pro Version ein Abschnitt, neueste oben. Format: `## <Version> – <Datum>`, dar
 Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in `app/src/main/assets/CHANGELOG.de.md`) und zeigt sie als
 Änderungsliste; bei einem angebotenen Update kommt der Text der neuen Versionen aus dem Update-Feed.
 
+## 2.3.3-touch9.2 – 10.11.2026
+
+### Neu
+- Absturzanzeige: Stürzt die App ab, zeigt sie den Fehlerbericht auf dem Bildschirm mit „Kopieren“ und „Teilen“, damit du ihn uns schicken kannst.
+
+### Verbessert
+- Neuer Name „WoW Forever Touch – Launcher“ und neues App-Icon: das WoW-Forever-Emblem mit Panzerhandschuh und „Touch“-Schriftzug.
+
+### Behoben
+- Nach einer Neuinstallation oder dem Wechsel von einem anderen Launcher schloss sich die App beim ersten Start sofort wieder, wenn der Spielordner schon da war.
+
 ## 2.3.3-touch9.1 – 10.11.2026
 
 ### Neu
@@ -16,6 +27,22 @@ Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in 
 - Eigenes App-Icon (Panzerhandschuh, der tippt), passende Benachrichtigung, Banner und Hintergrundbild.
 - Updates kommen jetzt aus den GitHub-Releases des Projekts.
 - Die App ist mit einem neuen Schlüssel signiert. Einmal deinstallieren und neu installieren; danach laufen Updates wieder von selbst.
+
+## 2.3.3-fold8.33 – 10.11.2026
+
+### Behoben
+- Nach einer Neuinstallation schloss sich die App beim ersten Start sofort wieder, wenn der Spielordner der alten Installation noch da war.
+
+## 2.3.3-fold8.32 – 10.11.2026
+
+### Neu
+- Absturzanzeige: Stürzt die App ab, zeigt sie den Fehlerbericht auf dem Bildschirm mit „Kopieren“ und „Teilen“, damit du ihn uns schicken kannst.
+
+### Verbessert
+- Neues App-Icon: das WoW-Forever-Emblem mit Panzerhandschuh und „Touch“-Schriftzug, heller und auch auf dem Startbildschirm gut erkennbar.
+
+### Behoben
+- Die Grafikkarten-Erkennung beim ersten Start kann die App nicht mehr beenden.
 
 ## 2.3.3-fold8.31 – 10.11.2026
 

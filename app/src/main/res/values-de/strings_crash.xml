@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="crash_title">Die App ist abgestürzt</string>
+    <string name="crash_hint">Bitte kopiere oder teile diesen Bericht, damit die Ursache gefunden werden kann. Er enthält keine Anmeldedaten.</string>
+    <string name="crash_copy">Kopieren</string>
+    <string name="crash_share">Teilen</string>
+    <string name="crash_close">Schließen</string>
+    <string name="crash_copied">Bericht kopiert</string>
+    <string name="crash_share_subject">Absturzbericht</string>
+    <string name="crash_share_chooser">Bericht teilen</string>
+</resources>

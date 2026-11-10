@@ -90,6 +90,16 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Crash screen: own process and plain theme, so it shows even when the main process cannot start (CrashHandler) -->
+        <activity
+            android:name=".CrashReportActivity"
+            android:exported="false"
+            android:process=":crash"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
         <!-- Keeps the process and Wi-Fi unthrottled while the game runs (not distributed through Google Play). -->
         <service
             android:name=".service.GameKeepAliveService"

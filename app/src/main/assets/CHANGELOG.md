@@ -5,6 +5,17 @@ bullet points in plain language. The launcher reads this file (copy in `app/src/
 when an update is offered, the text for the new versions comes from the update feed. German readers get
 `CHANGELOG.de.md` when the app language is German.
 
+## 2.3.3-touch9.2 – 10.11.2026
+
+### New
+- Crash screen: if the app crashes, it shows the error report on screen with “Copy” and “Share”, so you can send it to us.
+
+### Improved
+- New name “WoW Forever Touch – Launcher” and a new app icon: the WoW Forever emblem with a gauntlet and a “Touch” tag.
+
+### Fixed
+- After a reinstall or a switch from another launcher the app closed right away on its first start when the game folder was already there.
+
 ## 2.3.3-touch9.1 – 10.11.2026
 
 ### New
@@ -17,6 +28,22 @@ when an update is offered, the text for the new versions comes from the update f
 - Own app icon (a gauntlet that taps), matching notification icon, banner and wallpaper.
 - Updates now come from the project's GitHub releases.
 - The app is signed with a new key. Uninstall once and install again; after that, updates arrive on their own again.
+
+## 2.3.3-fold8.33 – 10.11.2026
+
+### Fixed
+- After a reinstall the app closed right away on its first start when the game folder of the old installation was still there.
+
+## 2.3.3-fold8.32 – 10.11.2026
+
+### New
+- Crash screen: if the app crashes, it shows the error report on screen with “Copy” and “Share”, so you can send it to us.
+
+### Improved
+- New app icon: the WoW Forever emblem with a gauntlet and a “Touch” tag, brighter and easy to spot on the home screen.
+
+### Fixed
+- The graphics detection on first start can no longer close the app.
 
 ## 2.3.3-fold8.31 – 10.11.2026
 

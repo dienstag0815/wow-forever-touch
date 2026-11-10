@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="crash_title">The app has crashed</string>
+    <string name="crash_hint">Please copy or share this report so the cause can be found. It contains no login data.</string>
+    <string name="crash_copy">Copy</string>
+    <string name="crash_share">Share</string>
+    <string name="crash_close">Close</string>
+    <string name="crash_copied">Report copied</string>
+    <string name="crash_share_subject">Crash report</string>
+    <string name="crash_share_chooser">Share report</string>
+</resources>

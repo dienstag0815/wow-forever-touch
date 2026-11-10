@@ -67,13 +67,13 @@ public abstract class GPUInformation {
     }
 
     private static ArrayMap<String, String> loadGPUInformation(Context context) {
-        final Thread thread = Thread.currentThread();
         final ArrayMap<String, String> gpuInfo = new ArrayMap<>();
         gpuInfo.put("renderer", "");
         gpuInfo.put("vendor", "");
         gpuInfo.put("version", "");
 
-        (new Thread(() -> {
+        final Thread worker = new Thread(() -> {
+          try {
             int[] attribList = new int[]{
                     EGL10.EGL_SURFACE_TYPE, EGL10.EGL_PBUFFER_BIT,
                     EGL10.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
@@ -111,18 +111,17 @@ public abstract class GPUInformation {
             PrefManager.putString(RENDERER_PREF_KEY, gpuRenderer);
             PrefManager.putString("gpu_vendor", gpuVendor);
             PrefManager.putString("gpu_version", gpuVersion);
-
-            synchronized (thread) {
-                thread.notify();
-            }
-        })).start();
-
-        synchronized (thread) {
-            try {
-                thread.wait();
-            } catch (InterruptedException e) {
-                Log.e("GPUInformation", "Failed to load gpu information: " + e);
-            }
+          } catch (Throwable e) {
+            // Fresh install: no usable EGL config or GLES2 must not crash the app; the values stay empty and are asked again later.
+            Log.e("GPUInformation", "Failed to load gpu information: " + e);
+          }
+        });
+        worker.start();
+        try {
+            // join instead of wait/notify: no lost wake-up, and a hung driver cannot block the UI for good
+            worker.join(10000);
+        } catch (InterruptedException e) {
+            Log.e("GPUInformation", "Failed to load gpu information: " + e);
         }
         return gpuInfo;
     }

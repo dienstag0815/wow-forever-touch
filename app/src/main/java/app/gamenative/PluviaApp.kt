@@ -36,6 +36,8 @@ class PluviaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // The crash screen runs in its own process (":crash"): it needs none of the setup below and must not install the crash handler.
+        if (CrashReport.isCrashProcess(processNameOrNull())) return
         instance = this
         app.gamenative.ui.components.AppText.init(this)
         android.system.Os.setenv("EVSHIM_BASE_PATH", filesDir.absolutePath, true)
@@ -51,6 +53,9 @@ class PluviaApp : Application() {
         // The application context (snackbars, notifications, UpdateManager) speaks the chosen language too, not the system's.
         LocaleHelper.applyToApplication(this, AppLanguage.tagFor(PrefManager.appLanguage))
     }
+
+    private fun processNameOrNull(): String? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) Application.getProcessName() else null
 
     companion object {
         @JvmField

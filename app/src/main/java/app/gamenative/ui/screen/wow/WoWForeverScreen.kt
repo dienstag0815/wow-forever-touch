@@ -1297,8 +1297,10 @@ private val RESOLUTION_KEYS = listOf("gxFullscreenResolution", "gxWindowedResolu
 private const val CONFIG_WTF = "$FLAVOR_DIR/WTF/Config.wtf"
 
 // The portal Config.wtf already points at, else the install's region from .build.info.
+// The read can fail even when the file exists: after a reinstall the game folder still holds files of the old installation, and until
+// the folder access is granted again Android refuses them (EACCES). That crashed the first start (fold8.32), so a failed read means "unknown".
 private fun portalOf(root: File) =
-    File(root, CONFIG_WTF).takeIf { it.isFile }?.readLines()?.firstOrNull { it.startsWith("SET portal ", ignoreCase = true) }
+    runCatching { File(root, CONFIG_WTF).takeIf { it.isFile }?.readLines() }.getOrNull()?.firstOrNull { it.startsWith("SET portal ", ignoreCase = true) }
         ?.substringAfter(" ")?.substringAfter(" ")?.trim('"')?.takeIf { it.isNotBlank() }
         ?: WowClientDownloader.readBuildInfo(File(root, BUILD_INFO))?.get("Branch")?.takeIf { it.isNotBlank() }?.uppercase() ?: "US"
 
