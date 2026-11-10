@@ -587,4 +587,32 @@
         <item quantity="one">%d Version, die neueste zuerst</item>
         <item quantity="other">%d Versionen, die neueste zuerst</item>
     </plurals>
+    <string name="backup_row">Backup</string>
+    <string name="backup_title">Backup</string>
+    <string name="backup_hint">Sichert Layouts und App-Einstellungen in einer Datei. Nach einer Neuinstallation wiederherstellen.</string>
+    <string name="backup_export">Backup exportieren</string>
+    <string name="backup_export_desc">Layouts und Einstellungen in eine Datei speichern</string>
+    <string name="backup_import">Backup importieren</string>
+    <string name="backup_import_desc">Layouts und Einstellungen aus einer Datei wiederherstellen</string>
+    <string name="backup_export_done">Backup gespeichert: %1$d Layouts, %2$d Einstellungen.</string>
+    <string name="backup_export_failed">Das Backup konnte nicht gespeichert werden.</string>
+    <string name="backup_import_title">Backup importieren?</string>
+    <string name="backup_import_summary">%1$d Layouts, %2$d Einstellungen. Erstellt %3$s mit App-Version %4$s. Jetzt importieren?</string>
+    <string name="backup_import_empty">Die Datei enthält keine Layouts und keine Einstellungen.</string>
+    <string name="backup_import_skipped">%1$d Einträge konnten nicht gelesen werden und werden übersprungen.</string>
+    <string name="backup_import_conflict">Bereits vorhanden: %1$s</string>
+    <string name="backup_import_apply">Importieren</string>
+    <string name="backup_import_replace">Ersetzen</string>
+    <string name="backup_import_keep_both">Beide behalten</string>
+    <string name="backup_cancel">Abbrechen</string>
+    <string name="backup_ok">OK</string>
+    <string name="backup_done_title">Backup wiederhergestellt</string>
+    <string name="backup_done_text">%1$d neu, %2$d ersetzt, %3$d mit neuem Namen hinzugefügt, %4$d unverändert, %5$d Einstellungen übernommen.</string>
+    <string name="backup_done_failed">%1$d Einträge konnten nicht importiert werden.</string>
+    <string name="backup_done_active">Aktives Layout: %1$s</string>
+    <string name="backup_err_not_backup">Diese Datei ist kein WoW-Forever-Backup.</string>
+    <string name="backup_err_too_old">Dieses Backup ist für diese Version zu alt.</string>
+    <string name="backup_err_too_new">Dieses Backup stammt von einer neueren Version.</string>
+    <string name="backup_err_too_big">Die Backup-Datei ist zu groß.</string>
+    <string name="backup_err_broken">Die Backup-Datei ist beschädigt.</string>
 </resources>

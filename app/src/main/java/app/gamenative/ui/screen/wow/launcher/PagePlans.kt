@@ -39,7 +39,7 @@ internal fun settingsPlan(): List<CardPlan> = listOf(
     plan("game", rows = 5),
     plan("start", rows = 5, lines = 2),
     plan("control", rows = 3, lines = 2),
-    plan("app", rows = 3),
+    plan("app", rows = 4),
     plan("help", rows = 1, lines = 2),
 )
 

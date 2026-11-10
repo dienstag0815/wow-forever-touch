@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.gamenative.BuildConfig
 import app.gamenative.R
+import app.gamenative.backup.BackupDetailBody
 import app.gamenative.report.ErrorReport
 import app.gamenative.ui.screen.wow.klick.KlickRadSettingsBlock
 import app.gamenative.ui.screen.wow.launcher.AppLanguage
@@ -126,17 +127,22 @@ private fun SettingsOverview(v: LauncherSettingsValues, a: LauncherSettingsActio
         plan.card("game", stringResource(R.string.launcher_group_game), onOpen = { detailId = "game" }) { GameCardRows(v, a) },
         plan.card("start", stringResource(R.string.launcher_group_start), onOpen = { detailId = "start" }) { StartCardRows(v, a) },
         plan.card("control", stringResource(R.string.launcher_settings_control_in_game)) { ControlCardRows(v, a) { detailId = it } },
-        plan.card("app", stringResource(R.string.launcher_group_app), onOpen = { detailId = "app" }) { AppCardRows(v) },
+        plan.card("app", stringResource(R.string.launcher_group_app), onOpen = { detailId = "app" }) { AppCardRows(v) { detailId = "backup" } },
         plan.card("help", stringResource(R.string.launcher_group_help)) { HelpCardRows() },
     )
     val scopeHint = SETTINGS_SCOPE_HINT.asString()
     val close: () -> Unit = { detailId = null }
     // Die Karten mit Pfeil im Kopf und die Zeilen "Öffnen" zeigen je eine Gruppe ([settingsGroups]) als Detailansicht.
     val detail: PageDetail? = detailId?.let { key ->
-        val group = groupOf(key)
-        PageDetail(group.title.asString(), close) {
-            DetailHint(scopeHint)
-            SettingsGroupView(group, v, a)
+        if (key == "backup") {
+            // Backup ist keine Gruppe des Seitenmenüs, sondern eine eigene Detailansicht in der Karte "App".
+            PageDetail(stringResource(R.string.backup_title), close) { BackupDetailBody() }
+        } else {
+            val group = groupOf(key)
+            PageDetail(group.title.asString(), close) {
+                DetailHint(scopeHint)
+                SettingsGroupView(group, v, a)
+            }
         }
     }
     LauncherOverviewPage(title = title.asString(), onBack = onBack, cards = cards, detail = detail)
@@ -229,7 +235,7 @@ private fun ControlCardRows(v: LauncherSettingsValues, a: LauncherSettingsAction
 
 /** App: Sprache der App und die zwei Bildschalter des Launchers. */
 @Composable
-private fun AppCardRows(v: LauncherSettingsValues) {
+private fun AppCardRows(v: LauncherSettingsValues, onBackup: () -> Unit) {
     val context = LocalContext.current
     val language = AppLanguageSetting.currentTag()
     val screenshots by LauncherArtSettings.screenshotsFlow(context).collectAsState()
@@ -244,6 +250,7 @@ private fun AppCardRows(v: LauncherSettingsValues) {
     )
     CardSwitchRow(stringResource(R.string.launcher_settings_own_screenshots_short), screenshots, v.enabled) { LauncherArtSettings.setScreenshots(context, it) }
     CardSwitchRow(stringResource(R.string.launcher_settings_wow_art_short), wowArt, v.enabled) { LauncherArtSettings.setWowArt(context, it) }
+    CardOpenRow(stringResource(R.string.backup_row), stringResource(R.string.launcher_open)) { onBackup() }
 }
 
 /** Hilfe: der Fehlerbericht wird direkt erstellt; die Statusmeldung ersetzt den Text darunter ([ErrorReport.start] meldet sie zurück). */

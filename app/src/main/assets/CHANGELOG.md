@@ -5,6 +5,11 @@ bullet points in plain language. The launcher reads this file (copy in `app/src/
 when an update is offered, the text for the new versions comes from the update feed. German readers get
 `CHANGELOG.de.md` when the app language is German.
 
+## 2.3.3-touch9.1 – 10.11.2026
+
+### New
+- Backup: Settings › App › Backup saves your layouts and settings to a file and restores them – for example before a reinstall. Login data and the device ID are deliberately left out.
+
 ## 2.3.3-touch9.0 – 10.11.2026
 
 ### New
@@ -12,6 +17,11 @@ when an update is offered, the text for the new versions comes from the update f
 - Own app icon (a gauntlet that taps), matching notification icon, banner and wallpaper.
 - Updates now come from the project's GitHub releases.
 - The app is signed with a new key. Uninstall once and install again; after that, updates arrive on their own again.
+
+## 2.3.3-fold8.31 – 10.11.2026
+
+### New
+- Backup: Settings › App › Backup saves your layouts and settings to a file and restores them – for example before a reinstall. Login data and the device ID are deliberately left out.
 
 ## 2.3.3-fold8.30 – 10.11.2026
 

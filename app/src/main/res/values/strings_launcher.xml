@@ -587,4 +587,32 @@
         <item quantity="one">%d version, newest first</item>
         <item quantity="other">%d versions, newest first</item>
     </plurals>
+    <string name="backup_row">Backup</string>
+    <string name="backup_title">Backup</string>
+    <string name="backup_hint">Saves your layouts and app settings to one file. Restore it after a reinstall.</string>
+    <string name="backup_export">Export backup</string>
+    <string name="backup_export_desc">Save layouts and settings to a file</string>
+    <string name="backup_import">Import backup</string>
+    <string name="backup_import_desc">Restore layouts and settings from a file</string>
+    <string name="backup_export_done">Backup saved: %1$d layouts, %2$d settings.</string>
+    <string name="backup_export_failed">The backup could not be saved.</string>
+    <string name="backup_import_title">Import backup?</string>
+    <string name="backup_import_summary">%1$d layouts, %2$d settings. Created %3$s with app version %4$s. Import now?</string>
+    <string name="backup_import_empty">The file contains no layouts and no settings.</string>
+    <string name="backup_import_skipped">%1$d items could not be read and are skipped.</string>
+    <string name="backup_import_conflict">Already present: %1$s</string>
+    <string name="backup_import_apply">Import</string>
+    <string name="backup_import_replace">Replace</string>
+    <string name="backup_import_keep_both">Keep both</string>
+    <string name="backup_cancel">Cancel</string>
+    <string name="backup_ok">OK</string>
+    <string name="backup_done_title">Backup restored</string>
+    <string name="backup_done_text">%1$d new, %2$d replaced, %3$d added with a new name, %4$d unchanged, %5$d settings applied.</string>
+    <string name="backup_done_failed">%1$d items could not be imported.</string>
+    <string name="backup_done_active">Active layout: %1$s</string>
+    <string name="backup_err_not_backup">This file is not a WoW Forever backup.</string>
+    <string name="backup_err_too_old">This backup is too old for this version.</string>
+    <string name="backup_err_too_new">This backup was made by a newer version.</string>
+    <string name="backup_err_too_big">The backup file is too large.</string>
+    <string name="backup_err_broken">The backup file is damaged.</string>
 </resources>

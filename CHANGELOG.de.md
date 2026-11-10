@@ -4,6 +4,11 @@ Pro Version ein Abschnitt, neueste oben. Format: `## <Version> – <Datum>`, dar
 Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in `app/src/main/assets/CHANGELOG.de.md`) und zeigt sie als
 Änderungsliste; bei einem angebotenen Update kommt der Text der neuen Versionen aus dem Update-Feed.
 
+## 2.3.3-touch9.1 – 10.11.2026
+
+### Neu
+- Backup: Unter Einstellungen › App › Backup sicherst du deine Layouts und Einstellungen in eine Datei und stellst sie wieder her – zum Beispiel vor einer Neuinstallation. Anmeldedaten und Gerätekennung kommen bewusst nicht mit.
+
 ## 2.3.3-touch9.0 – 10.11.2026
 
 ### Neu
@@ -11,6 +16,11 @@ Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in 
 - Eigenes App-Icon (Panzerhandschuh, der tippt), passende Benachrichtigung, Banner und Hintergrundbild.
 - Updates kommen jetzt aus den GitHub-Releases des Projekts.
 - Die App ist mit einem neuen Schlüssel signiert. Einmal deinstallieren und neu installieren; danach laufen Updates wieder von selbst.
+
+## 2.3.3-fold8.31 – 10.11.2026
+
+### Neu
+- Backup: Unter Einstellungen › App › Backup sicherst du deine Layouts und Einstellungen in eine Datei und stellst sie wieder her – zum Beispiel vor einer Neuinstallation. Anmeldedaten und Gerätekennung kommen bewusst nicht mit.
 
 ## 2.3.3-fold8.30 – 10.11.2026
 
