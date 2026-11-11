@@ -11,6 +11,8 @@ Die App nutzt den **Windows-ARM64**-Client von Blizzard, das Spiel selbst läuft
 | Touch-Layout im Spiel | Ringmenü | Launcher-Einstellungen |
 | :---: | :---: | :---: |
 | ![Touch-Layout im Spiel](screenshots/ingame-touch-layout.jpg) | ![Ringmenü](screenshots/ingame-ring-menu.jpg) | ![Launcher-Einstellungen](screenshots/launcher-settings.jpg) |
+| **Addons** | **Hilfe & Diagnose** | **Neuigkeiten** |
+| ![Addons](screenshots/launcher-addons.jpg) | ![Hilfe und Diagnose](screenshots/launcher-help.jpg) | ![Neuigkeiten](screenshots/launcher-whats-new.jpg) |
 
 ## Was dieser Launcher macht
 - **Du brauchst einen eigenen offiziellen World-of-Warcraft-Account** (Battle.net) mit aktiver Spiellizenz. Die App enthält keine Spielinhalte, gibt keine weiter, schaltet nichts frei und ändert nichts an den Spielservern.

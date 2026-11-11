@@ -13,6 +13,8 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 | Touch layout in game | Ring menu | Launcher settings |
 | :---: | :---: | :---: |
 | ![Touch layout in game](screenshots/ingame-touch-layout.jpg) | ![Ring menu](screenshots/ingame-ring-menu.jpg) | ![Launcher settings](screenshots/launcher-settings.jpg) |
+| **Addons** | **Help & diagnostics** | **What's new** |
+| ![Addons](screenshots/launcher-addons.jpg) | ![Help and diagnostics](screenshots/launcher-help.jpg) | ![What's new](screenshots/launcher-whats-new.jpg) |
 
 ## What this launcher does
 - **You need your own official World of Warcraft account** (Battle.net) with an active game license. The app does not include, share or unlock any game content and does not change anything on the game servers.
