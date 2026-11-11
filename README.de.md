@@ -6,6 +6,8 @@ Die App nutzt den **Windows-ARM64**-Client von Blizzard, das Spiel selbst läuft
 
 ## Bilder
 
+![Launcher](screenshots/launcher-home.jpg)
+
 | Touch-Layout im Spiel | Ringmenü | Launcher-Einstellungen |
 | :---: | :---: | :---: |
 | ![Touch-Layout im Spiel](screenshots/ingame-touch-layout.jpg) | ![Ringmenü](screenshots/ingame-ring-menu.jpg) | ![Launcher-Einstellungen](screenshots/launcher-settings.jpg) |

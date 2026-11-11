@@ -8,6 +8,8 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 
 ## Screenshots
 
+![Launcher](screenshots/launcher-home.jpg)
+
 | Touch layout in game | Ring menu | Launcher settings |
 | :---: | :---: | :---: |
 | ![Touch layout in game](screenshots/ingame-touch-layout.jpg) | ![Ring menu](screenshots/ingame-ring-menu.jpg) | ![Launcher settings](screenshots/launcher-settings.jpg) |
