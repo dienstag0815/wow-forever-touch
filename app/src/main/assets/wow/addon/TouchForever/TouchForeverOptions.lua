@@ -37,6 +37,7 @@ local XP_MODES = {
     { "minimap", L.at_the_minimap }, { "off", L.off_2 },
 }
 
+local FILTER_LEVELS = { { "off", L.off_2 }, { "low", L.filter_low }, { "high", L.filter_high } }
 local SHAPES = { { "round", L.round }, { "square", L.square } }
 local BAG_MODES = {
     { "full", L.whole }, { "pack", L.backpack_ammo }, { "off", L.off_2 },
@@ -121,9 +122,9 @@ local list = {
       get = function() return chat().bg or 20 end, set = function(v) UI.ChatSet("bg", v) end },
 
     -- page 4: chat more ----------------------------------------------------------------------------------------------------
-    { id = "chatfilter", page = 4, kind = "check", label = L.hide_spam, default = true,
+    { id = "chatfilter", page = 4, kind = "choice", label = L.hide_spam, default = "low", choices = FILTER_LEVELS,
       tip = L.system_loot_experience_and_trade_channel,
-      get = function() return chat().filter == true end, set = function(v) UI.ChatSet("filter", v) end },
+      get = function() return UI.ChatFilterLevel() end, set = function(v) UI.ChatSet("filter", v) end },
     { id = "chatshort", page = 4, kind = "check", label = L.short_channel_names, default = true,
       get = function() return chat().short == true end, set = function(v) UI.ChatSet("short", v) end },
     { id = "chatstamps", page = 4, kind = "check", label = L.show_time_stamps, default = false,

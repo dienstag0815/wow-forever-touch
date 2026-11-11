@@ -13,8 +13,8 @@ enum class ContextOpen { NONE, RADIAL }
 enum class ContextGlyph {
     ATTACK, TARGET, LOOT, SKIN, TALK, MOVE, SPLIT, DISCARD, LINK, COMPARE, USE, EQUIP, UNEQUIP, SELL, TRANSFER,
 
-    /** Spielermenü: Flüstern per Sprache (Mikrofon), Einladen, Folgen, Winken, Freund hinzufügen, Betrachten, Mehr ... */
-    MIC, INVITE, FOLLOW, WAVE, FRIEND, INSPECT, MORE,
+    /** Spielermenü: Flüstern per Sprache (Mikrofon), Einladen, Gruppe verlassen, Folgen, Winken, Freund hinzufügen, Betrachten, Mehr ... */
+    MIC, INVITE, LEAVE, FOLLOW, WAVE, FRIEND, INSPECT, MORE,
 }
 
 /** Was ein Eintrag des Kontextmenüs beim Loslassen darauf tut. */
@@ -94,12 +94,13 @@ data class BarSlotState(
  *   Addons; Modus Aktionsleiste: die Plätze 1 bis 12), Automatischer Angriff, Ziel wählen. In Reichweite zuerst, dann in der Reihenfolge
  *   der Liste.
  * - Tote Einheit (kein Spieler): Plündern (Rechtsklick), Kürschnern nur wenn kürschnerbar (Rechtsklick), Ziel wählen.
- * - Anderer Spieler (außer lebende feindliche): das Mini-Menü ([playerMenu]); innen Flüstern (Sprache, Tastatur), Einladen, Folgen, Handeln,
+ * - Anderer Spieler (außer lebende feindliche): das Mini-Menü ([playerMenu]); innen Flüstern (Sprache, Tastatur), Einladen (in meiner Gruppe: Gruppe verlassen), Folgen, Handeln,
  *   Winken, außen Freund hinzufügen, Betrachten, hilfreiche Zauber und "Mehr ...", das Spielermenü des Spiels ([usesPlayerMenu]).
  * - Nicht angreifbarer NPC (Händler, Questgeber ...): Ansprechen (Rechtsklick), Ziel wählen.
  * - Die Einheit bin ich selbst (Halten auf der eigenen Figur): das Selbst-Menü ([selfMenu]): Taschen, Charakter, Zauberbuch, Talente, Karte.
  * - Keine Einheit: kein Menü (leere Liste).
  * - Gegenstand in Tasche, Bank, Charakterfenster: [itemMenu], immer mit Benutzen.
+ * - Quest im Questlog oder Quest-Tracker unter dem Zeiger: [questMenu] (verlinken, teilen, verfolgen, Mehr ...); geht wie der Gegenstand vor jeder Einheit.
  */
 object ContextMenus {
     /** Zeile "Ziel wählen" (Linksklick; die App hat das Ziel beim Öffnen schon gewählt, der Eintrag macht es erneut). */
@@ -112,7 +113,7 @@ object ContextMenus {
      */
     @JvmStatic
     fun usesPlayerMenu(data: ContextData, mode: ContextMode): Boolean {
-        if (mode == ContextMode.OFF || data.focus.isItem) return false
+        if (mode == ContextMode.OFF || data.focus.hasMenu) return false
         val unit = data.unit
         if (!unit.exists || unit.isSelf || !unit.isPlayer) return false
         return unit.dead || !unit.hostile
@@ -121,7 +122,7 @@ object ContextMenus {
     /** Ob das Selbst-Menü aufgehen soll: der Finger hält auf der eigenen Figur (mouseover ist der Spieler), kein Gegenstand darunter. */
     @JvmStatic
     fun usesSelfMenu(data: ContextData, mode: ContextMode): Boolean {
-        if (mode == ContextMode.OFF || data.focus.isItem) return false
+        if (mode == ContextMode.OFF || data.focus.hasMenu) return false
         return data.unit.exists && data.unit.isSelf
     }
 
@@ -170,12 +171,23 @@ object ContextMenus {
                 glyph = ContextGlyph.TALK,
             ),
         )
-        out.add(
-            ContextEntry(
-                "invite", AppText.get(R.string.game_cmenu_invite), EntryAction.KEY, key = ContextKeys.INVITE, enabled = keys, dimmed = unit.inGroup,
-                glyph = ContextGlyph.INVITE,
-            ),
-        )
+        // Steht der Spieler in meiner Gruppe, steht an der Stelle von "Einladen" "Gruppe verlassen" (dieselbe Taste, das Addon entscheidet
+        // am Ziel; gemeldet wird "in Gruppe" nur, wenn das Addon es meldet, sonst bleibt es beim Einladen).
+        if (unit.inGroup) {
+            out.add(
+                ContextEntry(
+                    "leave_group", AppText.get(R.string.game_cmenu_leave_group), EntryAction.KEY, key = ContextKeys.INVITE, enabled = keys,
+                    glyph = ContextGlyph.LEAVE,
+                ),
+            )
+        } else {
+            out.add(
+                ContextEntry(
+                    "invite", AppText.get(R.string.game_cmenu_invite), EntryAction.KEY, key = ContextKeys.INVITE, enabled = keys,
+                    glyph = ContextGlyph.INVITE,
+                ),
+            )
+        }
         out.add(
             ContextEntry(
                 "follow", AppText.get(R.string.game_cmenu_follow), EntryAction.KEY, key = ContextKeys.FOLLOW, enabled = keys, dimmed = tooFar(unit, Reach.MID),
@@ -243,8 +255,9 @@ object ContextMenus {
     ): List<ContextEntry> {
         val unit = data.unit
         if (mode == ContextMode.OFF) return emptyList()
-        // Der Gegenstand unter dem Zeiger geht vor: über einem Fenster gibt es keine Einheit unter dem Zeiger.
+        // Der Gegenstand unter dem Zeiger geht vor: über einem Fenster gibt es keine Einheit unter dem Zeiger. Ebenso die Quest.
         if (data.focus.isItem) return itemMenu(data.focus, data.keysArmed)
+        if (data.focus.isQuest) return questMenu(data.focus, data.keysArmed)
         if (!unit.exists) return emptyList()
         if (unit.isSelf) return selfMenu()
         if (usesPlayerMenu(data, mode)) return playerMenu(data, mode, bar, spellName)
@@ -274,6 +287,26 @@ object ContextMenus {
         }
         return out
     }
+
+    /**
+     * Menü für eine Quest im Questlog oder im Quest-Tracker (Finger auf dem Eintrag), in der Reihenfolge der Wichtigkeit: Im Chat verlinken,
+     * Mit Gruppe teilen (abgedunkelt, wenn die Quest nicht teilbar ist), Verfolgen an/aus, Mehr ... Letzteres ist ein Rechtsklick an der
+     * Fingerstelle: das eigene Menü des Spiels (Quest abbrechen usw. bleibt dort, mit der Rückfrage des Spiels). Kein eigener "Abbrechen".
+     */
+    @JvmStatic
+    fun questMenu(focus: FocusInfo, keys: Boolean): List<ContextEntry> = listOf(
+        ContextEntry("quest_link", AppText.get(R.string.game_cmenu_link), EntryAction.KEY, key = ContextKeys.QUEST_LINK, enabled = keys, glyph = ContextGlyph.LINK),
+        ContextEntry(
+            "quest_share", AppText.get(R.string.game_cmenu_quest_share), EntryAction.KEY, key = ContextKeys.QUEST_SHARE,
+            enabled = keys && focus.shareable, glyph = ContextGlyph.INVITE,
+        ),
+        ContextEntry(
+            "quest_track",
+            AppText.get(if (focus.tracked) R.string.game_cmenu_quest_untrack else R.string.game_cmenu_quest_track),
+            EntryAction.KEY, key = ContextKeys.QUEST_TRACK, enabled = keys, glyph = ContextGlyph.TARGET,
+        ),
+        ContextEntry("quest_more", AppText.get(R.string.game_cmenu_more), EntryAction.RIGHT_CLICK, glyph = ContextGlyph.MORE),
+    )
 
     /**
      * Menü für einen Gegenstand in Tasche, Bank oder Charakterfenster: immer Benutzen (bei Ausrüstung Anlegen, beim Händler Verkaufen,

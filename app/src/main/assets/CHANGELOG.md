@@ -5,6 +5,32 @@ bullet points in plain language. The launcher reads this file (copy in `app/src/
 when an update is offered, the text for the new versions comes from the update feed. German readers get
 `CHANGELOG.de.md` when the app language is German.
 
+## 2.3.3-touch9.11 – 12.11.2026
+
+### New
+- Player menu: for a player in your group, "Leave group" replaces "Invite".
+
+### Improved
+- Voice input: when the speech service cannot be reached, the app retries up to twice after a short pause before showing the message.
+
+## 2.3.3-touch9.10 – 12.11.2026
+
+### Improved
+- The chat filter now has three levels (Off, Low, High). The new default "Low" hides only noise (experience, reputation, professions, money, trade, services); system, loot and achievement messages as well as General and Looking for Group stay visible. "High" is the previous behaviour. If you had the filter on, you are moved to "Low".
+
+## 2.3.3-touch9.9 – 12.11.2026
+
+### Fixed
+- "Invite" in the player menu closed the game: its key contained Alt+F4. Invite and the raid window now use other keys, and no key of the app contains Alt+F4 any more.
+
+## 2.3.3-touch9.8 – 11.11.2026
+
+### New
+- Hold a finger on a quest in the quest log or the quest tracker: a menu offers to link it in chat, share it with your group, track or untrack it, and "More ..." for the game's own quest menu.
+
+### Fixed
+- Voice input tries once more by itself when the speech service cannot be reached; if that fails too, the message now ends with the error number.
+
 ## 2.3.3-touch9.7 – 11.11.2026
 
 ### New

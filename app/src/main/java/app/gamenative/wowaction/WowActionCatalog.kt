@@ -79,14 +79,14 @@ object WowActionCatalog {
         menu("TOGGLEGAMEMENU", "Spielmenü", "Game Menu", "ESCAPE", true, "gear")
 
         // Windows that WoW's menu bar (12.x) does not have. Standard WoW commands (Bindings_Standard.xml); WoW gives them no key by
-        // default (or none that is certain), so the addon TouchForever sets the keys ALT-CTRL-F1 to F4 once at login (UI.EXTRA_KEYS).
+        // default (or none that is certain), so the addon TouchForever sets the keys ALT-CTRL-F1 to F3 and ALT-CTRL-HOME once at login (UI.EXTRA_KEYS; never an F4 key: Alt+F4 closes the window).
         fun menuMore(command: String, de: String, en: String, key: String, symbol: String) =
             add(WowAction(command, de, en, WowActionGroup.MENUS_MORE, key, true, symbol))
 
         menuMore("TOGGLECHARACTER2", "Ruf", "Reputation", "ALT-CTRL-F1", "banner")
         menuMore("TOGGLECURRENCY", "Währungen", "Currency", "ALT-CTRL-F2", "gem")
         menuMore("TOGGLECHARACTER4", "PvP", "PvP", "ALT-CTRL-F3", "sword")
-        menuMore("TOGGLERAIDTAB", "Raid", "Raid", "ALT-CTRL-F4", "group")
+        menuMore("TOGGLERAIDTAB", "Raid", "Raid", "ALT-CTRL-HOME", "group")
 
         for (index in 0 until 12) {
             val number = index + 1

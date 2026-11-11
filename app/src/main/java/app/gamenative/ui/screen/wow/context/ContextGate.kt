@@ -84,8 +84,8 @@ object ContextDecision {
         if (mode == ContextMode.OFF || data == null) return false
         if (nowMs - receivedMs > MAX_AGE_MS) return false
         if (receivedMs < downMs + SETTLE_MS) return false
-        // Ein Gegenstand in Tasche, Bank oder Charakterfenster unter dem Zeiger: Menü (auch mit hängendem Cursor-Gegenstand).
-        if (data.focus.isItem) return true
+        // Ein Gegenstand in Tasche, Bank oder Charakterfenster oder eine Quest unter dem Zeiger: Menü (auch mit hängendem Cursor-Gegenstand).
+        if (data.focus.hasMenu) return true
         val unit = data.unit
         // Nur die Einheit unter dem Zeiger: der Rückfall auf das Ziel gilt hier nicht (Halten auf dem Boden mit gewähltem Ziel
         // soll kein Menü des Ziels öffnen). Die eigene Figur unter dem Finger (mouseover ist der Spieler) öffnet das Selbst-Menü.

@@ -28,6 +28,31 @@ from lupa import LuaRuntime
 
 ADDON = pathlib.Path(__file__).resolve().parent.parent / "app/src/main/assets/wow/addon/TouchForever"
 
+# Keys that close or switch the window under Windows/Wine (DefWindowProc, WM_SYSKEYDOWN): no key table may contain one. Same rule as
+# SystemKeysTest.kt (app side). Alt+F4 closes the game even with Shift or Ctrl added.
+SYSTEM_KEY_NAMES = {"F4", "TAB", "ESC", "ESCAPE", "SPACE", "ENTER", "RETURN"}
+
+
+def system_key_problem(key):
+    """Why `key` (WoW notation, e.g. ALT-CTRL-F4) must never be sent to the game; None when it is fine."""
+    parts = key.upper().split("-")
+    name = parts[-1] if parts[-1] else "-"
+    mods = set(parts[:-1])
+    if "ALT" in mods and name in SYSTEM_KEY_NAMES:
+        return "Alt+%s closes or switches the window" % name
+    if mods == {"CTRL"} and name in ("ESC", "ESCAPE"):
+        return "Ctrl+Esc opens the start menu"
+    if {"CTRL", "SHIFT"} <= mods and name in ("ESC", "ESCAPE"):
+        return "Ctrl+Shift+Esc opens the task manager"
+    if {"ALT", "CTRL"} <= mods and name in ("DELETE", "DEL"):
+        return "Ctrl+Alt+Del"
+    return None
+
+
+def assert_no_system_keys(keys, what):
+    bad = {k: system_key_problem(k) for k in keys if system_key_problem(k)}
+    assert not bad, "%s contains keys that close or switch the window: %s" % (what, bad)
+
 MOCK = r"""
 SECRET = {}
 state = {
@@ -337,7 +362,7 @@ def main():
     assert S.CELL_SCR_CHECK == 254 and S.CELL_SCR_TAIL == 255 and S.SCROLL_MAX == 6
     assert S.CELL_CHAT == 315 and S.CELL_CHAT_INFO == 317 and S.CELL_CHAT_RECT == 318 and S.CELL_CHAT_CHECK == 321 and S.CELL_CHAT_TAIL == 322
     assert S.CHAT_VERSION == 1 and S.CHAT_BUILD == 5 and S.CF_VISIBLE == 1 and S.CF_BOX == 2
-    assert S.WIN_VERSION == 10 and S.WF_TRUNCATED == 1 and S.WF_COMBAT == 4 and S.WF_SCROLL_AWARE == 8
+    assert S.WIN_VERSION == 14 and S.WF_TRUNCATED == 1 and S.WF_COMBAT == 4 and S.WF_SCROLL_AWARE == 8
     order = [S.SLOTS[i + 1] for i in range(96)]
     assert order[:13] == list(range(1, 13)) + [25] and order[-1] == 180, order
 
@@ -568,7 +593,7 @@ def main():
 
     # E4: the cases from the device (character, professions book and combined bags, the maximised map), the build number
     # in the section version and the combat flag
-    assert LAST_WINDOW_VERSION[0] == 10 and S.WIN_VERSION == 10
+    assert LAST_WINDOW_VERSION[0] == 14 and S.WIN_VERSION == 14
     bags.visible = True
     char = g.makeWindow("CharacterFrame", 60, 200, 700, 1200)          # created after the login: found by the periodic scan
     char.visible = True
@@ -596,7 +621,7 @@ def main():
     d = snapshot("combat over")
     assert d["windows"][0] == 0, d["windows"]
     lines, reported, build = S.describeWindows()
-    assert build == 10 and reported == 0 and len(lines) == 1 and "no window" in lines[1], (list(lines.values()), reported, build)
+    assert build == 14 and reported == 0 and len(lines) == 1 and "no window" in lines[1], (list(lines.values()), reported, build)
 
     # E4b: the small dialogs on the left (quest giver, gossip, vendor) as seen on a foldable: x 30..690 / y 220..1190 of a
     # 2000 x 1510 picture. Every one of them must be in the strip, whatever its group (kind) is.
@@ -841,6 +866,7 @@ def main():
     ob = g.overrideBindings[1]
     assert ob.key == "CTRL-SHIFT-F4" and ob.button == "TouchForeverReloadKey" and ob.mouseButton == "LeftButton" and ob.priority
     assert ns2.RELOAD_KEY == "CTRL-SHIFT-F4"
+    assert_no_system_keys([ob.key, ns2.RELOAD_KEY], "reload key")
     g.firePlayerLogin()
     assert len(g.overrideBindings) == 2                     # set again (idempotent), the button is not created twice
     assert sum(1 for f in [g.findFrame("TouchForeverReloadKey")] if f) == 1
@@ -961,13 +987,15 @@ def main():
         bound[ob.key] = ob.button
     for i, key in enumerate(["ALT-CTRL-F%d" % n for n in range(5, 13)], start=1):
         assert bound[key] == "TouchForeverCtxSpell%d" % i, (key, bound.get(key))
-    expected_keys = {"attack": "ALT-SHIFT-F1", "popup": "ALT-SHIFT-F2", "whisper": "ALT-SHIFT-F3", "invite": "ALT-SHIFT-F4",
+    expected_keys = {"attack": "ALT-SHIFT-F1", "popup": "ALT-SHIFT-F2", "whisper": "ALT-SHIFT-F3", "invite": "ALT-CTRL-INSERT",
                      "follow": "ALT-SHIFT-F5", "trade": "ALT-SHIFT-F6", "inspect": "ALT-SHIFT-F7", "friend": "ALT-SHIFT-F8",
                      "clearcursor": "ALT-SHIFT-F9", "link": "ALT-SHIFT-F10", "compare": "ALT-SHIFT-F11", "discard": "ALT-SHIFT-F12"}
     for action, key in expected_keys.items():
         assert X.KEYS[action] == key, action
         assert bound[key] == "TouchForeverCtx" + action[0].upper() + action[1:], (action, bound.get(key))
     ours = ["ALT-CTRL-F%d" % n for n in range(5, 13)] + list(expected_keys.values())
+    assert_no_system_keys(bound.keys(), "override bindings of the context menu")
+    assert_no_system_keys(list(X.KEYS.values()) + [X.SPELL_KEYS[i] for i in range(1, len(X.SPELL_KEYS) + 1)], "TouchForeverContext.lua tables")
     assert len(set(ours)) == 20 and all(k in bound for k in ours)                # 8 spell keys + 12 actions (6 of them for the mini menu), no key twice
     assert sum(1 for i in range(1, len(g.overrideBindings) + 1) if g.overrideBindings[i].key in ours) == 20
     assert [X.ACTIONS[i] for i in range(1, len(X.ACTIONS) + 1)] == list(expected_keys.keys())   # same order as ContextKeys.ACTION_KEYS
@@ -1121,6 +1149,93 @@ def main():
     lua.execute('GetInventoryItemLink = function(u, slot) if slot == 16 then return "|Hitem:sword|h[Sword]|h" end end; GetInventoryItemCount = function() return 1 end')
     f = fields(snap_ctx("context: equipment slot"))
     assert f["kind"] == 3 and f["fflags"] == 1, f                     # equipped: not "equippable" again
+
+    # a quest under the pointer (build 11): quest log button, quest tracker block, items win, nothing is assumed
+    lua.execute("""
+        ctx.group = false; ctx.pushable = {}; ctx.watch = {}; ctx.pushed = 0; ctx.selected = nil; ctx.inserted = nil; ctx.opened_chat = nil
+        ctx.chatOpen = false
+        ctx.questlog = { [1] = { questID = 0, isHeader = true, title = "Elwynn", level = 0 }, [2] = { questID = 77, title = "Wolves", level = 5 }, [3] = { questID = 88, title = "Bears", level = 7 } }
+        C_QuestLog = {
+            GetNumQuestLogEntries = function() return #ctx.questlog end,
+            GetLogIndexForQuestID = function(id) for i, q in ipairs(ctx.questlog) do if q.questID == id and not q.isHeader then return i end end end,
+            GetInfo = function(i) return ctx.questlog[i] end,
+            GetTitleForQuestID = function(id) for _, q in ipairs(ctx.questlog) do if q.questID == id then return q.title end end end,
+            IsPushableQuest = function(id) return ctx.pushable[id] == true end,
+            GetQuestWatchType = function(id) if ctx.watch[id] then return 1 end return nil end,
+            AddQuestWatch = function(id) ctx.watch[id] = true end,
+            RemoveQuestWatch = function(id) ctx.watch[id] = nil end,
+            SetSelectedQuest = function(id) ctx.selected = id end,
+        }
+        function IsInGroup() return ctx.group end
+        function QuestLogPushQuest() ctx.pushed = ctx.pushed + 1 end
+        -- like a client where GetQuestLink takes the log index: the id must not be taken for an index
+        function GetQuestLink(x) local q = ctx.questlog[x]; if q and not q.isHeader then return "|cffffff00|Hquest:" .. q.questID .. ":" .. q.level .. "|h[" .. q.title .. "]|h|r" end end
+        function ChatEdit_InsertLink(link) if ctx.chatOpen then ctx.inserted = link; return true end return false end
+        function ChatFrame_OpenChat(text) ctx.opened_chat = text end
+        local button = { questID = 77, GetName = function() return "QuestMapLogTitle1" end }
+        ctx.questButton = button
+        ctx.questLine = { GetParent = function() return { module = QuestObjectiveTracker, id = 88, GetParent = function() return nil end } end, GetName = function() return nil end }
+        QuestObjectiveTracker = { name = "quests" }
+        ctx.questLine = { GetParent = function() return { module = QuestObjectiveTracker, id = 88, GetParent = function() return nil end } end }
+        ctx.otherLine = { GetParent = function() return { module = {}, id = 88, GetParent = function() return nil end } end }
+        ctx.questHeader = { questID = 55 }
+        ctx.oldButton = { GetName = function() return "QuestLogTitle2" end, GetID = function() return 3 end }
+    """)
+    ctx_.foci = ctx_.questButton
+    f = fields(snap_ctx("context: quest log entry"))
+    assert f["kind"] == 4 and f["fflags"] == 1, f                                  # present, not in a group: not shareable, not tracked
+    assert X.focusQuest().id == 77 and X.focusQuest().index == 2
+    lua.execute("ctx.group = true; ctx.pushable[77] = true; ctx.watch[77] = true")
+    f = fields(snap_ctx("context: quest log entry, shareable and tracked"))
+    assert f["kind"] == 4 and f["fflags"] == 1 + 2 + 4, f
+    lua.execute("ctx.pushable[77] = nil")
+    f = fields(snap_ctx("context: quest log entry, in a group but not pushable"))
+    assert f["fflags"] == 1 + 4, f
+    ctx_.foci = ctx_.questLine                                                       # the tracker: a line, its parent is the block
+    f = fields(snap_ctx("context: quest tracker block"))
+    assert f["kind"] == 4 and X.focusQuest().id == 88, f
+    ctx_.foci = ctx_.otherLine                                                       # a block of another module: its id is no quest
+    f = fields(snap_ctx("context: block of another module"))
+    assert f["kind"] == 0 and X.focusQuest() is None, f
+    ctx_.foci = ctx_.questHeader                                                     # quest id that is not in the log
+    assert fields(snap_ctx("context: quest not in the log"))["kind"] == 0
+    ctx_.foci = ctx_.oldButton                                                       # older log button: its id is the log index
+    assert fields(snap_ctx("context: old quest log button"))["kind"] == 4 and X.focusQuest().id == 88
+    # a header row of the log is no quest
+    lua.execute("ctx.headerButton = { GetName = function() return 'QuestLogTitle1' end, GetID = function() return 1 end }")
+    ctx_.foci = ctx_.headerButton
+    assert fields(snap_ctx("context: quest log header"))["kind"] == 0
+    # an item slot wins over a quest (a quest frame never is one, but the order is part of the contract)
+    ctx_.foci = lua.eval('{ questID = 77, GetBagID = function() return 0 end, GetID = function() return 3 end, GetName = function() return "ContainerFrame1Item2" end }')
+    assert fields(snap_ctx("context: bag sword with a quest id"))["kind"] == 1 and X.focusQuest() is None
+
+    # keys: link (open chat box / closed chat box), track, share
+    ctx_.foci = ctx_.questButton
+    X.handlers.link()
+    assert ctx_.opened_chat == "|cffffff00|Hquest:77:5|h[Wolves]|h|r" and ctx_.inserted is None, (ctx_.opened_chat, ctx_.inserted)
+    lua.execute("ctx.chatOpen = true; ctx.opened_chat = nil")
+    X.handlers.link()
+    assert ctx_.inserted == "|cffffff00|Hquest:77:5|h[Wolves]|h|r" and ctx_.opened_chat is None
+    lua.execute("ctx.inserted = nil; GetQuestLink = nil")                              # no game link: built in the same format
+    X.handlers.link()
+    assert ctx_.inserted == "|cffffff00|Hquest:77:5|h[Wolves]|h|r", ctx_.inserted
+    X.handlers.clearcursor()                                                         # tracked: untrack
+    assert ctx_.watch[77] is None
+    X.handlers.clearcursor()
+    assert ctx_.watch[77] is True
+    assert ctx_.cleared == 0, "ClearCursor must not run for a quest"
+    X.handlers.compare()                                                             # not pushable: nothing is pushed
+    assert ctx_.pushed == 0
+    lua.execute("ctx.pushable[77] = true")
+    X.handlers.compare()
+    assert ctx_.pushed == 1 and ctx_.selected == 77
+    lua.execute("ctx.group = false")
+    X.handlers.compare()                                                             # not in a group
+    assert ctx_.pushed == 1
+    # without a quest the same keys do what they did before
+    ctx_.foci = None
+    X.handlers.clearcursor()
+    assert ctx_.cleared == 1
     ctx_.foci = None
 
     # the game's own menu of the target: way 1 is the secure button, PostClick checks that a menu opened; if not, the insecure ways follow
@@ -1153,6 +1268,39 @@ def main():
     lua.execute("ctx.dropdown = false; ctx.opened = nil")
     assert X.openPopupInsecure() is None and g.ctx.opened is None
     lua.execute("DropDownList1 = nil; UnitPopup_OpenMenu = nil")
+
+    # invite / leave group (build 14): the same key; with a target in my group (and me in a group) it leaves, otherwise it invites
+    lua.execute("""
+        ctx.invited = nil; ctx.left = 0
+        C_PartyInfo = { InviteUnit = function(n) ctx.invited = n end, LeaveParty = function() ctx.left = ctx.left + 1 end }
+    """)
+    ctx_.target = "p1"
+    ctx_.targetPlayer = True
+    ctx_.unit = lua.table(exists=True, player=True, dead=False, reaction=5, distance=5, guid="p1", group=False)
+    lua.execute("ctx.group = false")
+    X.handlers.invite()                                                 # not in a group: invites
+    assert ctx_.invited == "Anna-Realm" and ctx_.left == 0
+    ctx_.invited = None
+    ctx_.unit = lua.table(exists=True, player=True, dead=False, reaction=5, distance=5, guid="p1", group=True)
+    lua.execute("ctx.group = false")
+    X.handlers.invite()                                                 # the game reports no group for me: never leaves (invites as before)
+    assert ctx_.left == 0 and ctx_.invited == "Anna-Realm"
+    ctx_.invited = None
+    lua.execute("ctx.group = true")
+    X.handlers.invite()                                                 # target in my group: leaves, invites nobody
+    assert ctx_.left == 1 and ctx_.invited is None
+    lua.execute("C_PartyInfo = nil; function LeaveParty() ctx.left = ctx.left + 1 end")   # older client
+    X.handlers.invite()
+    assert ctx_.left == 2
+    lua.execute("LeaveParty = nil")                                     # no API at all: nothing happens, no error
+    X.handlers.invite()
+    assert ctx_.left == 2
+    ctx_.targetPlayer = False                                           # no player target: nothing at all
+    X.handlers.invite()
+    assert ctx_.left == 2 and ctx_.invited is None
+    lua.execute("ctx.group = false")
+    ctx_.target = None
+    ctx_.unit = lua.table()
 
     # throwing away: nothing is deleted without a tap on Yes
     ctx_.foci = lua.eval('{ GetBagID = function() return 0 end, GetID = function() return 4 end, GetName = function() return "ContainerFrame1Item3" end }')
@@ -1275,6 +1423,17 @@ def main():
     for name in ("TouchForeverUI.lua", "TouchForever.lua", "TouchForeverContext.lua"):
         others.update(re.findall(r'"((?:(?:ALT|CTRL|SHIFT)-)+F[0-9]+)"', (ADDON / name).read_text(encoding="utf-8")))
     assert others and not (others & set(B.KEYS.values())), others & set(B.KEYS.values())
+    # no key of any table closes or switches the window (Alt+F4, Alt+Tab, Alt+Esc, Alt+Space, Alt+Enter, Ctrl+Esc ...), whatever else is held
+    assert_no_system_keys(B.KEYS.values(), "TouchForeverBindings.lua B.KEYS")
+    assert_no_system_keys(list(g.replOverrides.keys()), "replacement override bindings")
+    literal = re.compile(r"""["']((?:(?:ALT|CTRL|SHIFT)-)+[A-Z0-9]+)["']""")
+    scanned = 0
+    for path in sorted(ADDON.glob("*.lua")) + sorted(ADDON.glob("*.xml")):
+        # the only exception: the list of former keys that are taken away again (UI.OLD_EXTRA_KEYS in TouchForeverUI.lua)
+        found = literal.findall("\n".join(l for l in path.read_text(encoding="utf-8").splitlines() if "OLD_EXTRA_KEYS" not in l))
+        scanned += len(found)
+        assert_no_system_keys(found, path.name)
+    assert scanned > 30, scanned
 
     # F: only changed cells are painted again
     sets_before = sum(t.sets for t in frame.textures.values())

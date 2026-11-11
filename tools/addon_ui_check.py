@@ -16,6 +16,11 @@ import sys
 from lupa import LuaRuntime
 
 ADDON = pathlib.Path(__file__).resolve().parent.parent / "app/src/main/assets/wow/addon/TouchForever"
+
+# The only place where a former key may still be written: the list of keys that are taken away again (UI.OLD_EXTRA_KEYS).
+def without_old_keys(text):
+    return "\n".join(line for line in text.splitlines() if "OLD_EXTRA_KEYS" not in line)
+
 FILES = ["TouchForeverLang.lua", "TouchForeverLocale.lua", "TouchForever.lua", "TouchForeverUI.lua", "TouchForeverLayout.lua", "TouchForeverOptions.lua", "TouchForeverCooldown.lua"]
 
 MOCK = r"""
@@ -206,6 +211,15 @@ bindingKeys, bindingOwner, bindCalls, allBindCalls = {}, {}, {}, {}
 function GetBindingKey(command) local k = bindingKeys[command] or {}; return k[1], k[2] end
 function GetBindingAction(key) return bindingOwner[key] or "" end
 function SetBinding(key, command)
+    if command == nil then -- unbind
+        local old = bindingOwner[key]
+        bindingOwner[key] = nil
+        if old and bindingKeys[old] then
+            for i = #bindingKeys[old], 1, -1 do if bindingKeys[old][i] == key then table.remove(bindingKeys[old], i) end end
+        end
+        bindCalls[#bindCalls + 1] = key .. ">(none)"
+        return true
+    end
     bindCalls[#bindCalls + 1] = key .. ">" .. command
     allBindCalls[#allBindCalls + 1] = key .. ">" .. command
     bindingOwner[key] = command
@@ -313,6 +327,13 @@ for i = 1, 10 do
     newFrame("Button", "ChatFrame" .. i .. "Tab", UIParent)
     newFrame("Frame", "ChatFrame" .. i .. "ButtonFrame", chat)
 end
+-- message groups / channels of the main chat window (Blizzard's functions add and remove them; the mock does not look for doubles)
+local function listRemove(list, value) for i, v in ipairs(list) do if v == value then table.remove(list, i) return end end end
+function ChatFrame_RemoveMessageGroup(frame, group) listRemove(frame.messageTypeList, group) end
+function ChatFrame_AddMessageGroup(frame, group) table.insert(frame.messageTypeList, group) end
+function ChatFrame_RemoveChannel(frame, name) listRemove(frame.channelList, name) end
+function ChatFrame_AddChannel(frame, name) table.insert(frame.channelList, name) end
+ChatFrame1.messageTypeList, ChatFrame1.channelList = {}, {}
 newFrame("Button", "ChatFrameMenuButton", ChatFrame1ButtonFrame)
 newFrame("Button", "ChatFrameChannelButton", ChatFrame1ButtonFrame)
 newFrame("Button", "QuickJoinToastButton", UIParent)
@@ -909,14 +930,14 @@ def main():
 
     # ---- extra keys for the standard windows of the radial menu "WoW-Menü Rest" -----------------------------------------------
     calls = run("return table.concat(bindCalls, ',')").split(",")
-    for pair in ["ALT-CTRL-F1>TOGGLECHARACTER2", "ALT-CTRL-F2>TOGGLECURRENCY", "ALT-CTRL-F3>TOGGLECHARACTER4", "ALT-CTRL-F4>TOGGLERAIDTAB",
+    for pair in ["ALT-CTRL-F1>TOGGLECHARACTER2", "ALT-CTRL-F2>TOGGLECURRENCY", "ALT-CTRL-F3>TOGGLECHARACTER4", "ALT-CTRL-HOME>TOGGLERAIDTAB",
                  "CTRL-SHIFT-F5>WFB_TOGGLEBARS"]:
         check("login sets " + pair, pair in calls, str(calls))
     run("bindCalls = {}; runTimers(5)")
     check("keys are set once only", run("return #bindCalls") == 0)
     # forced again (options page): already bound keys are not bound twice, a taken key counts as conflict, two own keys stay alone
     run("bindingKeys.TOGGLECURRENCY = nil; bindingOwner['ALT-CTRL-F2'] = 'SOMETHINGELSE'")
-    run("bindingKeys.TOGGLERAIDTAB = { 'U', 'SHIFT-U' }; bindingOwner['ALT-CTRL-F4'] = nil")
+    run("bindingKeys.TOGGLERAIDTAB = { 'U', 'SHIFT-U' }; bindingOwner['ALT-CTRL-HOME'] = nil")
     run("bindingKeys.TOGGLECHARACTER4 = { 'H' }; bindingOwner['ALT-CTRL-F3'] = nil")
     run("TouchForeverUI.SetDefaultKeys(true)")
     calls = run("return table.concat(bindCalls, ',')").split(",")
@@ -924,6 +945,23 @@ def main():
     check("forced: the player's two own keys are left alone", not any(c.endswith(">TOGGLERAIDTAB") for c in calls), str(calls))
     check("forced: a key that is taken is not stolen", not any(c.endswith(">TOGGLECURRENCY") for c in calls), str(calls))
     check("forced: reputation already has its key", not any(c.endswith(">TOGGLECHARACTER2") for c in calls), str(calls))
+    # an older build set ALT-CTRL-F4 on the raid window and remembered "done": the new key is set, the former key (Alt+F4) is taken away
+    run("bindingKeys.TOGGLERAIDTAB = { 'ALT-CTRL-F4' }; bindingOwner['ALT-CTRL-F4'] = 'TOGGLERAIDTAB'; bindingOwner['ALT-CTRL-HOME'] = nil; "
+        "TouchForeverDB.ui.keysSet.TOGGLERAIDTAB = true; bindCalls = {}")
+    run("TouchForeverUI.SetDefaultKeys(false)")
+    calls = run("return table.concat(bindCalls, ',')").split(",")
+    check("old build: ALT-CTRL-F4 is taken away", "ALT-CTRL-F4>(none)" in calls, str(calls))
+    check("old build: ALT-CTRL-HOME is set on the raid window", "ALT-CTRL-HOME>TOGGLERAIDTAB" in calls, str(calls))
+    check("old build: the key is remembered", run("return TouchForeverDB.ui.keysSet.TOGGLERAIDTAB") == "ALT-CTRL-HOME")
+    run("bindCalls = {}; TouchForeverUI.SetDefaultKeys(false)")
+    check("old build: nothing more at the next login", run("return #bindCalls") == 0)
+    # no key set through SetBinding closes or switches the window (Alt+F4 ...), whatever else is held
+    for key in run("local t = {} for _, c in ipairs(allBindCalls) do t[#t + 1] = c:match('^(.-)>') end return table.concat(t, '|')").split("|"):
+        parts = key.upper().split("-")
+        assert not ("ALT" in parts[:-1] and parts[-1] in ("F4", "TAB", "ESC", "ESCAPE", "SPACE", "ENTER")), key
+    for key in re.findall(r"""["']((?:(?:ALT|CTRL|SHIFT)-)+[A-Z0-9]+)["']""", without_old_keys((ADDON / "TouchForeverUI.lua").read_text(encoding="utf-8"))):
+        parts = key.split("-")
+        check("key table of TouchForeverUI.lua: %s cannot close the window" % key, not ("ALT" in parts[:-1] and parts[-1] in ("F4", "TAB", "ESC", "ESCAPE", "SPACE", "ENTER")))
     run("bindCalls = {}")
 
     # ---- compact chat -------------------------------------------------------------------------------------------------------
@@ -1146,7 +1184,7 @@ def main():
         ("bars hide", "bars"), ("bars show", "bars"), ("bars peek", "peek"),
         ("chat", "chatstatus"), ("chat show", "chatshown"), ("chat hide", "chatshown"), ("chat toggle", "chatshown"), ("chat peek", "peek"),
         ("chat phone", "chatphone"), ("chat reset", "chatphone"), ("chat mode compact", "chatmode"), ("chat mode normal", "chatmode"),
-        ("chat size 12", "chatsize"), ("chat lines 8", "chatlines"), ("chat bg 20", "chatbg"), ("chat filter on", "chatfilter"),
+        ("chat size 12", "chatsize"), ("chat lines 8", "chatlines"), ("chat bg 20", "chatbg"), ("chat filter wenig", "chatfilter"), ("chat filter viel", "chatfilter"), ("chat filter aus", "chatfilter"), ("chat filter", "chatfilter"),
         ("chat short on", "chatshort"), ("chat stamps off", "chatstamps"), ("chat compact on", "chatcompact"),
         ("chat extra 24", "chatextra"), ("chat tabs on", "chattabs"),
         ("minimap show", "minimap"), ("minimap hide", "minimap"), ("minimap peek", "peek"), ("minimap square", "minimapshape"),
@@ -1182,6 +1220,113 @@ def main():
     check("WFB_OPTIONS has a standard key: CTRL-SHIFT-F11", run("return TouchForeverUI.DEFAULT_KEYS.WFB_OPTIONS") == "CTRL-SHIFT-F11")
     check("WFB_OPTIONS is bound to the window at login", "CTRL-SHIFT-F11>WFB_OPTIONS" in run("return table.concat(allBindCalls, ',')"))
     check("WFB_OPTIONS toggles the window", run("nsTable.options.close(); TouchForeverUI.Options(); local a = TouchForeverWindow.__shown; TouchForeverUI.Options(); return a and not TouchForeverWindow.__shown") is True)
+
+    # ---- chat filter: three levels, migration ------------------------------------------------------------------------------
+    run("""
+        function setFrame(groups, channels) ChatFrame1.messageTypeList = groups; ChatFrame1.channelList = channels end
+        function has(list, v) local n = 0 for _, x in ipairs(list) do if x == v then n = n + 1 end end return n end
+        function hasG(v) return has(ChatFrame1.messageTypeList, v) end
+        function hasC(v) return has(ChatFrame1.channelList, v) end
+        function recG(v) return has((TouchForeverDB.ui.chatRemoved or {}).groups or {}, v) end
+        function recC(v) return has((TouchForeverDB.ui.chatRemoved or {}).channels or {}, v) end
+        function trigger() TouchForeverUI.ChatSet('short', true) end
+        HIGH_G = { 'SYSTEM', 'LOOT', 'MONEY', 'COMBAT_XP_GAIN', 'COMBAT_HONOR_GAIN', 'COMBAT_FACTION_CHANGE', 'SKILL', 'TRADESKILLS',
+            'OPENING', 'PET_INFO', 'COMBAT_MISC_INFO', 'CURRENCY', 'ACHIEVEMENT', 'TARGETICONS' }
+        LOW_G = { 'COMBAT_XP_GAIN', 'COMBAT_HONOR_GAIN', 'COMBAT_FACTION_CHANGE', 'SKILL', 'TRADESKILLS', 'OPENING', 'PET_INFO',
+            'COMBAT_MISC_INFO', 'MONEY', 'CURRENCY', 'TARGETICONS' }
+        function sorted(list) local t = {} for _, v in ipairs(list) do t[#t + 1] = v end table.sort(t) return table.concat(t, ',') end
+    """)
+    # (a) before: filter was on ("high" behaviour), everything of the old filter is taken out and remembered
+    run("""
+        setFrame({ 'SAY', 'YELL', 'WHISPER', 'PARTY', 'GUILD' }, { 'MyChannel' })
+        TouchForeverDB = { settings = {}, ui = { uiVersion = 2, chat = { enabled = true, size = 10, lines = 8, bg = 20, filter = true, short = true, stamps = false },
+            chatRemoved = { groups = { table.unpack(HIGH_G) }, channels = { 'General - City', 'Trade - City', 'LookingForGroup', 'Services - City' } } } }
+        dispatch('ADDON_LOADED', 'TouchForever')
+    """)
+    check("filter migration: was on -> 'low'", run("return TouchForeverDB.ui.chat.filter") == "low" and run("return TouchForeverDB.ui.uiVersion") == 3)
+    run("trigger()")
+    check("filter low: system, loot, achievement come back (once each)", run("return hasG('SYSTEM') + hasG('LOOT') + hasG('ACHIEVEMENT')") == 3)
+    check("filter low: general and looking for group come back (once each)", run("return hasC('General - City') + hasC('LookingForGroup')") == 2)
+    check("filter low: noise stays out (money, xp, skill, ... and trade, services)",
+          run("local n = 0 for _, g in ipairs(LOW_G) do n = n + hasG(g) end return n + hasC('Trade - City') + hasC('Services - City')") == 0)
+    check("filter low: the record holds exactly the low groups / channels",
+          run("return sorted(TouchForeverDB.ui.chatRemoved.groups)") == run("return sorted(LOW_G)")
+          and run("return recC('Trade - City') + recC('Services - City')") == 2 and run("return recC('General - City') + recC('LookingForGroup')") == 0)
+    check("filter low: say / whisper / party / guild and own channel untouched", run("return hasG('SAY') + hasG('YELL') + hasG('WHISPER') + hasG('PARTY') + hasG('GUILD') + hasC('MyChannel')") == 6)
+    run("trigger(); trigger(); dispatch('ADDON_LOADED', 'TouchForever'); trigger()")
+    check("filter low: repeating (also after a reload) adds nothing twice",
+          run("return hasG('SYSTEM') + hasG('LOOT') + hasG('ACHIEVEMENT') + hasC('General - City') + hasC('LookingForGroup')") == 5
+          and run("return #ChatFrame1.messageTypeList") == 5 + 3 and run("return #ChatFrame1.channelList") == 3)
+    # (b) the player removed a group in the game by himself (not in chatRemoved): it does not come back; one that is already back is not added again
+    run("""
+        setFrame({ 'SAY' }, { 'MyChannel' })
+        TouchForeverDB = { settings = {}, ui = { uiVersion = 2, chat = { enabled = true, filter = true },
+            chatRemoved = { groups = { 'SYSTEM', 'LOOT', 'MONEY' }, channels = { 'General - City' } } } }
+        table.insert(ChatFrame1.messageTypeList, 'LOOT')   -- the player put LOOT back in the game
+        dispatch('ADDON_LOADED', 'TouchForever'); trigger()
+    """)
+    check("filter migration: own removal (ACHIEVEMENT, not recorded) stays out", run("return hasG('ACHIEVEMENT')") == 0)
+    check("filter migration: SYSTEM comes back, LOOT (already there) is not doubled, MONEY stays out",
+          run("return hasG('SYSTEM')") == 1 and run("return hasG('LOOT')") == 1 and run("return hasG('MONEY')") == 0)
+    check("filter migration: general comes back", run("return hasC('General - City')") == 1)
+    # (c) was off: stays off, nothing touched
+    run("""
+        setFrame({ 'SAY' }, { 'MyChannel' })
+        TouchForeverDB = { settings = {}, ui = { uiVersion = 2, chat = { enabled = true, size = 10 } } }
+        dispatch('ADDON_LOADED', 'TouchForever'); trigger()
+    """)
+    check("filter migration: was off -> stays off, nothing taken out", run("return TouchForeverDB.ui.chat.filter") is None
+          and run("return TouchForeverUI.ChatFilterLevel()") == "off" and run("return #ChatFrame1.messageTypeList") == 1 and run("return TouchForeverDB.ui.chatRemoved") is None)
+    # (d) migration runs once: a later explicit choice stays
+    run("TouchForeverUI.ChatSet('filter', 'high'); dispatch('ADDON_LOADED', 'TouchForever')")
+    check("filter migration runs once (explicit 'high' stays after the next start)", run("return TouchForeverDB.ui.chat.filter") == "high")
+    # (e) smart chat switched off but the old filter flag set: stored value becomes 'low' too
+    run("""TouchForeverDB = { settings = {}, ui = { uiVersion = 2, chat = { enabled = false, filter = true } } }; dispatch('ADDON_LOADED', 'TouchForever')""")
+    check("filter migration: smart chat off, old filter flag -> 'low' stored", run("return TouchForeverDB.ui.chat.filter") == "low" and run("return TouchForeverDB.ui.chat.enabled") is False)
+    # (f) levels in the running game
+    run("""
+        setFrame({ 'SAY', 'SYSTEM', 'LOOT', 'MONEY', 'SKILL', 'ACHIEVEMENT', 'COMBAT_XP_GAIN' }, { 'General - City', 'Trade - City', 'LookingForGroup', 'Dienste - Stadt' })
+        TouchForeverDB = { settings = {}, ui = { chat = { enabled = false } } }
+        dispatch('ADDON_LOADED', 'TouchForever'); TouchForeverUI.ChatPhone(true)
+    """)
+    check("phone preset sets filter 'low'", run("return TouchForeverDB.ui.chat.filter") == "low" and run("return TouchForeverUI.ChatFilterLevel()") == "low")
+    check("low: noise out, system / loot / achievement / general / looking for group stay",
+          run("return hasG('MONEY') + hasG('SKILL') + hasG('COMBAT_XP_GAIN') + hasC('Trade - City') + hasC('Dienste - Stadt')") == 0
+          and run("return hasG('SYSTEM') + hasG('LOOT') + hasG('ACHIEVEMENT') + hasC('General - City') + hasC('LookingForGroup') + hasG('SAY')") == 6)
+    run("TouchForeverUI.ChatSet('filter', 'high')")
+    check("high: the former filter (system, loot, achievement, general, looking for group out too)",
+          run("return #ChatFrame1.messageTypeList") == 1 and run("return #ChatFrame1.channelList") == 0 and run("return recG('SYSTEM') + recC('General - City')") == 2)
+    run("TouchForeverUI.ChatSet('filter', 'low')")
+    check("high -> low: exactly the three groups and two channels come back",
+          run("return #ChatFrame1.messageTypeList") == 4 and run("return #ChatFrame1.channelList") == 2 and run("return recG('SYSTEM') + recC('General - City')") == 0)
+    run("TouchForeverUI.ChatSet('filter', 'off')")
+    check("off: everything back, record empty", run("return #ChatFrame1.messageTypeList") == 7 and run("return #ChatFrame1.channelList") == 4
+          and run("return TouchForeverDB.ui.chatRemoved") is None and run("return TouchForeverDB.ui.chat.filter") is None)
+    # (g) /tf chat filter
+    def slash(text):
+        run("SlashCmdList['TOUCHFOREVER']('%s')" % text)
+
+    def level():
+        return run("return TouchForeverUI.ChatFilterLevel()")
+    slash("chat filter wenig"); check("/tf chat filter wenig", level() == "low")
+    slash("chat filter viel"); check("/tf chat filter viel", level() == "high")
+    slash("chat filter aus"); check("/tf chat filter aus", level() == "off")
+    slash("chat filter"); check("/tf chat filter (no word) off -> low", level() == "low")
+    slash("chat filter"); check("/tf chat filter (no word) low -> high", level() == "high")
+    slash("chat filter"); check("/tf chat filter (no word) high -> off", level() == "off")
+    slash("chat filter high"); slash("chat filter low"); check("/tf chat filter high / low (English words)", level() == "low")
+    slash("chat filter off"); slash("chat filter on"); check("/tf chat filter on = low (old word)", level() == "low")
+    slash("chat filter off"); slash("chat filter quatsch"); check("/tf chat filter with an unknown word changes nothing", level() == "off")
+    slash("chat filter viel"); slash("chat phone"); check("/tf chat phone sets 'low'", level() == "low")
+    run("nsTable.options.byId.chatfilter.set('high')")
+    check("options page: choice with three levels",
+          run("return nsTable.options.byId.chatfilter.kind") == "choice" and run("return #nsTable.options.byId.chatfilter.choices") == 3
+          and run("return nsTable.options.byId.chatfilter.get()") == "high")
+    run("printed = {}; SlashCmdList['TOUCHFOREVER']('chat')")
+    status = run("return table.concat(printed, '\\n')")
+    check("/tf chat status shows the level text", "filter=Viel" in status or "filter=High" in status, status[:200])
+    run("TouchForeverDB = nil; dispatch('ADDON_LOADED', 'TouchForever')")
+    check("fresh install: filter 'low' by the preset", run("return TouchForeverDB.ui.chat.filter") == "low" and run("return TouchForeverDB.ui.uiVersion") == 3)
 
     # bindings
     xml = (ADDON / "Bindings.xml").read_text(encoding="utf-8")

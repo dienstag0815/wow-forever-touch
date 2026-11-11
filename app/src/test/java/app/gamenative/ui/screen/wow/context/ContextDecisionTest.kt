@@ -271,7 +271,7 @@ class ContextDecisionTest {
 
     @Test
     fun theKeysAreFreeAndSendable() {
-        assertEquals(8 + 12, ContextKeys.ALL.size)
+        assertEquals("the table has not grown for the quests", 8 + 12, ContextKeys.ALL.size)
         assertEquals("no key twice", ContextKeys.ALL.size, ContextKeys.ALL.toSet().size)
         val taken = WowActionCatalog.all.mapNotNull { it.defaultKey }.toSet() + setOf(CooldownStrip.RELOAD_KEY)
         for (key in ContextKeys.ALL) {
@@ -303,6 +303,11 @@ class ContextDecisionTest {
         assertTrue(lua.contains("C.SPELLS = ${CooldownStrip.CONTEXT_SPELLS}"))
         assertTrue(lua.contains("C.ENTRIES = ${CooldownStrip.CONTEXT_ENTRIES}"))
         assertFalse("LF only", lua.contains("\r"))
+        // leaving the group: the invite key decides at the target, by the game's own call, only with a group the game reports
+        assertTrue(lua.contains("if C.targetInMyGroup() then C.leaveGroup() return end"))
+        assertTrue(lua.contains("C_PartyInfo.LeaveParty"))
+        assertTrue(lua.contains("pcall(LeaveParty)"))
+        assertTrue(lua.contains("if not (IsInGroup and truthy(try(IsInGroup))) then return false end"))
         val toc = addonFile("TouchForever.toc") ?: return
         assertTrue(toc.lines().any { it.trim() == "TouchForeverContext.lua" })
     }
@@ -312,5 +317,64 @@ class ContextDecisionTest {
             ?: File("app/src/main/assets/wow/addon/TouchForever")
         if (!dir.isDirectory) return null // run from an unexpected working directory
         return File(dir, name).readText()
+    }
+
+    // ---- quests --------------------------------------------------------------------------------------------
+
+    private val questData = ContextData(ContextData.KEYS, UnitInfo(), FocusInfo(FocusKind.QUEST, filled = true, shareable = true))
+
+    @Test
+    fun aQuestUnderThePointerOpensTheMenuEvenWithoutAUnit() {
+        assertTrue(opens(questData))
+        assertFalse(opens(questData, mode = ContextMode.OFF))
+        assertFalse("not trusted before the touch settled", opens(questData, received = 900L))
+        assertFalse(opens(ContextData(ContextData.KEYS, UnitInfo(), FocusInfo(FocusKind.QUEST, filled = false))))
+        // a tap is never "look only" on a quest (that rule is about items)
+        assertFalse(ContextDecision.tapIsViewOnly(true, questData, 1_200L, 1_000L, 1_350L))
+    }
+
+    @Test
+    fun linkingAQuestIsOneKeyPressWithoutClickingOrClearing() {
+        val menu = ContextMenus.questMenu(questData.focus, keys = true)
+        val steps = ContextPlan.stepsFor(menu.first { it.id == "quest_link" }, cursorHasItem = false)
+        assertEquals(1, steps.size)
+        assertEquals(PlanKind.KEY, steps[0].kind)
+        assertEquals(ContextKeys.QUEST_LINK, steps[0].key)
+        assertEquals(ContextKeys.LINK_ITEM, steps[0].key)
+        // a cursor item is not touched by a quest entry
+        assertTrue(menu.none { it.clearsCursor })
+        assertEquals(1, ContextPlan.stepsFor(menu.first { it.id == "quest_link" }, cursorHasItem = true).size)
+        val moreSteps = ContextPlan.stepsFor(menu.first { it.id == "quest_more" }, cursorHasItem = false)
+        assertEquals(listOf(PlanKind.CLICK), moreSteps.map { it.kind })
+        assertEquals(WheelButton.RIGHT, moreSteps[0].button)
+    }
+
+    @Test
+    fun shareAndTrackUseTheKeysOfTheTableSoItStaysTheSame() {
+        assertEquals(ContextKeys.COMPARE, ContextKeys.QUEST_SHARE)
+        assertEquals(ContextKeys.CLEAR_CURSOR, ContextKeys.QUEST_TRACK)
+        assertEquals(12, ContextKeys.ACTION_KEYS.size)
+        assertEquals(12, ContextKeys.ACTION_KEYS.toSet().size)
+        val menu = ContextMenus.questMenu(questData.focus, keys = true)
+        assertEquals(ContextKeys.QUEST_SHARE, ContextPlan.stepsFor(menu.first { it.id == "quest_share" }, false).single().key)
+        assertEquals(ContextKeys.QUEST_TRACK, ContextPlan.stepsFor(menu.first { it.id == "quest_track" }, false).single().key)
+    }
+
+    @Test
+    fun theLuaFileKnowsTheQuestKindAndTheSecondMeaningOfTheKeys() {
+        val lua = addonFile("TouchForeverContext.lua") ?: return
+        assertTrue(lua.contains("C.QUEST_KIND = ${FocusKind.QUEST.code}"))
+        assertTrue("the kind needs the whole nibble", lua.contains("n[10] = (f.kind or 0) % 16"))
+        // link: item first, then quest; compare = share and clearcursor = track while a quest is under the pointer
+        val link = lua.substring(lua.indexOf("    link = function()"), lua.indexOf("    -- Shows the comparison"))
+        assertTrue(link.indexOf("C.slotItem(C.focusSlot())") in 0 until link.indexOf("C.focusQuest()"))
+        assertTrue(link.contains("C.insertChatLink(link)"))
+        assertTrue(lua.contains("if quest then C.questShare(quest) return end"))
+        assertTrue(lua.contains("if quest then C.questToggleTrack(quest) return end"))
+        // nothing is sent into the chat: the helper only inserts or opens
+        val insert = lua.substring(lua.indexOf("function C.insertChatLink"), lua.indexOf("-- Share the quest"))
+        assertTrue(insert.contains("ChatEdit_InsertLink") && insert.contains("ChatFrame_OpenChat"))
+        assertFalse(insert.contains("SendChatMessage"))
+        assertTrue(lua.contains("QuestObjectiveTracker"))
     }
 }

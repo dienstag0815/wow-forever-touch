@@ -59,6 +59,15 @@ internal class VoiceChatController(
     private var recognizer: SpeechRecognizer? = null
     private var lastIntent: Intent? = null
     private var lastPreferredOffline = true
+
+    /** Online statt offline hat in diesem Tipp aufs Mikrofon schon einmal neu gestartet (Sprachpaket fehlt lokal). */
+    private var retried = false
+
+    /** Neuversuche nach Serverfehlern (4, 11) in diesem Tipp aufs Mikrofon: höchstens zwei, jeweils nach einer Pause, keine Schleife. */
+    private val serverRetries = VoiceErrors.ServerRetries()
+    private val serverRetryRunnable = Runnable {
+        if (!destroyed && serverRetries.fire() && state == State.LISTENING) beginRecognition(preferOffline = false)
+    }
     private var vocabulary: VoiceVocabulary = VoiceVocabulary.EMPTY
     private var pendingText = ""
     private var pendingSpans: List<VoiceSpan> = emptyList()
@@ -266,6 +275,9 @@ internal class VoiceChatController(
         }
 
         vocabulary = VoiceSettings.loadVocabulary(context)
+        retried = false
+        main.removeCallbacks(serverRetryRunnable)
+        serverRetries.reset()
         beginRecognition(preferOffline = true)
     }
 
@@ -352,8 +364,22 @@ internal class VoiceChatController(
         override fun onError(error: Int) {
             if (state != State.LISTENING) return
             Timber.d("VoiceChat: recognizer error %d (offline preferred: %b)", error, lastPreferredOffline)
-            when (VoiceErrors.recovery(error, lastPreferredOffline)) {
-                VoiceErrors.Recovery.RETRY_ONLINE -> main.post { if (!destroyed && state == State.LISTENING) beginRecognition(preferOffline = false) }
+            when (VoiceErrors.recovery(error, lastPreferredOffline, serverRetries.count)) {
+                VoiceErrors.Recovery.RETRY_ONLINE -> {
+                    retried = true
+                    main.post { if (!destroyed && state == State.LISTENING) beginRecognition(preferOffline = false) }
+                }
+                VoiceErrors.Recovery.RETRY_SERVER -> {
+                    // The service is not bound again yet: wait a moment before the next try. The panel keeps showing "listening"
+                    // (no error flicker); a tap that cancels, or a new tap on the microphone, drops the waiting try.
+                    val delay = serverRetries.schedule(error, lastPreferredOffline) ?: run {
+                        fail(errorMessage(error))
+                        return
+                    }
+                    releaseRecognizer()
+                    main.removeCallbacks(serverRetryRunnable)
+                    main.postDelayed(serverRetryRunnable, delay)
+                }
                 VoiceErrors.Recovery.DOWNLOAD_MODEL -> {
                     val started = triggerModelDownload()
                     fail(context.getString(if (started) VoiceErrors.downloadingRes() else VoiceErrors.messageRes(error)))
@@ -368,7 +394,7 @@ internal class VoiceChatController(
 
     private fun errorMessage(error: Int): String {
         val res = VoiceErrors.messageRes(error)
-        return if (res == R.string.game_voice_error) context.getString(res, error) else context.getString(res)
+        return if (VoiceErrors.showsCode(res)) context.getString(res, error) else context.getString(res)
     }
 
     /** Stößt den Download des Sprachpakets beim aktuellen Erkenner an (ab Android 13); false, wenn das nicht geht. */
@@ -404,6 +430,8 @@ internal class VoiceChatController(
     }
 
     private fun fail(message: String) {
+        main.removeCallbacks(serverRetryRunnable)
+        serverRetries.cancel()
         releaseRecognizer()
         state = State.MESSAGE
         pendingText = ""
@@ -566,6 +594,8 @@ internal class VoiceChatController(
     /** Overlay tap while listening, a failure message running out: forget everything, nothing is sent. */
     private fun cancel() {
         main.removeCallbacks(cancelRunnable)
+        main.removeCallbacks(serverRetryRunnable)
+        serverRetries.cancel()
         if (pendingLogged) VoiceLog.setLastOutcome(context, VoiceLog.OUTCOME_DISCARDED)
         pendingLogged = false
         pendingText = ""

@@ -104,12 +104,16 @@
     <string name="game_cmenu_friend">Freund hinzufügen</string>
     <string name="game_cmenu_inspect">Betrachten</string>
     <string name="game_cmenu_invite">Einladen</string>
+    <string name="game_cmenu_leave_group">Gruppe verlassen</string>
     <string name="game_cmenu_link">Im Chat verlinken</string>
     <string name="game_cmenu_loot">Plündern</string>
     <string name="game_cmenu_map">Karte</string>
     <string name="game_cmenu_more">Mehr ...</string>
     <string name="game_cmenu_move">Verschieben</string>
     <string name="game_cmenu_place">Hier ablegen</string>
+    <string name="game_cmenu_quest_share">Mit Gruppe teilen</string>
+    <string name="game_cmenu_quest_track">Verfolgen</string>
+    <string name="game_cmenu_quest_untrack">Nicht verfolgen</string>
     <string name="game_cmenu_sell">Verkaufen</string>
     <string name="game_cmenu_skin">Kürschnern</string>
     <string name="game_cmenu_spell">Zauber %1$d</string>
@@ -535,7 +539,7 @@
     <string name="game_qm_row_layout_save_as">Neues Layout speichern</string>
     <string name="game_qm_sec_more">Mehr</string>
     <string name="game_qm_sum_more">Layout zurücksetzen</string>
-    <string name="game_voice_server">Spracherkennungsdienst nicht erreichbar, gleich nochmal versuchen</string>
+    <string name="game_voice_server">Spracherkennungsdienst nicht erreichbar, gleich nochmal versuchen (%1$d)</string>
     <string name="game_voice_audio">Mikrofon ließ sich nicht lesen, prüfen, ob eine andere App es benutzt</string>
     <string name="game_voice_language_unsupported">Diese Sprache unterstützt die Spracherkennung nicht. Sprache in den App-Einstellungen wechseln</string>
     <string name="game_voice_language_missing">Sprachpaket fehlt. In den Android-Einstellungen installieren: System > Sprachen > Spracheingabe (Offline-Sprache)</string>

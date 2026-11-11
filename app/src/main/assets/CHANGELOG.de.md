@@ -4,6 +4,32 @@ Pro Version ein Abschnitt, neueste oben. Format: `## <Version> – <Datum>`, dar
 Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in `app/src/main/assets/CHANGELOG.de.md`) und zeigt sie als
 Änderungsliste; bei einem angebotenen Update kommt der Text der neuen Versionen aus dem Update-Feed.
 
+## 2.3.3-touch9.11 – 12.11.2026
+
+### Neu
+- Spieler-Menü: Ist der Spieler in deiner Gruppe, steht statt „Einladen“ der Eintrag „Gruppe verlassen“.
+
+### Verbessert
+- Spracheingabe: Ist der Spracherkennungsdienst nicht erreichbar, versucht es die App nach kurzer Pause bis zu zweimal neu, bevor sie die Meldung zeigt.
+
+## 2.3.3-touch9.10 – 12.11.2026
+
+### Verbessert
+- Der Chat-Filter hat jetzt drei Stufen (Aus, Wenig, Viel). Der neue Standard „Wenig“ blendet nur Rauschen aus (Erfahrung, Ruf, Berufe, Geld, Handel, Dienste); System-, Beute- und Erfolgsmeldungen sowie Allgemein und Gruppensuche bleiben sichtbar. „Viel“ ist das bisherige Verhalten. Wer den Filter an hatte, steht nach dem Update auf „Wenig“.
+
+## 2.3.3-touch9.9 – 12.11.2026
+
+### Behoben
+- „Einladen“ im Spieler-Menü beendete das Spiel: Die Taste dafür enthielt Alt+F4. Einladen und das Raid-Fenster nutzen jetzt andere Tasten, keine Taste der App enthält mehr Alt+F4.
+
+## 2.3.3-touch9.8 – 11.11.2026
+
+### Neu
+- Finger auf einer Quest im Questlog oder im Quest-Tracker halten: Das Menü bietet „Im Chat verlinken“, „Mit Gruppe teilen“, „Verfolgen / Nicht verfolgen“ und „Mehr ...“ (das Quest-Menü des Spiels).
+
+### Behoben
+- Die Spracheingabe versucht es bei nicht erreichbarem Spracherkennungsdienst einmal selbst noch einmal; klappt es wieder nicht, steht die Fehlernummer am Ende der Meldung.
+
 ## 2.3.3-touch9.7 – 11.11.2026
 
 ### Neu

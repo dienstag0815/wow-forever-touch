@@ -309,9 +309,9 @@ class ActionBarTemplatesTest {
         val menu = WowActionCatalog.buildMenu("m", "WoW-Menü Rest", rest, resolved)
         assertEquals(rest.size, menu.slots.size)
         assertTrue(menu.slots.all { it.wowAction != null && !it.bindingCombo.isEmpty && it.isEnabled })
-        // reputation, currencies, PvP and raid: commands of Bindings_Standard.xml; the addon puts ALT-CTRL-F1 to F4 on them
+        // reputation, currencies, PvP and raid: commands of Bindings_Standard.xml; the addon puts ALT-CTRL-F1 to F3 and ALT-CTRL-HOME on them
         val extra = mapOf(
-            "TOGGLECHARACTER2" to "ALT-CTRL-F1", "TOGGLECURRENCY" to "ALT-CTRL-F2", "TOGGLECHARACTER4" to "ALT-CTRL-F3", "TOGGLERAIDTAB" to "ALT-CTRL-F4",
+            "TOGGLECHARACTER2" to "ALT-CTRL-F1", "TOGGLECURRENCY" to "ALT-CTRL-F2", "TOGGLECHARACTER4" to "ALT-CTRL-F3", "TOGGLERAIDTAB" to "ALT-CTRL-HOME",
         )
         for ((command, key) in extra) {
             val action = WowActionCatalog.find(command)!!

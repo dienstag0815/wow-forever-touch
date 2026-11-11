@@ -1,4 +1,4 @@
--- TouchForever, part 5: context for the launcher's menu on long press (addon build 4). Own code, no Blizzard or third party addon parts.
+-- TouchForever, part 5: context for the launcher's menu on long press (addon build 4; build 11: quests under the pointer; build 14: leave the group). Own code, no Blizzard or third party addon parts.
 --
 -- Hold a finger on another player, an NPC or an enemy and the launcher shows a menu with what could be done there. This file
 --   1. reports the unit under the mouse pointer ("mouseover", fallback "target") in the context section of the strip
@@ -13,8 +13,9 @@
 --   4..6  unit A: [exists 1, player 2, dead 4, skinnable 8] | relation (0 unknown, 1 friend, 2 hostile, 3 neutral) + 4 * source
 --         (0 none, 1 mouseover, 2 target) | reach (0 unknown, 1 far, 2 within 28 yd, 3 within 11 yd, 4 within 9.9 yd) + 8 * in group
 --   7..9  unit B: reaction (0..8) | [has target 1, is target 2, is self 4, can attack 8] | 0
---   10..15 mouse focus (bag, bank or equipment slot under the pointer): kind (0 none, 1 bag, 2 bank, 3 equipment) |
---         flags (1 filled, 2 equippable, 4 usable, 8 stack > 1) | 1 vendor open + 2 cursor carries an item | stack size (max 15) | 0 | 0
+--   10..15 mouse focus (bag, bank or equipment slot or a quest under the pointer): kind (0 none, 1 bag, 2 bank, 3 equipment, 4 quest) |
+--         flags (items: 1 filled, 2 equippable, 4 usable, 8 stack > 1; quest: 1 present, 2 can be shared with the group, 4 tracked) |
+--         1 vendor open + 2 cursor carries an item | stack size (max 15) | 0 | 0
 --   16..21 classes of the action bar 1 slots 1..12 (0 none, 1 harmful, 2 helpful, 3 both), two slots per nibble (low bits first)
 --   22..  16 spell entries of 9 nibbles: spell id (6 nibbles, high first) | flags (1 filled, 2 not usable, 4 out of range, 8 global
 --         cooldown only) | cooldown code (2 nibbles, high first: 0 none, 1..100 tenths up to 10 s, 101..255 whole seconds beyond 10 s)
@@ -25,11 +26,16 @@
 --   ALT-SHIFT-F1 attack (/startattack)   F2 the game's own context menu of the target (what a right click on the target frame opens:
 --   whisper, invite, trade, inspect, follow, duel, focus, marker ...; the player taps the entries in the game; the "More ..." entry of
 --   the launcher's mini menu for players)
---   mini menu for players: F3 whisper (opens the chat box with "/w Name ")   F4 invite   F5 follow (/follow)   F6 trade   F7 inspect
+--   mini menu for players: F3 whisper (opens the chat box with "/w Name ")   ALT-CTRL-INSERT invite, or leave the group when the target is in my group (not F4: Alt+F4 closes the window)   F5 follow (/follow)   F6 trade   F7 inspect
 --   F8 add friend   ("wave" is a chat command typed by the launcher, no key; own figure under the finger: the launcher presses the keys of
 --   the game's window bindings, nothing from here)
---   F9 put the item on the cursor back (ClearCursor)   F10 link the item under the pointer in the chat   F11 show the comparison tooltip
---   F12 throw the item under the pointer away: ONLY after an own Yes / No question (nothing is deleted without a tap on Yes)
+--   F9 put the item on the cursor back (ClearCursor)   F10 link the item or the quest under the pointer in the chat   F11 show the
+--   comparison tooltip   F12 throw the item under the pointer away: ONLY after an own Yes / No question (nothing is deleted without a
+--   tap on Yes)
+--   Quest under the pointer (quest log entry or quest tracker block; the table stays as it is, two keys get a second meaning that
+--   applies only while a quest and no item slot is under the pointer): F10 link the quest in the chat (an open chat box gets the link,
+--   a closed one is opened with it, nothing is sent)   F11 share the quest with the group (instead of the comparison tooltip)
+--   F9 track / untrack the quest (instead of putting the cursor item back)
 --   The launcher selects the unit as target first (a left click), so every action works on "target".
 -- Spell lists: only spells that can be cast on another unit (the spell has a range; no tracking, no self buffs like Stoneform).
 -- Secure buttons get their attributes (the spells) only outside of combat; in combat the lists and keys stay as they were and only
@@ -52,7 +58,7 @@ C.E_FILLED, C.E_NOT_USABLE, C.E_OUT_OF_RANGE, C.E_GCD = 1, 2, 4, 8
 C.SPELL_KEYS = { "ALT-CTRL-F5", "ALT-CTRL-F6", "ALT-CTRL-F7", "ALT-CTRL-F8", "ALT-CTRL-F9", "ALT-CTRL-F10", "ALT-CTRL-F11", "ALT-CTRL-F12" }
 C.KEYS = {
     attack = "ALT-SHIFT-F1", popup = "ALT-SHIFT-F2",
-    whisper = "ALT-SHIFT-F3", invite = "ALT-SHIFT-F4", follow = "ALT-SHIFT-F5", trade = "ALT-SHIFT-F6", inspect = "ALT-SHIFT-F7",
+    whisper = "ALT-SHIFT-F3", invite = "ALT-CTRL-INSERT", follow = "ALT-SHIFT-F5", trade = "ALT-SHIFT-F6", inspect = "ALT-SHIFT-F7",
     friend = "ALT-SHIFT-F8",
     clearcursor = "ALT-SHIFT-F9", link = "ALT-SHIFT-F10", compare = "ALT-SHIFT-F11", discard = "ALT-SHIFT-F12",
 }
@@ -76,7 +82,7 @@ function C.cooldownCode(seconds)
 end
 
 -- data = { flags =, unit = { exists, player, dead, skinnable, relation, source, reach, group, reaction, hasTarget, isTarget, isSelf, canAttack },
---          focus = { kind, filled, equippable, usable, stacked, merchant, cursor, count }, bar = { class of slot 1..12 }, entries = { [1..16] = { id =, flags =, cd = seconds } } }
+--          focus = { kind, filled, equippable (quest: shareable), usable (quest: tracked), stacked, merchant, cursor, count }, bar = { class of slot 1..12 }, entries = { [1..16] = { id =, flags =, cd = seconds } } }
 -- Returns the list of NIBBLES values.
 function C.nibbles(data)
     local n = {}
@@ -90,7 +96,7 @@ function C.nibbles(data)
     n[7] = math.min(u.reaction or 0, 8)
     n[8] = (u.hasTarget and 1 or 0) + (u.isTarget and 2 or 0) + (u.isSelf and 4 or 0) + (u.canAttack and 8 or 0)
     local f = data.focus or {}
-    n[10] = (f.kind or 0) % 4
+    n[10] = (f.kind or 0) % 16
     n[11] = (f.filled and 1 or 0) + (f.equippable and 2 or 0) + (f.usable and 4 or 0) + (f.stacked and 8 or 0)
     n[12] = (f.merchant and 1 or 0) + (f.cursor and 2 or 0)
     n[13] = math.min(f.count or 0, 15)
@@ -414,14 +420,191 @@ local function itemIsUsable(link)
     return false
 end
 
--- The focus table of the payload.
+---------------------------------------------------------------------------
+-- The quest under the pointer (quest log entry, quest tracker block)
+---------------------------------------------------------------------------
+-- The game gives no direct answer to "which quest is under the pointer", so the frame under the pointer and its parents are
+-- looked at (a quest log button or a tracker block carries the quest id as a field, older buttons the log index as their id). Nothing
+-- is assumed: the id must be a quest that really is in the log (a header is none), else there is no quest and everything stays as
+-- before. Every access is guarded.
+C.QUEST_KIND = 4
+local QUEST_DEPTH = 6
+
+-- All the fields that can name a quest, read in one guarded call.
+local function questFields(frame)
+    return frame.questID, frame.questId, frame.questLogIndex, frame.id, frame.module
+end
+
+local function isQuestModule(module)
+    if type(module) ~= "table" then return false end
+    for _, name in ipairs({ "QUEST_TRACKER_MODULE", "QuestObjectiveTracker", "CampaignQuestObjectiveTracker", "WorldQuestObjectiveTracker" }) do
+        if module == _G[name] then return true end
+    end
+    return false
+end
+
+local function positive(value)
+    if type(value) == "number" and value > 0 and not isSecret(value) then return math.floor(value) end
+    return nil
+end
+
+local function questLogCount()
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries then return tonumber(try(C_QuestLog.GetNumQuestLogEntries)) or 0 end
+    if GetNumQuestLogEntries then return tonumber(try(GetNumQuestLogEntries)) or 0 end
+    return 0
+end
+
+-- Log index of a quest id (nil = not in the log).
+local function logIndexOf(questID)
+    local index
+    if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then index = try(C_QuestLog.GetLogIndexForQuestID, questID) end
+    if positive(index) == nil and GetQuestLogIndexByID then index = try(GetQuestLogIndexByID, questID) end
+    return positive(index)
+end
+
+-- Quest id of a log index (nil = a header or nothing).
+local function questIdOfIndex(index)
+    if C_QuestLog and C_QuestLog.GetInfo then
+        local info = try(C_QuestLog.GetInfo, index)
+        if type(info) == "table" then
+            if info.isHeader then return nil end
+            return positive(info.questID)
+        end
+    end
+    if GetQuestLogTitle then
+        local results = { pcall(GetQuestLogTitle, index) }
+        if results[1] and not isSecret(results[5]) and not results[5] then return positive(results[9]) end
+    end
+    return nil
+end
+
+-- { id =, index = } for a quest id or a log index found at the frame, else nil. Needs a quest that is in the log.
+local function resolveQuest(questID, index)
+    if questID then
+        index = logIndexOf(questID)
+        if not index then return nil end
+        return { id = questID, index = index }
+    end
+    if index then
+        if index > questLogCount() then return nil end
+        local id = questIdOfIndex(index)
+        if id then return { id = id, index = index } end
+    end
+    return nil
+end
+
+-- The quest at a frame or one of its parents: { id =, index = } or nil.
+function C.questAt(frame)
+    if frame == nil then frame = mouseFrame() end
+    for _ = 1, QUEST_DEPTH do
+        if type(frame) ~= "table" then return nil end
+        local ok, questID, questId, logIndex, id, module = pcall(questFields, frame)
+        if ok then
+            local quest = resolveQuest(positive(questID) or positive(questId), nil)
+            if quest then return quest end
+            if isQuestModule(module) then
+                quest = resolveQuest(positive(id), nil)
+                if quest then return quest end
+            end
+            if positive(logIndex) then
+                quest = resolveQuest(nil, positive(logIndex))
+                if quest then return quest end
+            end
+            -- the buttons of the older quest log: "QuestLogTitle<n>", their id is the log index
+            local name = frame.GetName and try(frame.GetName, frame) or nil
+            if type(name) == "string" and string.match(name, "^QuestLogTitle%d+$") and frame.GetID then
+                quest = resolveQuest(nil, positive(try(frame.GetID, frame)))
+                if quest then return quest end
+            end
+        end
+        frame = frame.GetParent and try(frame.GetParent, frame) or nil
+    end
+    return nil
+end
+
+-- The quest under the pointer, unless an item slot is there (items go first).
+function C.focusQuest()
+    local frame = mouseFrame()
+    if C.focusSlot(frame).kind ~= 0 then return nil end
+    return C.questAt(frame)
+end
+
+-- Whether the quest can be shared: in a group and the game says it may be pushed. Older clients can only tell for the selected
+-- quest (selecting it here would move the player's selection at every refresh), so there a group is enough; the key checks again.
+local function questShareable(quest)
+    if not (IsInGroup and truthy(try(IsInGroup))) then return false end
+    if C_QuestLog and C_QuestLog.IsPushableQuest then return truthy(try(C_QuestLog.IsPushableQuest, quest.id)) end
+    return true
+end
+C.questShareable = questShareable
+
+local function questTracked(quest)
+    if C_QuestLog and C_QuestLog.GetQuestWatchType then return try(C_QuestLog.GetQuestWatchType, quest.id) ~= nil end
+    if C_QuestLog and C_QuestLog.IsQuestWatched then return truthy(try(C_QuestLog.IsQuestWatched, quest.id)) end
+    if IsQuestWatched then return truthy(try(IsQuestWatched, quest.index)) end
+    return false
+end
+C.questTracked = questTracked
+
+local function questTitle(quest)
+    local title
+    if C_QuestLog and C_QuestLog.GetTitleForQuestID then title = try(C_QuestLog.GetTitleForQuestID, quest.id) end
+    if type(title) ~= "string" and C_QuestLog and C_QuestLog.GetInfo then
+        local info = try(C_QuestLog.GetInfo, quest.index)
+        if type(info) == "table" then title = info.title end
+    end
+    if type(title) ~= "string" and GetQuestLogTitle then title = try(GetQuestLogTitle, quest.index) end
+    if type(title) == "string" and title ~= "" then return title end
+    return nil
+end
+
+local function questLevel(quest)
+    if C_QuestLog and C_QuestLog.GetInfo then
+        local info = try(C_QuestLog.GetInfo, quest.index)
+        if type(info) == "table" and positive(info.level) then return positive(info.level) end
+    end
+    if GetQuestLogTitle then
+        local results = { pcall(GetQuestLogTitle, quest.index) }
+        if results[1] and positive(results[3]) then return positive(results[3]) end
+    end
+    return 0
+end
+
+-- The chat link of the quest: the game's own (checked: it must name this very quest, GetQuestLink takes an id in some clients and a
+-- log index in others), else built in the link format the game uses.
+function C.questLink(quest)
+    local function names(link)
+        return type(link) == "string" and tonumber(string.match(link, "|Hquest:(%d+)")) == quest.id
+    end
+    local link
+    if GetQuestLink then
+        link = try(GetQuestLink, quest.id)
+        if not names(link) then link = try(GetQuestLink, quest.index) end
+    end
+    if not names(link) and C_QuestLog and C_QuestLog.GetQuestLink then link = try(C_QuestLog.GetQuestLink, quest.id) end
+    if names(link) then return link end
+    local title = questTitle(quest)
+    if not title then return nil end
+    return string.format("|cffffff00|Hquest:%d:%d|h[%s]|h|r", quest.id, questLevel(quest), title)
+end
+
+-- The focus table of the payload. Items first; a quest only where no item slot is.
 function C.readFocus()
     local f = { kind = 0, filled = false, equippable = false, usable = false, stacked = false, merchant = false, cursor = false, count = 0 }
     if CursorHasItem then f.cursor = truthy(try(CursorHasItem)) end
     if MerchantFrame and MerchantFrame.IsShown then f.merchant = truthy(try(MerchantFrame.IsShown, MerchantFrame)) end
-    local where = C.focusSlot()
+    local frame = mouseFrame()
+    local where = C.focusSlot(frame)
     f.kind = where.kind
-    if where.kind == 0 then return f end
+    if where.kind == 0 then
+        local ok, quest = pcall(C.questAt, frame)
+        if ok and quest then
+            f.kind, f.filled = C.QUEST_KIND, true
+            f.equippable = questShareable(quest)       -- for a quest: can be shared
+            f.usable = questTracked(quest)             -- for a quest: is tracked
+        end
+        return f
+    end
     local link, count = C.slotItem(where)
     if link then
         f.filled = true
@@ -636,6 +819,58 @@ local function playerTarget()
     return targetName()
 end
 
+-- Puts a link into the chat box; nothing is sent. The open box takes it, else the box is opened with the link in it.
+function C.insertChatLink(link)
+    if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then return true end
+    if ChatFrame_OpenChat then return pcall(ChatFrame_OpenChat, link) end
+    return false
+end
+
+-- Share the quest with the group (the game asks the members). Only a quest the game lets us push.
+function C.questShare(quest)
+    if not C.questShareable(quest) then return false end
+    if C_QuestLog and C_QuestLog.SetSelectedQuest then pcall(C_QuestLog.SetSelectedQuest, quest.id)
+    elseif SelectQuestLogEntry then pcall(SelectQuestLogEntry, quest.index) end
+    if GetQuestLogPushable and not truthy(try(GetQuestLogPushable)) then return false end
+    if QuestLogPushQuest then return pcall(QuestLogPushQuest) end
+    return false
+end
+
+-- Track / untrack the quest (the tracker redraws itself on the game's event; older clients are asked to).
+function C.questToggleTrack(quest)
+    local tracked = C.questTracked(quest)
+    if C_QuestLog and C_QuestLog.AddQuestWatch and C_QuestLog.RemoveQuestWatch then
+        if tracked then
+            pcall(C_QuestLog.RemoveQuestWatch, quest.id)
+        else
+            local manual = Enum and Enum.QuestWatchType and Enum.QuestWatchType.Manual
+            pcall(C_QuestLog.AddQuestWatch, quest.id, manual)
+        end
+    elseif AddQuestWatch and RemoveQuestWatch then
+        pcall(tracked and RemoveQuestWatch or AddQuestWatch, quest.index)
+        if QuestWatch_Update then pcall(QuestWatch_Update) end
+    else
+        return false
+    end
+    return true
+end
+
+-- Whether the target is another player in my own party or raid, and I am in a group.
+function C.targetInMyGroup()
+    if not (IsInGroup and truthy(try(IsInGroup))) then return false end
+    if not (UnitExists and truthy(try(UnitExists, "target"))) then return false end
+    if truthy(try(UnitIsUnit, "target", "player")) then return false end
+    return truthy(try(UnitInParty, "target")) or truthy(try(UnitInRaid, "target"))
+end
+
+-- Leave my group (the game's own call; no further question, the menu entry is the deliberate choice).
+function C.leaveGroup()
+    if not (IsInGroup and truthy(try(IsInGroup))) then return false end
+    if C_PartyInfo and C_PartyInfo.LeaveParty then return pcall(C_PartyInfo.LeaveParty) end
+    if LeaveParty then return pcall(LeaveParty) end
+    return false
+end
+
 C.handlers = {
     -- Whisper (the launcher's mini menu for players): opens the chat box with "/w Name " for the target. The launcher then types on its
     -- on-screen keyboard or starts its voice input, which appends the spoken text to this very box (it never opens a box itself).
@@ -645,9 +880,12 @@ C.handlers = {
         if ChatFrame_SendTell then pcall(ChatFrame_SendTell, name)
         elseif ChatFrame_OpenChat then pcall(ChatFrame_OpenChat, "/w " .. name .. " ") end
     end,
+    -- Invite; with a target that is in my group (and I am in a group) the same key leaves the group instead (the launcher's entry
+    -- "Leave group" stands in place of "Invite"). Never leaves without a group the game reports.
     invite = function()
         local name = playerTarget()
         if not name then return end
+        if C.targetInMyGroup() then C.leaveGroup() return end
         if C_PartyInfo and C_PartyInfo.InviteUnit then pcall(C_PartyInfo.InviteUnit, name)
         elseif InviteUnit then pcall(InviteUnit, name) end
     end,
@@ -663,18 +901,28 @@ C.handlers = {
         if C_FriendList and C_FriendList.AddFriend then pcall(C_FriendList.AddFriend, name)
         elseif AddFriend then pcall(AddFriend, name) end
     end,
-    -- The item that a tap picked up goes back to where it came from.
+    -- The item that a tap picked up goes back to where it came from. With a quest under the pointer the same key tracks / untracks
+    -- the quest (the launcher sends it only from the quest menu; an item slot under the pointer always wins).
     clearcursor = function()
+        local quest = C.focusQuest()
+        if quest then C.questToggleTrack(quest) return end
         if ClearCursor then pcall(ClearCursor) end
     end,
+    -- Links the item or, where no item slot is, the quest under the pointer: an open chat box gets the link, a closed one is opened with it.
     link = function()
         local link = C.slotItem(C.focusSlot())
+        if not link then
+            local quest = C.focusQuest()
+            link = quest and C.questLink(quest)
+        end
         if not link then return end
-        if ChatEdit_InsertLink and ChatEdit_InsertLink(link) then return end
-        if ChatFrame_OpenChat then pcall(ChatFrame_OpenChat, link) end
+        C.insertChatLink(link)
     end,
     -- Shows the comparison with the worn gear (the pointer still rests on the item): the tooltip is built again with the CVar on.
+    -- With a quest under the pointer the same key shares the quest with the group instead.
     compare = function()
+        local quest = C.focusQuest()
+        if quest then C.questShare(quest) return end
         C.alwaysCompare()
         local frame = C.mouseFrame()
         if type(frame) == "table" and frame.GetScript then
@@ -972,7 +1220,12 @@ function C.describe()
     local f = C.readFocus()
     lines[#lines + 1] = string.format("focus: kind=%d filled=%s equippable=%s usable=%s stacked=%s vendor=%s cursor=%s count=%d",
         f.kind, tostring(f.filled), tostring(f.equippable), tostring(f.usable), tostring(f.stacked), tostring(f.merchant), tostring(f.cursor), f.count)
-    if f.kind ~= 0 and f.filled then
+    if f.kind == C.QUEST_KIND then
+        local quest = C.focusQuest()
+        local link = quest and C.questLink(quest)
+        lines[#lines + 1] = string.format("quest: id=%s index=%s shareable=%s tracked=%s link=%s   (focus flags: equippable = shareable, usable = tracked)",
+            tostring(quest and quest.id), tostring(quest and quest.index), tostring(f.equippable), tostring(f.usable), tostring(link))
+    elseif f.kind ~= 0 and f.filled then
         local link = C.slotItem(C.focusSlot())
         local worn, how = C.equipInfo(link)
         lines[#lines + 1] = string.format("item: %s   equippable=%s (%s)", tostring(link), tostring(worn), how)

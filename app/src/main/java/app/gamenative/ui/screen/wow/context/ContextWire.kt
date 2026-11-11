@@ -87,25 +87,28 @@ data class UnitInfo(
     }
 }
 
-/** What lies under the mouse pointer besides units: an item slot of the bags, the bank or the character window. */
+/** What lies under the mouse pointer besides units: an item slot of the bags, the bank or the character window, or a quest. */
 enum class FocusKind(val code: Int) {
     NONE(0),
     BAG(1),
     BANK(2),
     EQUIPMENT(3),
+
+    /** A quest of the quest log or the quest tracker (addon build 11). */
+    QUEST(4),
     ;
 
-    val isItemSlot: Boolean get() = this != NONE
+    val isItemSlot: Boolean get() = this == BAG || this == BANK || this == EQUIPMENT
 
     companion object {
         fun of(code: Int): FocusKind = entries.firstOrNull { it.code == code } ?: NONE
     }
 }
 
-/** The item slot under the pointer as the addon reports it ("Mausfokus"). */
+/** The item slot or quest under the pointer as the addon reports it ("Mausfokus"). */
 data class FocusInfo(
     val kind: FocusKind = FocusKind.NONE,
-    /** There is an item in the slot. */
+    /** There is an item in the slot (a quest: the quest is there). */
     val filled: Boolean = false,
     val equippable: Boolean = false,
     /** The item can be used (potion, scroll ... an item with a use spell). */
@@ -118,15 +121,29 @@ data class FocusInfo(
     val cursorHasItem: Boolean = false,
     /** Stack size, 0..15 (15 = 15 or more). */
     val count: Int = 0,
+    /** Quest only: the quest can be shared with the group (in a group and the game lets it be pushed). */
+    val shareable: Boolean = false,
+    /** Quest only: the quest is tracked (shown in the quest tracker). */
+    val tracked: Boolean = false,
 ) {
     /** A filled item slot: the case the item menu and "tap = look" are about. */
     val isItem: Boolean get() = kind.isItemSlot && filled
+
+    /** A quest of the log or the tracker is under the pointer: the quest menu. */
+    val isQuest: Boolean get() = kind == FocusKind.QUEST && filled
+
+    /** Something with an own menu is under the pointer (an item or a quest): it goes before the unit, and no target is selected. */
+    val hasMenu: Boolean get() = isItem || isQuest
 
     companion object {
         const val F_FILLED = 1
         const val F_EQUIPPABLE = 2
         const val F_USABLE = 4
         const val F_STACKED = 8
+
+        /** Quest: the flag nibble reads 1 present, 2 [F_SHAREABLE], 4 [F_TRACKED] (the item bits 2 and 4 are not used for a quest). */
+        const val F_SHAREABLE = 2
+        const val F_TRACKED = 4
         const val M_MERCHANT = 1
         const val M_CURSOR = 2
     }
@@ -193,8 +210,8 @@ data class ContextData(
  *  - [0] version ([CooldownStrip.CONTEXT_VERSION]), [1] reserved, [2] context flags
  *  - [3..5] unit A: flags (1 exists, 2 player, 4 dead, 8 skinnable) | relation + 4 * source | reach + 8 * in group
  *  - [6..8] unit B: reaction (0..8) | 1 has target, 2 is target, 4 is self, 8 can attack | reserved
- *  - [9..14] mouse focus: kind (0 none, 1 bag, 2 bank, 3 equipment) | flags (1 filled, 2 equippable, 4 usable, 8 stacked) |
- *    1 vendor open, 2 cursor carries an item | stack size (0..15) | 0 | 0
+ *  - [9..14] mouse focus: kind (0 none, 1 bag, 2 bank, 3 equipment, 4 quest) | flags (items: 1 filled, 2 equippable, 4 usable,
+ *    8 stacked; quest: 1 present, 2 shareable, 4 tracked) | 1 vendor open, 2 cursor carries an item | stack size (0..15) | 0 | 0
  *  - [15..20] classes of the slots 1..12 of the action bar 1: nibble k holds slot 2k (low two bits) and 2k + 1 (high two bits)
  *  - [21 + 9 e ..] spell entry e: spell id as six nibbles (high first, 24 bit), flags, cooldown code as two nibbles (high first)
  */
@@ -249,9 +266,14 @@ object ContextWire {
         n[IDX_FOCUS] = f.kind.code
         var ff = 0
         if (f.filled) ff = ff or FocusInfo.F_FILLED
-        if (f.equippable) ff = ff or FocusInfo.F_EQUIPPABLE
-        if (f.usable) ff = ff or FocusInfo.F_USABLE
-        if (f.stacked) ff = ff or FocusInfo.F_STACKED
+        if (f.kind == FocusKind.QUEST) {
+            if (f.shareable) ff = ff or FocusInfo.F_SHAREABLE
+            if (f.tracked) ff = ff or FocusInfo.F_TRACKED
+        } else {
+            if (f.equippable) ff = ff or FocusInfo.F_EQUIPPABLE
+            if (f.usable) ff = ff or FocusInfo.F_USABLE
+            if (f.stacked) ff = ff or FocusInfo.F_STACKED
+        }
         n[IDX_FOCUS + 1] = ff
         n[IDX_FOCUS + 2] = (if (f.merchantOpen) FocusInfo.M_MERCHANT else 0) or (if (f.cursorHasItem) FocusInfo.M_CURSOR else 0)
         n[IDX_FOCUS + 3] = f.count.coerceIn(0, 15)
@@ -296,15 +318,19 @@ object ContextWire {
         )
         val kind = FocusKind.of(n[IDX_FOCUS])
         val ff = n[IDX_FOCUS + 1]
+        val item = kind.isItemSlot
+        val quest = kind == FocusKind.QUEST
         val focus = FocusInfo(
             kind = kind,
-            filled = kind.isItemSlot && ff and FocusInfo.F_FILLED != 0,
-            equippable = ff and FocusInfo.F_EQUIPPABLE != 0,
-            usable = ff and FocusInfo.F_USABLE != 0,
-            stacked = ff and FocusInfo.F_STACKED != 0,
+            filled = (item || quest) && ff and FocusInfo.F_FILLED != 0,
+            equippable = item && ff and FocusInfo.F_EQUIPPABLE != 0,
+            usable = item && ff and FocusInfo.F_USABLE != 0,
+            stacked = item && ff and FocusInfo.F_STACKED != 0,
             merchantOpen = n[IDX_FOCUS + 2] and FocusInfo.M_MERCHANT != 0,
             cursorHasItem = n[IDX_FOCUS + 2] and FocusInfo.M_CURSOR != 0,
             count = n[IDX_FOCUS + 3],
+            shareable = quest && ff and FocusInfo.F_SHAREABLE != 0,
+            tracked = quest && ff and FocusInfo.F_TRACKED != 0,
         )
         val bar = ArrayList<Int>(ContextData.BAR_SLOTS)
         for (k in 0 until ContextData.BAR_SLOTS / 2) {

@@ -14,8 +14,12 @@ import timber.log.Timber
  * drückt sie, ein Druck = eine Aktion. Die Belegung steht auf beiden Seiten und ein Test vergleicht sie.
  *
  * Kollisionsfrei zu allem, was die App und das Addon sonst belegen: Strg+Umschalt F1..F12 (Addon-Bindungen und Neuladen),
- * Alt+Strg F1..F4 (Menüs), die Zahlenreihe (Aktionsleiste 1). Zwei Zusatztasten plus eine Taste ist das Äußerste, was eine
+ * Alt+Strg F1..F3 und Alt+Strg+Pos1 (Menüs), die Zahlenreihe (Aktionsleiste 1). Zwei Zusatztasten plus eine Taste ist das Äußerste, was eine
  * Kombination der App tragen kann (BindingCombo.MAX_BINDINGS 3).
+ *
+ * Nie Alt zusammen mit F4 (und nichts anderes, was unter Windows/Wine das Fenster schließt oder wechselt): Alt+F4 schließt das Spiel, auch mit
+ * Umschalt oder Strg dazu. "Einladen" lag auf Alt+Umschalt+F4 und beendete das Spiel; jetzt Alt+Strg+Einfg. SystemKeysTest prüft alle Tabellen.
+ * Alt+Strg+Einfg/Pos1 sind frei: die Ersatztasten der Leisten 4 und 5 haben Alt+Umschalt bzw. Strg+Umschalt mit denselben Navigationstasten.
  */
 object ContextKeys {
     /** Taste je Eintrag der Zauberlisten (Index 0 bis 7): "Feind-Zauber i" und "Freund-Zauber i" teilen sich die Taste. */
@@ -32,8 +36,8 @@ object ContextKeys {
     /** Flüstern: öffnet das Chatfeld mit "/w Name " für das Ziel (danach tippt man oder die Spracheingabe der App hängt ihren Text an). */
     const val WHISPER = "ALT-SHIFT-F3"
 
-    /** Das Ziel in die Gruppe einladen. */
-    const val INVITE = "ALT-SHIFT-F4"
+    /** Das Ziel in die Gruppe einladen. Nicht F4: Alt+F4 schließt unter Windows/Wine das Fenster, auch mit Zusatztasten. */
+    const val INVITE = "ALT-CTRL-INSERT"
 
     /** Dem Ziel folgen (/follow). */
     const val FOLLOW = "ALT-SHIFT-F5"
@@ -47,14 +51,26 @@ object ContextKeys {
     /** Das Ziel in die Freundesliste aufnehmen. */
     const val FRIEND = "ALT-SHIFT-F8"
 
-    /** Der Gegenstand am Cursor geht zurück an seinen Platz (ClearCursor). */
+    /** Der Gegenstand am Cursor geht zurück an seinen Platz (ClearCursor). Liegt eine Quest unter dem Zeiger: [QUEST_TRACK]. */
     const val CLEAR_CURSOR = "ALT-SHIFT-F9"
 
-    /** Den Gegenstand unter dem Zeiger im Chat verlinken. */
+    /** Den Gegenstand unter dem Zeiger im Chat verlinken; liegt keiner da, die Quest unter dem Zeiger (Addon ab Build 11). */
     const val LINK_ITEM = "ALT-SHIFT-F10"
 
-    /** Den Vergleich mit der angelegten Ausrüstung zeigen. */
+    /** Den Vergleich mit der angelegten Ausrüstung zeigen. Liegt eine Quest unter dem Zeiger: [QUEST_SHARE]. */
     const val COMPARE = "ALT-SHIFT-F11"
+
+    /**
+     * Quest-Menü: dieselben Tasten, die Tabelle bleibt gleich (alle F-Tasten-Kombinationen sind belegt). Das Addon wertet die Quest unter dem
+     * Zeiger erst nach dem Gegenstand; ein Gegenstandsplatz unter dem Zeiger behält die alte Bedeutung. Verlinken: [LINK_ITEM].
+     */
+    const val QUEST_LINK = LINK_ITEM
+
+    /** Quest mit der Gruppe teilen (die Taste des Vergleichs; sie gilt nur, solange eine Quest unter dem Zeiger liegt). */
+    const val QUEST_SHARE = COMPARE
+
+    /** Quest verfolgen / nicht mehr verfolgen (die Taste "Cursor leeren"; sie gilt nur, solange eine Quest unter dem Zeiger liegt). */
+    const val QUEST_TRACK = CLEAR_CURSOR
 
     /** Wegwerfen: das Addon fragt mit eigenem Ja/Nein nach, erst "Ja" löscht (nie ohne Rückfrage). */
     const val DISCARD = "ALT-SHIFT-F12"

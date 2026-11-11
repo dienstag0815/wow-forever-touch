@@ -201,6 +201,15 @@ class ContextGlyphDraw {
                 line(canvas, 0.55f, -0.25f, 0.55f, 0.45f)
                 line(canvas, 0.2f, 0.1f, 0.9f, 0.1f)
             }
+            ContextGlyph.LEAVE -> {
+                // Person mit Minus
+                circle(canvas, -0.3f, -0.45f, 0.3f)
+                path.reset()
+                path.moveTo(x(-0.9f), y(0.85f))
+                path.quadTo(x(-0.3f), y(-0.1f), x(0.15f), y(0.85f))
+                canvas.drawPath(path, stroke)
+                line(canvas, 0.2f, 0.1f, 0.9f, 0.1f)
+            }
             ContextGlyph.FOLLOW -> {
                 // drei Pfeilspitzen hintereinander: hinterher gehen
                 arrowHead(canvas, 0.85f, 0f, 1f, 0f)

@@ -103,12 +103,12 @@ class ContextMenuController(context: Context) {
         val entries = buildEntries(data)
         if (entries.isEmpty()) return ContextOpen.NONE
         val geometry = ContextMenuLayout.Geometry.forDensity(density)
-        val layout = layoutFor(entries, data.focus.isItem, x, y, screenW, screenH, geometry)
+        val layout = layoutFor(entries, data.focus.hasMenu, x, y, screenW, screenH, geometry)
         val state = ContextMenuState(entries, layout, x, y, geometry, screenW, screenH)
         state.source = data
         state.openedMs = System.nanoTime() / 1_000_000L
         state.cursorHasItem = data.focus.cursorHasItem
-        state.itemMenu = data.focus.isItem
+        state.itemMenu = data.focus.hasMenu
         state.selfMenu = ContextMenus.usesSelfMenu(data, ContextGate.mode())
         // Ohne Ziel-Klick (Gegenstand, eigene Figur) oder wenn die Einheit schon das Ziel ist, gibt es nichts abzuwarten.
         state.waitsForTarget = state.selectsTarget && !data.unit.isTarget

@@ -54,8 +54,10 @@ UI.EXTRA_KEYS = {
     TOGGLECHARACTER2 = "ALT-CTRL-F1",
     TOGGLECURRENCY = "ALT-CTRL-F2",
     TOGGLECHARACTER4 = "ALT-CTRL-F3",
-    TOGGLERAIDTAB = "ALT-CTRL-F4",
+    TOGGLERAIDTAB = "ALT-CTRL-HOME",
 }
+-- Keys that earlier builds set and that are taken away again (build 12: Alt+F4 closes the window, even with Ctrl added).
+UI.OLD_EXTRA_KEYS = { TOGGLERAIDTAB = "ALT-CTRL-F4" }
 
 -- Names shown in WoW's key bindings window.
 BINDING_HEADER_WOWFOREVER = "TouchForever"
@@ -1835,23 +1837,41 @@ end
 ---------------------------------------------------------------------------
 -- Chat
 ---------------------------------------------------------------------------
-local CHAT_PRESET = { size = 10, lines = 8, bg = 20, filter = true, short = true, stamps = false }
+local CHAT_PRESET = { size = 10, lines = 8, bg = 20, filter = "low", short = true, stamps = false }
 local OLD_CHAT_PRESET = { size = 12, lines = 5 } -- preset of addon 1.1.0 (migrated once, see ADDON_LOADED)
 local CHAT_SIZE_MIN, CHAT_SIZE_MAX = 6, 24
 local CHAT_LINES_MIN, CHAT_LINES_MAX = 3, 20
 -- "Compact" chat: the space of the buttons column (29 + gap) goes to the chat; Blizzard's buttons next to the chat are taken away.
 local CHAT_EXTRA_DEFAULT, CHAT_EXTRA_MAX = 36, 120
 
--- Message groups taken out of the main window (reversible); whisper, party, raid, guild, say, yell stay.
+-- Message groups taken out of the main window (reversible); whisper, party, raid, guild, say, yell, emotes always stay.
+-- Filter level: "low" (default) takes out only the real noise, "high" is the former filter; no level = off (nothing taken out).
 local FILTER_GROUPS = {
-    "SYSTEM", "LOOT", "MONEY", "COMBAT_XP_GAIN", "COMBAT_HONOR_GAIN", "COMBAT_FACTION_CHANGE", "SKILL", "TRADESKILLS",
-    "OPENING", "PET_INFO", "COMBAT_MISC_INFO", "CURRENCY", "ACHIEVEMENT", "TARGETICONS",
+    low = {
+        "COMBAT_XP_GAIN", "COMBAT_HONOR_GAIN", "COMBAT_FACTION_CHANGE", "SKILL", "TRADESKILLS", "OPENING", "PET_INFO",
+        "COMBAT_MISC_INFO", "MONEY", "CURRENCY", "TARGETICONS",
+    },
+    high = {
+        "SYSTEM", "LOOT", "MONEY", "COMBAT_XP_GAIN", "COMBAT_HONOR_GAIN", "COMBAT_FACTION_CHANGE", "SKILL", "TRADESKILLS",
+        "OPENING", "PET_INFO", "COMBAT_MISC_INFO", "CURRENCY", "ACHIEVEMENT", "TARGETICONS",
+    },
 }
 -- Channels (trade, general ...) are named by language; the beginning of the name decides.
 local FILTER_CHANNELS = {
-    "trade", "handel", "general", "allgemein", "localdefense", "lokale verteidigung", "worlddefense", "weltverteidigung",
-    "services", "dienste", "lookingforgroup", "gruppensuche",
+    low = {
+        "trade", "handel", "localdefense", "lokale verteidigung", "worlddefense", "weltverteidigung", "services", "dienste",
+    },
+    high = {
+        "trade", "handel", "general", "allgemein", "localdefense", "lokale verteidigung", "worlddefense", "weltverteidigung",
+        "services", "dienste", "lookingforgroup", "gruppensuche",
+    },
 }
+
+-- Saved value -> level ("low" / "high") or nil = off. An old "true" (filter on) means the new default "low".
+local function filterLevelOf(value)
+    if value == "low" or value == "high" then return value end
+    if value == true then return "low" end
+end
 
 -- Short channel tags: format strings of the chat (global strings), original kept for the reset.
 local SHORT_TAGS = {
@@ -1874,7 +1894,7 @@ local SHORT_TAGS = {
 }
 local shortOriginals = {}
 
-local chatState = { originalFont = {}, originalAlpha = {}, originalClamp = {}, originalHeight = nil, originalWidth = nil, widthGuard = false, widthHooked = false, removed = nil, stampsOriginal = nil }
+local chatState = { originalFont = {}, originalAlpha = {}, originalClamp = {}, originalHeight = nil, originalWidth = nil, widthGuard = false, widthHooked = false, stampsOriginal = nil }
 
 local function chatWindowCount()
     return NUM_CHAT_WINDOWS or 10
@@ -2208,10 +2228,11 @@ local function applyChatBackground()
     end
 end
 
--- Spam out of the main window: message groups and channels, remembered so that "off" puts exactly these back.
-local function channelIsSpam(name)
+-- Spam out of the main window: message groups and channels of the chosen level. db.chatRemoved remembers what the addon took out,
+-- so a lower level (or "off") puts back exactly these and nothing the player removed in the game; nothing is added twice.
+local function channelIsSpam(name, level)
     local lower = string.lower(name or "")
-    for _, prefix in ipairs(FILTER_CHANNELS) do
+    for _, prefix in ipairs(FILTER_CHANNELS[level] or {}) do
         if string.find(lower, prefix, 1, true) == 1 or string.find(lower, "%d+%.%s*" .. prefix) == 1 then return true end
     end
     return false
@@ -2220,43 +2241,61 @@ end
 local function applyChatFilter()
     local frame = frameOf("ChatFrame1")
     if not frame then return end
-    if chatOpt("filter") then
-        if chatState.removed then return end
-        local removed = { groups = {}, channels = {} }
-        local present = {}
-        if frame.messageTypeList then
-            for _, group in ipairs(frame.messageTypeList) do present[group] = true end
+    local level = filterLevelOf(chatOpt("filter"))
+    local record = db.chatRemoved
+    if not level and not record then return end
+    record = record or {}
+    local wanted = {}
+    for _, group in ipairs(FILTER_GROUPS[level] or {}) do wanted[group] = true end
+    local present, presentChannel = {}, {}
+    for _, group in ipairs(frame.messageTypeList or {}) do present[group] = true end
+    for _, name in ipairs(frame.channelList or {}) do presentChannel[name] = true end
+
+    local kept = { groups = {}, channels = {} }
+    -- what the addon took out before: stays out when the level still wants it, otherwise it comes back (if it is not there already)
+    for _, group in ipairs(record.groups or {}) do
+        if wanted[group] then
+            kept.groups[#kept.groups + 1] = group
+            if present[group] and ChatFrame_RemoveMessageGroup then pcall(ChatFrame_RemoveMessageGroup, frame, group) end
+        elseif not present[group] and ChatFrame_AddMessageGroup then
+            pcall(ChatFrame_AddMessageGroup, frame, group)
         end
-        if ChatFrame_RemoveMessageGroup then
-            for _, group in ipairs(FILTER_GROUPS) do
-                if present[group] then
-                    pcall(ChatFrame_RemoveMessageGroup, frame, group)
-                    removed.groups[#removed.groups + 1] = group
-                end
+    end
+    for _, name in ipairs(record.channels or {}) do
+        if level and channelIsSpam(name, level) then
+            kept.channels[#kept.channels + 1] = name
+            if presentChannel[name] and ChatFrame_RemoveChannel then pcall(ChatFrame_RemoveChannel, frame, name) end
+        elseif not presentChannel[name] and ChatFrame_AddChannel then
+            pcall(ChatFrame_AddChannel, frame, name)
+        end
+    end
+    -- newly wanted and still in the window
+    local keptGroup, keptChannel = {}, {}
+    for _, group in ipairs(kept.groups) do keptGroup[group] = true end
+    for _, name in ipairs(kept.channels) do keptChannel[name] = true end
+    if ChatFrame_RemoveMessageGroup then
+        for _, group in ipairs(FILTER_GROUPS[level] or {}) do
+            if present[group] and not keptGroup[group] then
+                pcall(ChatFrame_RemoveMessageGroup, frame, group)
+                kept.groups[#kept.groups + 1] = group
+                keptGroup[group] = true
             end
         end
-        if ChatFrame_RemoveChannel and frame.channelList then
-            local names = {}
-            for _, name in ipairs(frame.channelList) do names[#names + 1] = name end
-            for _, name in ipairs(names) do
-                if channelIsSpam(name) then
-                    pcall(ChatFrame_RemoveChannel, frame, name)
-                    removed.channels[#removed.channels + 1] = name
-                end
+    end
+    if level and ChatFrame_RemoveChannel then
+        local names = {}
+        for _, name in ipairs(frame.channelList or {}) do names[#names + 1] = name end
+        for _, name in ipairs(names) do
+            if not keptChannel[name] and channelIsSpam(name, level) then
+                pcall(ChatFrame_RemoveChannel, frame, name)
+                kept.channels[#kept.channels + 1] = name
+                keptChannel[name] = true
             end
         end
-        chatState.removed = removed
-        db.chatRemoved = removed -- survives /reload, so "off" also works in the next session
+    end
+    if level or #kept.groups > 0 or #kept.channels > 0 then
+        db.chatRemoved = kept -- survives /reload, so a lower level / "off" also works in the next session
     else
-        local removed = chatState.removed or db.chatRemoved
-        if not removed then return end
-        for _, group in ipairs(removed.groups or {}) do
-            if ChatFrame_AddMessageGroup then pcall(ChatFrame_AddMessageGroup, frame, group) end
-        end
-        for _, name in ipairs(removed.channels or {}) do
-            if ChatFrame_AddChannel then pcall(ChatFrame_AddChannel, frame, name) end
-        end
-        chatState.removed = nil
         db.chatRemoved = nil
     end
 end
@@ -2310,6 +2349,14 @@ end
 UI.ChatOptions = chatOptions
 function UI.GetDB() return db end
 
+-- Filter level for the options page and the status line: "off" | "low" | "high".
+function UI.ChatFilterLevel() return filterLevelOf(chatOptions().filter) or "off" end
+function UI.ChatFilterText(level)
+    if level == "low" then return L.filter_low end
+    if level == "high" then return L.filter_high end
+    return L.off_2
+end
+
 -- Phone preset on (values of the preset) / off (everything back at the values of the game).
 function UI.ChatPhone(on)
     local o = chatOptions()
@@ -2336,7 +2383,10 @@ function UI.ChatSet(key, value)
         o.mode = (value == "compact") and "compact" or "normal"
         chatActiveUntil = now() + CHAT_IDLE_SECONDS
         later(CHAT_IDLE_SECONDS, refreshChat)
-    elseif key == "filter" or key == "short" then
+    elseif key == "filter" then
+        o.filter = filterLevelOf(value)
+        o.enabled = true
+    elseif key == "short" then
         o[key] = value and true or nil
         o.enabled = true
     elseif key == "stamps" then
@@ -2670,9 +2720,11 @@ local function ensureDefaultKeys(force)
         end
     end
     for _, command in ipairs(UI.EXTRA_COMMANDS) do
-        if force or not db.keysSet[command] then
-            db.keysSet[command] = true
-            local key = UI.EXTRA_KEYS[command]
+        local key = UI.EXTRA_KEYS[command]
+        if force or db.keysSet[command] ~= key then
+            db.keysSet[command] = key -- the key itself is remembered (older builds stored true): a key that changed is set once more
+            local old = UI.OLD_EXTRA_KEYS[command]
+            if old and GetBindingAction(old) == command and SetBinding(old) then changed = changed + 1 end -- free the former key (Alt+F4)
             local key1, key2 = GetBindingKey(command)
             if key1 == key or key2 == key or key2 ~= nil then
                 -- already there, or the player has two keys of their own on it: nothing to add (a third would push one out)
@@ -2729,7 +2781,7 @@ local function chatStatus()
         .. ", " .. L.smart_chat .. onoff(o.enabled))
     say(string.format("  size=%s lines=%s bg=%s filter=%s short=%s stamps=%s",
         tostring(o.size or "-"), tostring(o.lines or "-"), o.bg and (o.bg .. "%") or "-",
-        onoff(o.filter), onoff(o.short), onoff(o.stamps)))
+        UI.ChatFilterText(filterLevelOf(o.filter)), onoff(o.short), onoff(o.stamps)))
     say(string.format("  compact=%s extra=%s tabs-on-touch=%s dock-left=%s", onoff(chatCompact()), tostring(chatExtraWidth()), onoff(chatTabsOnTouch()),
         onoff(chatDockWanted())))
 end
@@ -2737,7 +2789,7 @@ end
 local function chatHelp()
     say(L.tf_chat_status_tf_chat_phone)
     say(L.show_hide_toggle_peek_mode_normal)
-    say("  filter on|off, short on|off, stamps on|off, compact on|off, extra 0-120, tabs on|off, left (flush to the left edge), dock on|off")
+    say("  filter off|low|high (no word: next level), short on|off, stamps on|off, compact on|off, extra 0-120, tabs on|off, left (flush to the left edge), dock on|off")
 end
 
 local function parseOnOff(word)
@@ -2805,7 +2857,18 @@ local function chatCommand(rest)
         o.dockLeft = value
     elseif word == "extra" then
         if number then o.extra = math.max(0, math.min(CHAT_EXTRA_MAX, math.floor(number))) else chatHelp(); return end
-    elseif word == "filter" or word == "short" or word == "stamps" then
+    elseif word == "filter" then
+        arg = string.lower(arg)
+        local level
+        if arg == "" then
+            level = ({ off = "low", low = "high", high = "off" })[filterLevelOf(o.filter) or "off"]
+        elseif arg == "off" or arg == "aus" or arg == "0" then level = "off"
+        elseif arg == "low" or arg == "wenig" or arg == "on" or arg == "an" or arg == "ein" or arg == "1" then level = "low"
+        elseif arg == "high" or arg == "viel" or arg == "2" then level = "high"
+        else chatHelp(); return end
+        o.filter = filterLevelOf(level)
+        o.enabled = true
+    elseif word == "short" or word == "stamps" then
         local value = parseOnOff(arg)
         if value == nil then chatHelp(); return end
         -- "stamps on" = show time stamps again; the others are "feature on"
@@ -3028,13 +3091,19 @@ frame:SetScript("OnEvent", function(_, event, arg1)
                 o.enabled = true
                 for key, value in pairs(CHAT_PRESET) do o[key] = value end
                 o.mode = "normal"
-                db.uiVersion = 2
+                db.uiVersion = 3
             elseif (db.uiVersion or 1) < 2 then
                 -- 1.1.0 -> 1.2.0: whoever still has the old preset untouched gets the new one; own values stay
                 if o.enabled and o.size == OLD_CHAT_PRESET.size and o.lines == OLD_CHAT_PRESET.lines then
                     o.size, o.lines = CHAT_PRESET.size, CHAT_PRESET.lines
                 end
                 db.uiVersion = 2
+            end
+            if (db.uiVersion or 1) < 3 then
+                -- addon build 13: the chat filter has three levels. Whoever had it on (also by the preset) gets "low"; applyChatFilter then
+                -- puts back what only "high" takes out (db.chatRemoved). Whoever had it off stays off.
+                o.filter = o.filter and "low" or nil
+                db.uiVersion = 3
             end
             if db.questsScale == nil then db.questsScale = QUEST_SCALE_DEFAULT end
             -- 1.6.0: new options; old saved data gets the defaults (an explicit value stays)

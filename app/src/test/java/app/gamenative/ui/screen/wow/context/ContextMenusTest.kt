@@ -194,6 +194,39 @@ class ContextMenusTest {
     }
 
     @Test
+    fun aPlayerInMyGroupHasLeaveGroupInPlaceOfInvite() {
+        val inGroup = build(data(friendlyPlayer.copy(inGroup = true, isTarget = true)))
+        // same place, same ring, same count; only the entry differs
+        assertEquals(
+            listOf("whisper_voice", "whisper_keys", "leave_group", "follow", "trade", "wave"),
+            ids(inGroup.filter { it.ring == 0 }),
+        )
+        assertEquals(listOf(6, 5), ContextMenus.ringCounts(inGroup))
+        val leave = inGroup.first { it.id == "leave_group" }
+        assertEquals("Gruppe verlassen", leave.label)
+        assertEquals(ContextGlyph.LEAVE, leave.glyph)
+        assertEquals(EntryAction.KEY, leave.action)
+        assertEquals(ContextKeys.INVITE, leave.key)          // the invite key has the second meaning, the addon decides at the target
+        assertTrue(leave.enabled && !leave.dimmed)
+        assertEquals(listOf(PlanKind.KEY), ContextPlan.stepsFor(leave, cursorHasItem = false).map { it.kind })
+        assertEquals(ContextKeys.INVITE, ContextPlan.stepsFor(leave, cursorHasItem = false).single().key)
+        assertNull("no question of its own: the entry is the deliberate choice", ContextPlan.stepsFor(leave, cursorHasItem = false).single().text)
+        // not in my group (or the addon reports none): the old invite, never "Leave group"
+        val outside = build(data(friendlyPlayer.copy(inGroup = false, isTarget = true)))
+        assertTrue(outside.none { it.id == "leave_group" })
+        assertEquals("Einladen", outside.first { it.id == "invite" }.label)
+        assertFalse(outside.first { it.id == "invite" }.dimmed)
+        assertEquals(ContextGlyph.INVITE, outside.first { it.id == "invite" }.glyph)
+        // without the addon keys the entry does nothing
+        val unarmed = build(data(friendlyPlayer.copy(inGroup = true), flags = 0))
+        assertFalse(unarmed.first { it.id == "leave_group" }.enabled)
+        // a hostile or dead player is handled as before (no leave entry in the attack menu)
+        assertTrue(build(data(friendlyPlayer.copy(inGroup = true, relation = UnitRelation.HOSTILE))).none { it.id == "leave_group" })
+        // the own figure: the self menu stays as it was (it does not select the target, the key would act on whatever is targeted)
+        assertTrue(build(data(friendlyPlayer.copy(isSelf = true, inGroup = true))).none { it.id == "leave_group" })
+    }
+
+    @Test
     fun theMiniMenuDimsWhatIsTooFarAndDisablesAddonKeysWithoutTheAddon() {
         val far = build(data(friendlyPlayer.copy(reach = Reach.FAR, isTarget = true)))
         assertTrue(far.first { it.id == "follow" }.dimmed)
@@ -206,8 +239,8 @@ class ContextMenusTest {
         // distance unknown (in combat): nothing is dimmed on suspicion
         val unknown = build(data(friendlyPlayer.copy(reach = Reach.UNKNOWN, isTarget = true)))
         assertTrue(unknown.none { it.id in setOf("follow", "trade", "inspect") && it.dimmed })
-        // already in the group: the invite is dimmed
-        assertTrue(build(data(friendlyPlayer.copy(inGroup = true))).first { it.id == "invite" }.dimmed)
+        // already in the group: no invite any more, "Leave group" stands in its place (see the tests below)
+        assertTrue(build(data(friendlyPlayer.copy(inGroup = true))).none { it.id == "invite" })
         // the addon keys are not armed: the key entries do nothing, the wave still does
         val unarmed = build(data(friendlyPlayer, flags = 0))
         assertTrue(unarmed.filter { it.action == EntryAction.KEY || it.action == EntryAction.WHISPER_VOICE || it.action == EntryAction.WHISPER_KEYBOARD }.none { it.enabled })
@@ -472,5 +505,60 @@ class ContextMenusTest {
         assertFalse(menu.first { it.id == "link" }.enabled)
         assertFalse(menu.first { it.id == "discard" }.enabled)
         assertTrue(menu.first { it.id == "use" }.enabled)
+    }
+
+    // ---- quests --------------------------------------------------------------------------------------------
+
+    private fun quest(shareable: Boolean = false, tracked: Boolean = false) =
+        FocusInfo(FocusKind.QUEST, filled = true, shareable = shareable, tracked = tracked)
+
+    @Test
+    fun aQuestOffersLinkShareTrackAndTheGamesOwnMenu() {
+        val menu = build(data(focus = quest(shareable = true)))
+        assertEquals(listOf("quest_link", "quest_share", "quest_track", "quest_more"), ids(menu))
+        assertEquals(listOf("Im Chat verlinken", "Mit Gruppe teilen", "Verfolgen", "Mehr ..."), menu.map { it.label })
+        assertEquals(ContextGlyph.LINK, menu[0].glyph)
+        assertEquals(listOf(EntryAction.KEY, EntryAction.KEY, EntryAction.KEY, EntryAction.RIGHT_CLICK), menu.map { it.action })
+        assertEquals(listOf(ContextKeys.LINK_ITEM, ContextKeys.COMPARE, ContextKeys.CLEAR_CURSOR, null), menu.map { it.key })
+        assertTrue(menu.all { it.enabled })
+        assertTrue("no cancel entry of our own", menu.none { it.id.contains("cancel") || it.id.contains("abandon") })
+        assertTrue("every entry has a drawn symbol", menu.all { it.glyph != null })
+    }
+
+    @Test
+    fun aQuestThatCannotBeSharedIsDimmedNotHidden() {
+        val menu = build(data(focus = quest(shareable = false)))
+        val share = menu.first { it.id == "quest_share" }
+        assertFalse(share.enabled)
+        assertTrue(menu.first { it.id == "quest_link" }.enabled)
+        assertTrue(menu.first { it.id == "quest_track" }.enabled)
+    }
+
+    @Test
+    fun trackingFlipsItsLabel() {
+        assertEquals("Verfolgen", build(data(focus = quest(tracked = false))).first { it.id == "quest_track" }.label)
+        assertEquals("Nicht verfolgen", build(data(focus = quest(tracked = true))).first { it.id == "quest_track" }.label)
+    }
+
+    @Test
+    fun questKeysNeedTheArmedAddonButMoreDoesNot() {
+        val menu = build(data(focus = quest(shareable = true), flags = 0))
+        assertFalse(menu.first { it.id == "quest_link" }.enabled)
+        assertFalse(menu.first { it.id == "quest_share" }.enabled)
+        assertFalse(menu.first { it.id == "quest_track" }.enabled)
+        assertTrue(menu.first { it.id == "quest_more" }.enabled)
+    }
+
+    @Test
+    fun theQuestMenuComesBeforeAnyUnitAndTheOffSettingStaysOff() {
+        val menu = build(data(unit = mob, focus = quest()))
+        assertEquals("quest_link", menu.first().id)
+        assertTrue("attack" !in ids(menu))
+        assertTrue(build(data(unit = friendlyPlayer, focus = quest())).none { it.id == "whisper_voice" })
+        assertTrue(build(data(focus = quest()), mode = ContextMode.OFF).isEmpty())
+        // an item under the pointer still wins (the addon never reports both, the order is part of the contract)
+        assertTrue("discard" in ids(build(data(focus = item(equippable = true)))))
+        // a quest that is not present is nothing
+        assertTrue(build(data(focus = FocusInfo(FocusKind.QUEST, filled = false))).isEmpty())
     }
 }

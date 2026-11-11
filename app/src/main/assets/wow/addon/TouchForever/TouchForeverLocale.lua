@@ -131,7 +131,9 @@ S.de = {
     lines = "Zeilen",
     background = "Hintergrund",
     hide_spam = "Spam ausblenden",
-    system_loot_experience_and_trade_channel = "System-, Beute-, Erfahrungs- und Handelskanal-Meldungen im Hauptfenster aus.",
+    system_loot_experience_and_trade_channel = "Wenig: nur Rauschen aus dem Hauptfenster (Erfahrung, Ruf, Beruf, Geld, Handel, Dienste); System, Beute, Erfolge, Allgemein und Gruppensuche bleiben. Viel: zusätzlich auch diese.",
+    filter_low = "Wenig",
+    filter_high = "Viel",
     short_channel_names = "Kurze Kanalnamen",
     show_time_stamps = "Zeitstempel anzeigen",
     compact_chat = "Chat kompakt",
@@ -190,7 +192,7 @@ S.de = {
         .. "/tf = dieses Fenster, /tf peek = alles kurz zeigen\n"
         .. "/tf bars|chat|minimap|quests|menubar [show|hide|peek], /tf xp [standard|compact|minimap|off|30-100]\n"
         .. "/tf minimap square|round|corner on|corner off|zoom big|zoom small|info, /tf bags full|pack|off, /tf quests size 50-100|height N|reset\n"
-        .. "/tf chat phone|reset|mode|size|lines|bg|filter|short|stamps|compact|extra|tabs\n"
+        .. "/tf chat phone|reset|mode|size|lines|bg|filter [aus|wenig|viel]|short|stamps|compact|extra|tabs\n"
         .. "/tf say|party|guild|whisper, /tf windows, /tf strip, /tf button, /tf reload, /tf keys, /tf layout on|off|again|info",
     touch_layout_windows = "Fenster fürs Touch-Layout",
     touch_layout_windows_tip = "Legt im Bearbeitungsmodus das Layout \"Touch Forever\" an (Kopie des aktuellen Layouts) und schaltet es ein: Aktionsleisten zwischen die Sticks, Chat über den linken Stick, Einheitenfenster oben links, Questverfolgung rechts. Aus: zurück zum vorherigen Layout. Nicht im Kampf.",
@@ -328,7 +330,9 @@ S.en = {
     lines = "Lines",
     background = "Background",
     hide_spam = "Hide spam",
-    system_loot_experience_and_trade_channel = "System, loot, experience and trade channel messages off in the main window.",
+    system_loot_experience_and_trade_channel = "Low: only noise leaves the main window (experience, reputation, professions, money, trade, services); system, loot, achievements, general and looking for group stay. High: those go too.",
+    filter_low = "Low",
+    filter_high = "High",
     short_channel_names = "Short channel names",
     show_time_stamps = "Show time stamps",
     compact_chat = "Compact chat",
@@ -387,7 +391,7 @@ S.en = {
         .. "/tf = this window, /tf peek = show everything briefly\n"
         .. "/tf bars|chat|minimap|quests|menubar [show|hide|peek], /tf xp [standard|compact|minimap|off|30-100]\n"
         .. "/tf minimap square|round|corner on|corner off|zoom big|zoom small|info, /tf bags full|pack|off, /tf quests size 50-100|height N|reset\n"
-        .. "/tf chat phone|reset|mode|size|lines|bg|filter|short|stamps|compact|extra|tabs\n"
+        .. "/tf chat phone|reset|mode|size|lines|bg|filter [off|low|high]|short|stamps|compact|extra|tabs\n"
         .. "/tf say|party|guild|whisper, /tf windows, /tf strip, /tf button, /tf reload, /tf keys, /tf layout on|off|again|info",
     touch_layout_windows = "Windows for the touch layout",
     touch_layout_windows_tip = "Creates the Edit Mode layout \"Touch Forever\" (a copy of the current layout) and switches to it: action bars between the sticks, chat above the left stick, unit frames at the top left, quest tracker at the right. Off: back to the previous layout. Not in combat.",

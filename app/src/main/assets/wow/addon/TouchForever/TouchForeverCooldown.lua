@@ -26,6 +26,10 @@
 --            Build 6: the scroll section is always reported (the former addon switch "swiping in lists scrolls" is gone, the app decides).
 --            Build 8: no change of the strip; the texts of the addon come from TouchForeverLocale.lua (German/English, language set by the app).
 --            Build 10: no change of the strip; the layout plan (TouchForeverLayout.lua) puts the quest tracker flush right below the minimap.
+--            Build 11: no change of the strip layout; the context payload knows a quest under the pointer (focus kind 4, TouchForeverContext.lua).
+--            Build 12: no change of the strip; two keys moved away from Alt+F4 (invite ALT-CTRL-INSERT, raid window ALT-CTRL-HOME), so a reload is needed to set them.
+--            Build 13: no change of the strip; the chat filter has three levels (off / low / high), a reload applies the migration.
+--            Build 14: no change of the strip; the invite key (ALT-CTRL-INSERT) leaves the group when the target is in the player's group (TouchForeverContext.lua).
 --            Build 9: no change of the strip; TouchForeverBindings.lua puts replacement keys on the action bars 2 to 5 (override bindings).
 --            A launcher that only knows version 1 ignores newer sections (windows unknown), a newer launcher reads version 1.
 --   233..255 scroll section (build 3 and up; only read when the window section is read AND its section flag bit 3 (value 8,
@@ -71,7 +75,7 @@ S.SLOT_COUNT = #S.SLOTS
 S.CELL_CHECK = S.CELL_DATA + 2 * S.SLOT_COUNT
 S.CELL_TAIL = S.CELL_CHECK + 1
 S.CELL_COUNT = S.CELL_TAIL + 2          -- cells of the cooldown part (0..215); the window section follows
-S.WIN_VERSION = 10                      -- section version = addon build (see the format description above); keep in step with
+S.WIN_VERSION = 14                      -- section version = addon build (see the format description above); keep in step with
                                         -- CooldownStrip.ADDON_BUILD (a unit test compares the two)
 S.WF_TRUNCATED, S.WF_COMBAT, S.WF_SCROLL_AWARE = 1, 4, 8      -- section flag bits (8: the scroll section follows, build 3)
 S.WF_CONTEXT_AWARE = 2                  -- section flag bit (build 4): the context section follows and is real

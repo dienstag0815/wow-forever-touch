@@ -34,7 +34,7 @@ class AddonReloadRuleTest {
 
     @Test
     fun bundledBuildMatchesTheRuleDefaults() {
-        assertEquals(10, CooldownStrip.ADDON_BUILD)
+        assertEquals(14, CooldownStrip.ADDON_BUILD)
         assertTrue(CooldownStrip.RELOAD_KEY_BUILD <= CooldownStrip.ADDON_BUILD)
     }
 

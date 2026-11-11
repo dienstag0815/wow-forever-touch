@@ -158,4 +158,58 @@ class ContextWireTest {
         val decoded = ContextWire.decode(n)!!
         assertTrue(decoded.entries.all { it == null })
     }
+
+    // ---- quest under the pointer (addon build 11) ----------------------------------------------------------
+
+    @Test
+    fun aQuestRoundTripsWithItsFlags() {
+        val focus = FocusInfo(kind = FocusKind.QUEST, filled = true, shareable = true, tracked = true)
+        val data = ContextData(ContextData.KEYS, focus = focus)
+        val n = ContextWire.encode(data)
+        assertEquals(4, n[ContextWire.IDX_FOCUS])
+        assertEquals(1 + 2 + 4, n[ContextWire.IDX_FOCUS + 1])
+        val decoded = ContextWire.decode(n)!!
+        assertEquals(data, decoded)
+        assertTrue(decoded.focus.isQuest)
+        assertFalse("a quest is no item", decoded.focus.isItem)
+        assertTrue(decoded.focus.hasMenu)
+        val plain = ContextWire.decode(ContextWire.encode(ContextData(focus = FocusInfo(kind = FocusKind.QUEST, filled = true))))!!.focus
+        assertTrue(plain.isQuest && !plain.shareable && !plain.tracked)
+    }
+
+    @Test
+    fun theQuestFlagBitsAreNotTakenForItemFlags() {
+        // the Lua side writes shareable / tracked on the bits 2 and 4 that mean equippable / usable for items
+        val n = ContextWire.encode(ContextData())
+        n[ContextWire.IDX_FOCUS] = FocusKind.QUEST.code
+        n[ContextWire.IDX_FOCUS + 1] = FocusInfo.F_FILLED or FocusInfo.F_SHAREABLE or FocusInfo.F_TRACKED
+        val quest = ContextWire.decode(n)!!.focus
+        assertTrue(quest.shareable && quest.tracked && quest.isQuest)
+        assertFalse(quest.equippable || quest.usable || quest.stacked)
+        // and the other way round: an item slot never reads them as quest flags
+        n[ContextWire.IDX_FOCUS] = FocusKind.BAG.code
+        val item = ContextWire.decode(n)!!.focus
+        assertTrue(item.isItem && item.equippable && item.usable)
+        assertFalse(item.shareable || item.tracked || item.isQuest)
+    }
+
+    @Test
+    fun aQuestNeedsItsPresentFlag() {
+        val n = ContextWire.encode(ContextData())
+        n[ContextWire.IDX_FOCUS] = FocusKind.QUEST.code
+        assertFalse(ContextWire.decode(n)!!.focus.isQuest)
+        n[ContextWire.IDX_FOCUS + 1] = FocusInfo.F_FILLED
+        assertTrue(ContextWire.decode(n)!!.focus.isQuest)
+    }
+
+    @Test
+    fun theOldFocusKindsAreUnchanged() {
+        assertEquals(listOf(0, 1, 2, 3, 4), FocusKind.entries.map { it.code })
+        assertEquals(listOf(false, true, true, true, false), FocusKind.entries.map { it.isItemSlot })
+        for (kind in listOf(FocusKind.BAG, FocusKind.BANK, FocusKind.EQUIPMENT)) {
+            val data = ContextData(focus = FocusInfo(kind = kind, filled = true, equippable = true, usable = true, stacked = true, count = 9))
+            assertEquals(data, ContextWire.decode(ContextWire.encode(data)))
+        }
+        assertEquals(FocusKind.NONE, FocusKind.of(7))
+    }
 }
