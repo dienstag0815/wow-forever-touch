@@ -6,6 +6,12 @@ Play **World of Warcraft: Forever** on Snapdragon Android handhelds as a normal 
 
 This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs natively on the phone's CPU. Wine translates the Windows calls, and DXVK plus a patched Turnip Vulkan driver render the game on the Adreno GPU. Nothing is emulated as x86.
 
+## Screenshots
+
+| Touch layout in game | Ring menu | Launcher settings |
+| :---: | :---: | :---: |
+| ![Touch layout in game](screenshots/ingame-touch-layout.jpg) | ![Ring menu](screenshots/ingame-ring-menu.jpg) | ![Launcher settings](screenshots/launcher-settings.jpg) |
+
 ## What this launcher does
 - **You need your own official World of Warcraft account** (Battle.net) with an active game license. The app does not include, share or unlock any game content and does not change anything on the game servers.
 - WoW is a Windows game. The launcher sets up a **Windows compatibility environment on Android** (Wine plus graphics translation to Vulkan), so the game's official Windows-on-ARM client runs natively on the phone's ARM CPU. The game files are downloaded from Blizzard by the normal client, using your own login.

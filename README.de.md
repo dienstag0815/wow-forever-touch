@@ -4,6 +4,12 @@ Spiele **World of Warcraft: Forever** auf Android-Handhelds mit Snapdragon als g
 
 Die App nutzt den **Windows-ARM64**-Client von Blizzard, das Spiel selbst läuft also nativ auf der CPU des Geräts. Wine übersetzt die Windows-Aufrufe, DXVK und ein angepasster Turnip-Vulkan-Treiber stellen das Spiel auf der Adreno-GPU dar. Es wird nichts als x86 emuliert.
 
+## Bilder
+
+| Touch-Layout im Spiel | Ringmenü | Launcher-Einstellungen |
+| :---: | :---: | :---: |
+| ![Touch-Layout im Spiel](screenshots/ingame-touch-layout.jpg) | ![Ringmenü](screenshots/ingame-ring-menu.jpg) | ![Launcher-Einstellungen](screenshots/launcher-settings.jpg) |
+
 ## Was dieser Launcher macht
 - **Du brauchst einen eigenen offiziellen World-of-Warcraft-Account** (Battle.net) mit aktiver Spiellizenz. Die App enthält keine Spielinhalte, gibt keine weiter, schaltet nichts frei und ändert nichts an den Spielservern.
 - WoW ist ein Windows-Spiel. Der Launcher richtet auf Android eine **Windows-Kompatibilitätsumgebung** ein (Wine plus Grafikübersetzung nach Vulkan), damit der offizielle Windows-on-ARM-Client des Spiels direkt auf der ARM-CPU des Geräts läuft. Die Spieldateien lädt der normale Client mit deinem eigenen Login bei Blizzard.
