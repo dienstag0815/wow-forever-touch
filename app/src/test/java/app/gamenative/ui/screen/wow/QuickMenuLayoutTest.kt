@@ -14,9 +14,9 @@ class QuickMenuLayoutTest {
     @get:Rule
     val texts = TestTexts.rule("de")
 
-    /** Alle Lagen: 6 Wahrheitswerte, 64 Kombinationen. */
+    /** Alle Lagen: 7 Wahrheitswerte, 128 Kombinationen. */
     private val allContexts: List<QuickMenuContext> = buildList {
-        for (bits in 0 until 64) {
+        for (bits in 0 until 128) {
             fun on(i: Int) = bits and (1 shl i) != 0
             add(
                 QuickMenuContext(
@@ -26,6 +26,7 @@ class QuickMenuLayoutTest {
                     hasReportNote = on(3),
                     hasPhysicalController = on(4),
                     hasContainer = on(5),
+                    hasTouchLayouts = on(6),
                 ),
             )
         }
@@ -129,21 +130,24 @@ class QuickMenuLayoutTest {
         val spiel = idsOf(QuickMenuPage.SPIEL, everything)
         assertEquals(QuickMenuAction.LOGIN_NOTE, spiel[spiel.indexOf(QuickMenuAction.LOGIN_EMAIL) + 1])
         val hilfe = idsOf(QuickMenuPage.HILFE, everything)
-        assertEquals(listOf(QuickMenuAction.REPORT, QuickMenuAction.REPORT_NOTE), hilfe)
+        assertEquals(
+            listOf(QuickMenuAction.REPORT, QuickMenuAction.REPORT_NOTE, QuickMenuAction.CHECK_ICONS, QuickMenuAction.ADDON_OPTIONS),
+            hilfe,
+        )
     }
 
     private fun steuerung(ctx: QuickMenuContext = everything) = quickMenuSections(QuickMenuPage.STEUERUNG, ctx)
 
     @Test
-    fun controlTabHasTheSevenGroupsInOrder() {
+    fun controlTabHasTheEightGroupsInOrder() {
         assertEquals(
-            listOf("Layout", "Sticks", "Tippen und Halten", "Klick-Rad", "Wischen", "Touch-Elemente", "Weitere Eingabemodi"),
+            listOf("Layout", "Sticks", "Tippen und Halten", "Klick-Rad", "Wischen", "Touch-Elemente", "Weitere Eingabemodi", "Mehr"),
             steuerung().map { TestTexts.de(it.title) },
         )
         assertEquals(
             listOf(
                 QuickMenuGroups.LAYOUT, QuickMenuGroups.STICKS, QuickMenuGroups.TAP_HOLD, QuickMenuGroups.CLICK_WHEEL,
-                QuickMenuGroups.SWIPE, QuickMenuGroups.ELEMENTS, QuickMenuGroups.MODES,
+                QuickMenuGroups.SWIPE, QuickMenuGroups.ELEMENTS, QuickMenuGroups.MODES, QuickMenuGroups.MORE,
             ),
             steuerung().map { it.groupId },
         )
@@ -163,9 +167,10 @@ class QuickMenuLayoutTest {
     fun groupsHoldTheRowsOfTheConcept() {
         val byTitle = steuerung().associate { TestTexts.de(it.title) to it.ids }
         assertEquals(
-            listOf(QuickMenuAction.INPUT_CONTROLS, QuickMenuAction.EDIT_CONTROLS, QuickMenuAction.EDIT_PHYSICAL_CONTROLLER, QuickMenuAction.RESET_LAYOUT),
+            listOf(QuickMenuAction.LAYOUT_CHOOSE, QuickMenuAction.EDIT_CONTROLS, QuickMenuAction.LAYOUT_SAVE_AS, QuickMenuAction.INPUT_CONTROLS),
             byTitle["Layout"],
         )
+        assertEquals(listOf(QuickMenuAction.RESET_LAYOUT, QuickMenuAction.EDIT_PHYSICAL_CONTROLLER), byTitle["Mehr"])
         assertEquals(listOf(QuickMenuAction.STICK_WALK, QuickMenuAction.STICK_CAMERA), byTitle["Sticks"])
         assertEquals(
             listOf(
@@ -207,7 +212,7 @@ class QuickMenuLayoutTest {
     fun cooldownGlobalRowSitsWithTheCooldownsOnTheGameTab() {
         for (ctx in allContexts) {
             val section = quickMenuSections(QuickMenuPage.SPIEL, ctx).single { TestTexts.de(it.title) == "Symbole und Abklingzeiten" }
-            assertEquals(listOf(QuickMenuAction.COOLDOWNS, QuickMenuAction.COOLDOWN_GCD, QuickMenuAction.CHECK_ICONS), section.ids)
+            assertEquals(listOf(QuickMenuAction.COOLDOWNS, QuickMenuAction.COOLDOWN_GCD), section.ids)
         }
     }
 
@@ -282,15 +287,16 @@ class QuickMenuLayoutTest {
     }
 
     @Test
-    fun addonSettingsHaveTheirOwnSectionOnTheGameTabInEveryContext() {
-        // Neue ID am Ende der Liste, Zuordnung zum Reiter "Spiel", nicht abhaengig von Login, Controller oder Container.
+    fun addonSettingsAndIconCheckSitInTheMoreSectionOfTheHelpTabInEveryContext() {
+        // Selten gebraucht: nicht mehr im Reiter Spiel, sondern in "Mehr" unter Hilfe, unabhaengig von Login, Controller oder Container.
         assertEquals(26, QuickMenuAction.ADDON_OPTIONS)
-        assertEquals(QuickMenuAction.REPORT_NOTE + 1, QuickMenuAction.ADDON_OPTIONS)
         for (ctx in allContexts) {
-            val section = quickMenuSections(QuickMenuPage.SPIEL, ctx).single { TestTexts.de(it.title) == "Addon" }
-            assertEquals(listOf(QuickMenuAction.ADDON_OPTIONS), section.ids)
-            for (page in QuickMenuPage.entries.filter { it != QuickMenuPage.SPIEL }) {
+            val section = quickMenuSections(QuickMenuPage.HILFE, ctx).single { TestTexts.de(it.title) == "Mehr" }
+            assertEquals(listOf(QuickMenuAction.CHECK_ICONS, QuickMenuAction.ADDON_OPTIONS), section.ids)
+            assertFalse("Mehr in Hilfe klappt nicht", section.collapsible)
+            for (page in QuickMenuPage.entries.filter { it != QuickMenuPage.HILFE }) {
                 assertFalse(QuickMenuAction.ADDON_OPTIONS in idsOf(page, ctx))
+                assertFalse(QuickMenuAction.CHECK_ICONS in idsOf(page, ctx))
             }
         }
         assertFalse(QuickMenuAction.ADDON_OPTIONS in QUICK_MENU_OUTSIDE_LAYOUT)
@@ -298,10 +304,39 @@ class QuickMenuLayoutTest {
     }
 
     @Test
-    fun addonSectionComesAfterSymbolsAndBeforeVoice() {
-        val titles = quickMenuSections(QuickMenuPage.SPIEL, everything).map { TestTexts.de(it.title) }
-        assertTrue(titles.indexOf("Symbole und Abklingzeiten") < titles.indexOf("Addon"))
-        assertTrue(titles.indexOf("Addon") < titles.indexOf("Sprache"))
+    fun layoutRowsLeadTheControlTabInTouchModesOnly() {
+        for (ctx in allContexts) {
+            val layout = steuerung(ctx).first()
+            assertEquals("Layout", TestTexts.de(layout.title))
+            if (ctx.hasTouchLayouts) {
+                // Das aktive Layout mit Namen ganz oben, "Neues Layout speichern" und Bearbeiten darunter.
+                assertEquals(QuickMenuAction.LAYOUT_CHOOSE, layout.ids.first())
+                assertTrue(QuickMenuAction.LAYOUT_SAVE_AS in layout.ids)
+                assertTrue(QuickMenuAction.EDIT_CONTROLS in layout.ids)
+            } else {
+                assertEquals(listOf(QuickMenuAction.EDIT_CONTROLS, QuickMenuAction.INPUT_CONTROLS), layout.ids)
+            }
+            for (page in QuickMenuPage.entries.filter { it != QuickMenuPage.STEUERUNG }) {
+                assertFalse(QuickMenuAction.LAYOUT_CHOOSE in idsOf(page, ctx))
+                assertFalse(QuickMenuAction.LAYOUT_SAVE_AS in idsOf(page, ctx))
+            }
+        }
+        assertEquals(44, QuickMenuAction.LAYOUT_CHOOSE)
+        assertEquals(45, QuickMenuAction.LAYOUT_SAVE_AS)
+    }
+
+    @Test
+    fun noTabShowsMoreThanSevenRowsByDefault() {
+        // Sichtbar = Zeilen der immer offenen Abschnitte plus die der offenen Gruppe (Voreinstellung Sticks); Kopfzeilen zaehlen nicht.
+        // Im Login (4 Anmeldezeilen) darf der Reiter Spiel um die Anmeldung laenger sein, die gibt es nur dort.
+        for (ctx in allContexts.filter { !it.inLogin }) {
+            for (page in QuickMenuPage.entries) {
+                val sections = quickMenuSections(page, ctx)
+                val open = QuickMenuAccordion.resolve(null, sections)
+                val visible = sections.filter { !it.collapsible || it.groupId == open }.sumOf { it.ids.size }
+                assertTrue("$page zeigt $visible Zeilen in $ctx", visible <= 7)
+            }
+        }
     }
 
     @Test

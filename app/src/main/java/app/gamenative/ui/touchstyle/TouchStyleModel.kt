@@ -10,7 +10,7 @@ import kotlin.math.roundToInt
  * Aussehen der Touch-Elemente (Auftrag tastenoptik, Phase 2a). Dieser Teil ist reine Rechnung ohne Android-Klassen und deshalb
  * mit JUnit prüfbar: Stile, Farben, Deckkraft je Zustand, Kontrastfaktor, Ruhe-Timer. Das Zeichnen steht in [TouchStyleDraw].
  *
- * - [TouchStyle.CURRENT]: das heutige Aussehen (weiße Umrisse), unverändert.
+ * - [TouchStyle.CURRENT]: das frühere Aussehen (weiße Umrisse), unverändert; nur noch auf Wunsch (Standard ist [TouchStyle.G]).
  * - [TouchStyle.F]: "Classic ruhig": abgeschrägte Rahmen in gedämpftem Graubraun, dunkle halbtransparente Fläche, Gold nur für
  *   Schrift und den gedrückten Zustand.
  * - [TouchStyle.G]: wie F plus Touch-Muster: Ruhe (28 % Füllung, 60 % Kante), aktiv (53 %), gedrückt (80 %, Symbol 25 % kleiner,
@@ -32,8 +32,11 @@ enum class TouchStyle(val id: String, @StringRes val labelRes: Int) {
     fun next(): TouchStyle = entries[(ordinal + 1) % entries.size]
 
     companion object {
-        /** Gespeicherte Kennung; unbekannt oder leer = das heutige Aussehen. */
-        fun fromId(id: String?): TouchStyle = entries.firstOrNull { it.id == id } ?: CURRENT
+        /** Standard für neue Installationen, Backups ohne Angabe und unbekannte Kennungen: das WoW-Thema (G). Wer "aktuell" wählt, behält es. */
+        val DEFAULT: TouchStyle = G
+
+        /** Gespeicherte Kennung; unbekannt oder leer = [DEFAULT]. */
+        fun fromId(id: String?): TouchStyle = entries.firstOrNull { it.id == id } ?: DEFAULT
     }
 }
 

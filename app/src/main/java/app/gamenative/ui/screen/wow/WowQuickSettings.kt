@@ -83,6 +83,18 @@ internal class WowQuickSettings(context: Context) {
     var layoutNote by mutableStateOf<String?>(null)
         private set
 
+    /** Name des aktiven Touch-Layouts ohne "Touch (…)" für die Zeile "Layout"; leer, solange unbekannt. */
+    var layoutName by mutableStateOf("")
+        private set
+
+    /** Ergebnis des letzten Wechselns oder Speicherns eines Layouts ("Layout Urlaub gespeichert"); null, solange keins lief. */
+    var layoutSwitchNote by mutableStateOf<String?>(null)
+        private set
+
+    /** Die Auswahlliste der Layouts bzw. der Dialog "Als neues Layout speichern" ist offen. */
+    var showLayoutPicker by mutableStateOf(false)
+    var showLayoutNameDialog by mutableStateOf(false)
+
     /**
      * Liest alle Werte frisch aus den Einstellungen. Das Seitenmenü ruft das bei jedem Öffnen auf: Der Touch-Editor schreibt
      * die Stick-Empfindlichkeit, das Zahnrad die Gesten, der Launcher die übrigen Werte, ohne dass diese Klasse es merkt.
@@ -105,6 +117,7 @@ internal class WowQuickSettings(context: Context) {
         touchContrast = TouchStyleSettings.contrast
         hasLogin = BattleNetSignIn.hasSaved(appContext)
         openGroupSaved = wowPrefs(appContext).getString(KEY_OPEN_GROUP, null)
+        refreshLayoutName()
     }
 
     /** Eine Anmeldung ist gespeichert (der Eintrag zeigt sonst "Keine Anmeldedaten gespeichert"). */
@@ -164,6 +177,8 @@ internal class WowQuickSettings(context: Context) {
         loginNote = loginNote,
         addonNote = addonNote,
         layoutNote = layoutNote,
+        layoutName = layoutName,
+        layoutSwitchNote = layoutSwitchNote,
         voiceLabel = voiceLanguage.label,
     )
 
@@ -173,7 +188,7 @@ internal class WowQuickSettings(context: Context) {
         QuickMenuAction.COOLDOWN_GCD -> globalCooldown
         QuickMenuAction.TOUCH_HIDE_LOGIN -> hideTouchInLogin
         QuickMenuAction.TOUCH_HIDE_WINDOWS -> windowHideMode != WindowHideMode.OFF
-        QuickMenuAction.TOUCH_STYLE -> touchStyle.ordinal != 0
+        QuickMenuAction.TOUCH_STYLE -> touchStyle != TouchStyle.CURRENT
         QuickMenuAction.CONTEXT_MENU -> contextMode != ContextMode.OFF
         QuickMenuAction.TAP_VIEW_ITEMS -> tapViewItems
         QuickMenuAction.TWO_FINGER_TAP -> touchOptions.twoFingerRightClick
@@ -243,6 +258,8 @@ internal class WowQuickSettings(context: Context) {
                 swipeScroll = next
             }
             QuickMenuAction.RESET_LAYOUT -> showResetConfirm = true
+            QuickMenuAction.LAYOUT_CHOOSE -> showLayoutPicker = true
+            QuickMenuAction.LAYOUT_SAVE_AS -> showLayoutNameDialog = true
             QuickMenuAction.VOICE_LANGUAGE -> {
                 val next = VoiceLanguage.entries[(voiceLanguage.ordinal + 1) % VoiceLanguage.entries.size]
                 VoiceSettings.saveLanguage(appContext, next)
@@ -276,6 +293,69 @@ internal class WowQuickSettings(context: Context) {
             }
             else -> return false
         }
+        return true
+    }
+
+    // ---- Layouts wählen und speichern ------------------------------------------------------------------------------------
+
+    private fun profilePairs(): List<Pair<Int, String>> =
+        WowTouchProfiles.manager(appContext).getProfiles(false).map { it.id to it.name }
+
+    /** Die wählbaren Layouts (Vorlagen, "Mein Layout", selbst gespeicherte). */
+    fun layoutEntries(): List<TouchLayouts.Entry> = try {
+        TouchLayouts.list(profilePairs())
+    } catch (e: Exception) {
+        Timber.w("Layouts lesen fehlgeschlagen: ${e.javaClass.simpleName}")
+        emptyList()
+    }
+
+    /** ID des Profils, das im Spiel gerade gilt: das des Containers, sonst das des Modus. */
+    fun activeLayoutId(): Int? {
+        val manager = WowTouchProfiles.manager(appContext)
+        val fromContainer = container?.getExtra("profileId", "0")?.toIntOrNull()?.takeIf { it != 0 }
+        if (fromContainer != null && manager.getProfile(fromContainer) != null) return fromContainer
+        return WowTouchProfiles.resolveProfileId(appContext, InputMode.current(appContext))
+    }
+
+    private fun refreshLayoutName() {
+        layoutName = try {
+            val id = activeLayoutId()
+            val name = id?.let { WowTouchProfiles.manager(appContext).getProfile(it)?.name }
+            if (name == null) "" else TouchLayouts.displayName(name)
+        } catch (e: Exception) {
+            Timber.w("Layoutname lesen fehlgeschlagen: ${e.javaClass.simpleName}")
+            ""
+        }
+    }
+
+    /** Wechselt auf das Layout [entry]: gemerkt für den nächsten Start, im Container gesetzt und sofort angezeigt. */
+    fun chooseLayout(entry: TouchLayouts.Entry) {
+        showLayoutPicker = false
+        if (entry.id == activeLayoutId()) return
+        activate(entry.id, entry.profileName)
+        layoutSwitchNote = appContext.getString(R.string.game_layout_active, entry.display)
+    }
+
+    private fun activate(profileId: Int, profileName: String) {
+        LayoutSwitcher.activate(appContext, container, profileId, profileName)
+        layoutName = TouchLayouts.displayName(profileName)
+    }
+
+    /**
+     * "Als neues Layout speichern": legt eine Kopie des aktiven Layouts (Elemente, Ringe, Radials, Belegungen) unter [input] an und
+     * schaltet darauf um. Liefert false, wenn der Name nicht geht (leer, schon vergeben) oder die Datei nicht geschrieben werden
+     * konnte; die Anmerkung der Zeile sagt dann warum.
+     */
+    fun saveLayoutAs(input: String): Boolean {
+        showLayoutNameDialog = false
+        val sourceId = activeLayoutId()
+        val copy = sourceId?.let { LayoutSwitcher.copyAs(appContext, it, input) }
+        if (copy == null) {
+            layoutSwitchNote = appContext.getString(R.string.game_layout_save_failed)
+            return false
+        }
+        activate(copy.id, copy.name)
+        layoutSwitchNote = appContext.getString(R.string.game_layout_saved, TouchLayouts.displayName(copy.name))
         return true
     }
 

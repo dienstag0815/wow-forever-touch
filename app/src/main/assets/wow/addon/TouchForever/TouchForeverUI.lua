@@ -2892,6 +2892,8 @@ function UI.Slash(message)
         else UI.SetMapFit(not UI.GetMapFit()) end
         say(UI.GetMapFit() and L.world_map_fitted_to_the_screen
             or L.world_map_size_as_in_the)
+    elseif word == "layout" then
+        if ns.layout then ns.layout.Slash(rest) end
     elseif word == "peek" then
         UI.PeekAll()
     elseif word == "options" or word == "settings" or word == "window" or word == "einstellungen" or word == "fenster" then

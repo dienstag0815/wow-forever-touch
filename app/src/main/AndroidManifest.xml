@@ -25,6 +25,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Self-update: install the downloaded APK through a PackageInstaller session -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Without this Android ignores USER_ACTION_NOT_REQUIRED of the self-update session (API 31+), so every update asks. -->
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />

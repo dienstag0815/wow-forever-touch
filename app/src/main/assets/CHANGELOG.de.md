@@ -4,6 +4,62 @@ Pro Version ein Abschnitt, neueste oben. Format: `## <Version> – <Datum>`, dar
 Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in `app/src/main/assets/CHANGELOG.de.md`) und zeigt sie als
 Änderungsliste; bei einem angebotenen Update kommt der Text der neuen Versionen aus dem Update-Feed.
 
+## 2.3.3-touch9.7 – 11.11.2026
+
+### Neu
+- Der Wechsel zwischen Touch-Layouts schaltet den Touchscreen-Schalter nicht mehr wieder ein und setzt deine Gesten nicht zurück.
+- Der Launcher zeigt den Namen deines gewählten Layouts (z. B. „Touch · Raid“) statt „Touch (Mein Layout)“.
+- Die deutsche README erklärt den Launcher jetzt oben auf Deutsch.
+
+## 2.3.3-touch9.6 – 11.11.2026
+
+### Neu
+- Tester können eine ältere Version wählen: Einstellungen → Start und Updates → Update-Quelle → Tester → „Versionen anzeigen“ listet alle Releases (neueste oben, installierte markiert). Eine neuere Version ist ein normales Update. Bei einer älteren speichert die App ein Backup und die alte App-Datei in Downloads und bittet dann um das Deinstallieren; danach installierst du die Datei, und die App schlägt den Import des Backups vor.
+- Update ohne Datei- und Installationsrechte für die App: „Im Browser herunterladen“ öffnet die APK (bei Tester- und privaten Quellen die Release-Seite, auf der du dich anmeldest). Die APK landet in Downloads; antippen zum Installieren, Android fragt dann selbst nach. Das Installationsrecht fragt die App erst beim Tippen auf „Installieren“ ab.
+
+## 2.3.3-touch9.5 – 11.11.2026
+
+### Verbessert
+- Einstellungen: Jede Aktion ist jetzt ein echter Knopf (Gold = Hauptaktion, umrandet = weitere, rot umrandet = gefährlich); änderbare Werte sehen aus wie Eingabefelder, reine Werte wie die Version bleiben ruhiger Text.
+- Einstellungen: Aufklappbare Bereiche haben einen Pfeil und stehen in einer helleren, eingerückten Fläche; jede Gruppe ist eine Karte mit eigener Überschrift und mehr Abstand.
+- Update-Quelle: Offiziell, Tester (Code) oder Eigener Server auf drei Karten wählen; die aktive Quelle steht als Chip oben. Im Tester-Modus gibt es nur den Status mit „Verbindung prüfen“ und „Tester-Modus beenden“.
+
+## 2.3.3-touch9.4 – 11.11.2026
+
+### Neu
+- Standardlayout mit allem an seinem Platz: obere Reihe ESC, Tastatur, Menü, Buch zentriert am Rand; Zielrahmen neben dem Spieler; Questtracker rechts direkt unter der Karte; Tooltip unten links.
+- Tasten im WoW-Stil (dunkle Fläche, Bronzekante, Serifenschrift) sind jetzt Standard, auch nach Neuinstallation und Backup-Import.
+- In den Einstellungen unter „Start und Updates“ steht die Zeile „Update-Quelle“ (Offiziell, Eigene oder Tester mit Server).
+
+### Verbessert
+- Die Battle.net-Anmeldung kommt beim Start nicht mehr. Sie ist nur noch freiwillig unter Einstellungen > Spieldateien > „Automatische Anmeldung (optional)“; die Daten bleiben verschlüsselt nur auf dem Gerät.
+
+### Behoben
+- Die Sprachtaste zeigte „Spracherkennung Fehler 13“. Fehlt das Sprachpaket, versucht die App es online, stößt das Laden an und zeigt eine verständliche Meldung.
+
+## 2.3.3-touch9.3 – 11.11.2026
+
+### Neu
+- Standardlayout: Beim ersten Start ist „Touch (Standard)“ aktiv – zwei Sticks mit Tastenring, ESC, Tastatur und Menü oben. Du kannst stattdessen ein eigenes Layout erstellen.
+- Das Addon kann die WoW-Oberfläche passend zum Standardlayout anordnen (Layout „Touch Forever“, umschaltbar mit /tf layout).
+- Im Seitenmenü wählst du im Reiter Steuerung oben das Layout und speicherst das aktuelle als neues Layout. Ändert man im Editor eine Vorlage, fragt die App, ob die Änderungen als eigenes Layout gesichert werden sollen. Selten genutzte Einträge liegen unter „Mehr“.
+- Das Backup sichert jetzt auch Touchscreen-Schalter, Gesten, Maus-aus, Gyro, Bildeffekte, FPS-Grenze, die Leistungsanzeige und das gewählte eigene Layout.
+- Lehnt Android ein Update wegen einer anderen Signatur ab, erklärt die Update-Karte jetzt, dass die App neu installiert werden muss.
+- Einstellungen → Updates → „Update-Quelle“. Tester können Updates aus einem eigenen Gitea- oder GitHub-Repo holen (auch privat, mit Zugangs-Token), Vorabversionen einschließen und die Verbindung prüfen; „Zurück zu offiziell“ stellt den Standard wieder her.
+
+### Verbessert
+- ESC, Tastatur und Menü stehen in „Touch (WoW komplett)“ jetzt oben statt unten links.
+- Sicherungen heißen jetzt mit Datum, Uhrzeit auf die Sekunde und einer kurzen Gerätekennung, zum Beispiel `wow-forever-touch-backup-2026-11-11_14-05-09_a1b2c3.zip`. Alte Sicherungen lassen sich weiter einlesen.
+- Das Standardlayout „Touch (Standard)“ ist jetzt das am Gerät gebaute Wunschlayout; die WoW-Fenster (Aktionsleisten, Chat, Rahmen, Questverfolgung, Mikromenü, Taschen) sitzen dazu passend.
+
+### Behoben
+- Editor: Joysticks und ihre Tastenringe werden auch bei eingeschaltetem Shooter-Modus angezeigt und lassen sich bearbeiten.
+- Nach einer zweiten Installation über die erste bekommen neue Spieler trotzdem das Touch-Layout mit ESC, Tastatur und Menü.
+- Die Tastatur-Taste schließt die Tastatur wieder, wenn sie offen ist. Ringfelder mit WoW-Aktion ohne Taste in WoW (z. B. Aktionsleisten 2 bis 8) erscheinen jetzt abgeblendet statt zu fehlen.
+- Aktionsleisten 2 bis 5 funktionieren auf Touch-Knöpfen und Ringen auch ohne eigene WoW-Tastenbelegung: das Addon legt feste Ersatztasten darauf, solange du keine eigene Taste setzt.
+- Nach Neuinstallation und Backup-Import sieht der Spielbildschirm wieder aus wie vorher; der Shooter-Modus ist für WoW standardmäßig aus (keine ausgeblendeten Sticks, kein Knopf „Maus aktivieren“ oben).
+- Shooter-Knopf bei WoW ausgeblendet
+
 ## 2.3.3-touch9.2 – 10.11.2026
 
 ### Neu
@@ -27,6 +83,19 @@ Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in 
 - Eigenes App-Icon (Panzerhandschuh, der tippt), passende Benachrichtigung, Banner und Hintergrundbild.
 - Updates kommen jetzt aus den GitHub-Releases des Projekts.
 - Die App ist mit einem neuen Schlüssel signiert. Einmal deinstallieren und neu installieren; danach laufen Updates wieder von selbst.
+
+## 2.3.3-fold8.34 – 11.11.2026
+
+### Neu
+- Standardlayout: Beim ersten Start ist „Touch (Standard)“ aktiv – zwei Sticks mit Tastenring, ESC, Tastatur und Menü oben. Du kannst stattdessen ein eigenes Layout erstellen.
+- Das Addon kann die WoW-Oberfläche passend zum Standardlayout anordnen (Layout „Touch Forever“, umschaltbar mit /tf layout).
+
+### Verbessert
+- ESC, Tastatur und Menü stehen in „Touch (WoW komplett)“ jetzt oben statt unten links.
+
+### Behoben
+- Editor: Joysticks und ihre Tastenringe werden auch bei eingeschaltetem Shooter-Modus angezeigt und lassen sich bearbeiten.
+- Nach einer zweiten Installation über die erste bekommen neue Spieler trotzdem das Touch-Layout mit ESC, Tastatur und Menü.
 
 ## 2.3.3-fold8.33 – 10.11.2026
 

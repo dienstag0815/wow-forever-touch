@@ -21,6 +21,26 @@ public final class ProfileUpdatePolicy {
 
     private ProfileUpdatePolicy() {}
 
+    /** What to do with a bundled profile that has no matching local profile (same id and name). */
+    public enum NewAssetAction { WRITE_SAME_FILE, WRITE_NEW_ID, SKIP }
+
+    /**
+     * A bundled profile and a local one are "the same" only with equal id AND name. A player's own profile that merely sits on the
+     * asset's id (e.g. "Touch (Mein Layout)" as controls-8.icp next to the bundled "Touch (Standard)" with id 8) is a different one.
+     */
+    public static boolean sameProfile(int assetId, String assetName, int localId, String localName) {
+        return assetId == localId && assetName != null && assetName.equals(localName);
+    }
+
+    /**
+     * No local profile matches the asset. Free file name: write it there. File name taken by another profile: never overwrite it;
+     * write the asset under a fresh id, unless a profile of that name exists already (under any id), then leave things alone.
+     */
+    public static NewAssetAction decideNewAsset(boolean fileNameTaken, boolean sameNameExists) {
+        if (!fileNameTaken) return NewAssetAction.WRITE_SAME_FILE;
+        return sameNameExists ? NewAssetAction.SKIP : NewAssetAction.WRITE_NEW_ID;
+    }
+
     public static String hashKey(String fileName) {
         return HASH_KEY_PREFIX + fileName;
     }

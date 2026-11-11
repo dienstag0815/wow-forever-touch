@@ -22,8 +22,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.gamenative.Crypto
+import app.gamenative.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -156,6 +159,7 @@ object BattleNetSignIn {
 
 @Composable
 fun BattleNetCredentialDialog(
+    /** "Überspringen" (auch Tippen daneben/Zurück): nichts wird gespeichert, der Start läuft ohne gespeicherte Anmeldung weiter. */
     onDismiss: () -> Unit,
     onConfirm: (BattleNetSignIn.Login) -> Unit,
 ) {
@@ -170,15 +174,15 @@ fun BattleNetCredentialDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Battle.net login") },
+        title = { Text(stringResource(R.string.login_dialog_title)) },
         text = {
             Column {
-                Text("Saved encrypted on this device. WoW will automatically log in on launch.")
+                Text(stringResource(R.string.login_dialog_hint), fontSize = 13.sp)
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Email") },
+                    label = { Text(stringResource(R.string.login_dialog_email)) },
                     singleLine = true,
                     modifier = Modifier.focusRequester(emailFocus),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -186,7 +190,7 @@ fun BattleNetCredentialDialog(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("Password") },
+                    label = { Text(stringResource(R.string.login_dialog_password)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -197,9 +201,9 @@ fun BattleNetCredentialDialog(
             TextButton(
                 enabled = email.isNotBlank() && password.isNotEmpty(),
                 onClick = { onConfirm(BattleNetSignIn.Login(email.trim(), password)) },
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.login_dialog_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.login_dialog_skip)) } },
     )
 }
 

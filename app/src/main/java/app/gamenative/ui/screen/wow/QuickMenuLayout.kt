@@ -51,6 +51,7 @@ internal object QuickMenuGroups {
     const val SWIPE = "wischen"
     const val ELEMENTS = "elemente"
     const val MODES = "modi"
+    const val MORE = "mehr"
 }
 
 /**
@@ -90,6 +91,7 @@ internal object QuickMenuAccordion {
  * @property hasReportNote die Zeile zum Fehlerbericht existiert
  * @property hasPhysicalController ein physischer Controller ist verbunden
  * @property hasContainer es gibt einen Container (Voraussetzung für Gyro-Zielen)
+ * @property hasTouchLayouts die Steuerung ist ein Touch-Modus (nur dann gibt es wählbare Layouts, siehe [TouchLayouts])
  */
 internal data class QuickMenuContext(
     val inLogin: Boolean = true,
@@ -98,6 +100,7 @@ internal data class QuickMenuContext(
     val hasReportNote: Boolean = false,
     val hasPhysicalController: Boolean = false,
     val hasContainer: Boolean = true,
+    val hasTouchLayouts: Boolean = true,
 )
 
 /** Hinweis unter den Sticks: die Werte gelten für alle Sticks, die Belegung steht am Stick selbst (Touch-Editor). */
@@ -124,20 +127,19 @@ internal fun quickMenuSections(page: QuickMenuPage, ctx: QuickMenuContext): List
             QuickMenuSection(TextRef(R.string.game_qm_sec_input), listOf(QuickMenuAction.KEYBOARD)),
             QuickMenuSection(
                 TextRef(R.string.game_qm_sec_icons),
-                listOf(QuickMenuAction.COOLDOWNS, QuickMenuAction.COOLDOWN_GCD, QuickMenuAction.CHECK_ICONS),
+                listOf(QuickMenuAction.COOLDOWNS, QuickMenuAction.COOLDOWN_GCD),
             ),
-            QuickMenuSection(TextRef(R.string.game_qm_sec_addon), listOf(QuickMenuAction.ADDON_OPTIONS)),
             QuickMenuSection(TextRef(R.string.game_qm_sec_voice), listOf(QuickMenuAction.VOICE_LANGUAGE)),
         )
         QuickMenuPage.STEUERUNG -> listOf(
-            // Layout: immer offen, oben. Der Rest ist ein Akkordeon.
+            // Layout: immer offen, oben (aktives Layout wählen, bearbeiten, als neues speichern). Der Rest ist ein Akkordeon.
             QuickMenuSection(
                 TextRef(R.string.game_qm_sec_layout),
                 buildList {
-                    add(QuickMenuAction.INPUT_CONTROLS)
+                    if (ctx.hasTouchLayouts) add(QuickMenuAction.LAYOUT_CHOOSE)
                     add(QuickMenuAction.EDIT_CONTROLS)
-                    if (ctx.hasPhysicalController) add(QuickMenuAction.EDIT_PHYSICAL_CONTROLLER)
-                    add(QuickMenuAction.RESET_LAYOUT)
+                    if (ctx.hasTouchLayouts) add(QuickMenuAction.LAYOUT_SAVE_AS)
+                    add(QuickMenuAction.INPUT_CONTROLS)
                 },
                 groupId = QuickMenuGroups.LAYOUT,
             ),
@@ -203,6 +205,16 @@ internal fun quickMenuSections(page: QuickMenuPage, ctx: QuickMenuContext): List
                 groupId = QuickMenuGroups.MODES,
                 collapsible = true,
             ),
+            // Selten gebraucht: Layout auf Standard zurücksetzen, Controller-Belegung.
+            QuickMenuSection(
+                TextRef(R.string.game_qm_sec_more),
+                buildList {
+                    add(QuickMenuAction.RESET_LAYOUT)
+                    if (ctx.hasPhysicalController) add(QuickMenuAction.EDIT_PHYSICAL_CONTROLLER)
+                },
+                groupId = QuickMenuGroups.MORE,
+                collapsible = true,
+            ),
         )
         QuickMenuPage.HILFE -> listOf(
             QuickMenuSection(
@@ -212,6 +224,8 @@ internal fun quickMenuSections(page: QuickMenuPage, ctx: QuickMenuContext): List
                     if (ctx.hasReportNote) add(QuickMenuAction.REPORT_NOTE)
                 },
             ),
+            // Selten gebraucht, darum hier statt im Reiter Spiel.
+            QuickMenuSection(TextRef(R.string.game_qm_sec_more), listOf(QuickMenuAction.CHECK_ICONS, QuickMenuAction.ADDON_OPTIONS)),
         )
     }
     return sections.filter { it.ids.isNotEmpty() }

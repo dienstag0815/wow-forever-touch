@@ -8,14 +8,14 @@ import app.gamenative.cooldown.CooldownService
 /**
  * Gewählter Stil und Kontrast der Touch-Elemente. Ein Objekt für den Prozess: die Steuerungsansicht liest [style] und [contrast]
  * bei jedem Zeichnen (zwei Feldzugriffe), Seitenmenü und Einstellungsseite setzen sie, dann wirkt es sofort ohne Neustart.
- * Gespeichert in denselben Einstellungen wie die übrigen Touch-Schalter (`wow_forever`). Standard bleibt das heutige Aussehen.
+ * Gespeichert in denselben Einstellungen wie die übrigen Touch-Schalter (`wow_forever`). Standard ist das WoW-Thema ([TouchStyle.DEFAULT]).
  */
 object TouchStyleSettings {
     private const val PREFS = "wow_forever"
     private const val KEY_STYLE = "touch_style"
     private const val KEY_CONTRAST = "touch_contrast"
 
-    @Volatile var style: TouchStyle = TouchStyle.CURRENT
+    @Volatile var style: TouchStyle = TouchStyle.DEFAULT
         private set
 
     @Volatile var contrast: Float = TouchStyleMath.CONTRAST_DEFAULT

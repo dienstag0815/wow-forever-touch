@@ -5,6 +5,62 @@ bullet points in plain language. The launcher reads this file (copy in `app/src/
 when an update is offered, the text for the new versions comes from the update feed. German readers get
 `CHANGELOG.de.md` when the app language is German.
 
+## 2.3.3-touch9.7 – 11.11.2026
+
+### New
+- Switching between touch layouts no longer turns the touchscreen switch back on or resets your gestures.
+- The launcher shows the name of your chosen layout (for example "Touch · Raid") instead of "Touch (My layout)".
+- German README now fully explains the launcher in German at the top.
+
+## 2.3.3-touch9.6 – 11.11.2026
+
+### New
+- Testers can pick an older version: Settings → Start and updates → Update source → Tester → "Show versions" lists all releases (newest first, installed one marked). A newer one is a normal update. For an older one the app saves a backup and the old app file to Downloads, then asks you to uninstall; afterwards you install the file and the app offers to import the backup.
+- Update without giving the app file or install rights: "Download in browser" opens the APK (or, for tester and private sources, the release page where you sign in). The APK lands in Downloads; tap it to install and Android asks by itself. The app now asks for the install permission only when you tap "Install".
+
+## 2.3.3-touch9.5 – 11.11.2026
+
+### Improved
+- Settings: every action is now a real button (gold = main action, outlined = other, red outline = dangerous); values you can change look like input fields, plain values like the version stay quiet text.
+- Settings: expandable parts have an arrow and sit in a lighter, indented area; each group is a card with its own heading and more space between groups.
+- Update source: pick Official, Tester (code) or Own server on three cards; the active source is shown as a chip. Tester mode shows only its status with "Test connection" and "End tester mode".
+
+## 2.3.3-touch9.4 – 11.11.2026
+
+### New
+- Default layout with everything in place: top row ESC, keyboard, Menu, book centred at the edge; target frame next to the player; quest tracker right below the map; tooltip bottom left.
+- WoW-style buttons (dark fill, bronze edge, serif font) are now the default, also after a fresh install and backup import.
+- Settings > Start and updates has an "Update source" row (Official, Own or Tester with server).
+
+### Improved
+- The Battle.net login no longer appears at start. It is optional only, under Settings > Game files > "Automatic login (optional)"; the data stays encrypted on the device.
+
+### Fixed
+- The voice button showed "Speech recognition error 13". If the language pack is missing the app retries online, starts the download and shows a clear message.
+
+## 2.3.3-touch9.3 – 11.11.2026
+
+### New
+- Standard layout: on first start "Touch (Standard)" is active – two sticks with a key ring, ESC, keyboard and menu at the top. You can create your own layout instead.
+- The addon can arrange the WoW interface to fit the standard layout ("Touch Forever" layout, toggle with /tf layout).
+- The side menu's Controls tab lets you pick the layout at the top and save the current one as a new layout. When you edit a template in the editor, the app asks whether to keep the changes as your own layout. Rarely used entries moved to "More".
+- The backup now also saves the touchscreen switch, gestures, mouse off, gyro, screen effects, FPS limit, the performance display and the chosen own layout.
+- If Android refuses an update because of a different signature, the update card now explains that the app has to be reinstalled.
+- Settings → Updates → "Update source". Testers can fetch updates from their own Gitea or GitHub repository (private ones too, with an access token), include pre-releases and test the connection; "Back to official" restores the default.
+
+### Improved
+- ESC, keyboard and menu in "Touch (WoW complete)" now sit at the top instead of the lower left.
+- Backups are now named with date, time to the second and a short device tag, for example `wow-forever-touch-backup-2026-11-11_14-05-09_a1b2c3.zip`. Older backups can still be imported.
+- The default layout "Touch (Standard)" is now the layout built on the device; the WoW windows (action bars, chat, unit frames, quest tracker, micro menu, bags) are placed to match it.
+
+### Fixed
+- Editor: joysticks and their key rings are shown and editable even while shooter mode is on.
+- After installing a second time over the first, new players still get the touch layout with ESC, keyboard and menu.
+- The keyboard button closes the keyboard again when it is open. Ring fields with a WoW action that has no key in WoW (e.g. action bars 2 to 8) now show dimmed instead of missing.
+- Action bars 2 to 5 now work on touch buttons and rings without your own WoW key bindings: the addon puts fixed replacement keys on them while you have no key of your own.
+- After a reinstall and a backup import the game screen looks like before; shooter mode is off by default for WoW (no hidden sticks, no "Enable Mouse" button at the top).
+- Shooter button hidden for WoW
+
 ## 2.3.3-touch9.2 – 10.11.2026
 
 ### New
@@ -28,6 +84,19 @@ when an update is offered, the text for the new versions comes from the update f
 - Own app icon (a gauntlet that taps), matching notification icon, banner and wallpaper.
 - Updates now come from the project's GitHub releases.
 - The app is signed with a new key. Uninstall once and install again; after that, updates arrive on their own again.
+
+## 2.3.3-fold8.34 – 11.11.2026
+
+### New
+- Standard layout: on first start "Touch (Standard)" is active – two sticks with a key ring, ESC, keyboard and menu at the top. You can create your own layout instead.
+- The addon can arrange the WoW interface to fit the standard layout ("Touch Forever" layout, toggle with /tf layout).
+
+### Improved
+- ESC, keyboard and menu in "Touch (WoW complete)" now sit at the top instead of the lower left.
+
+### Fixed
+- Editor: joysticks and their key rings are shown and editable even while shooter mode is on.
+- After installing a second time over the first, new players still get the touch layout with ESC, keyboard and menu.
 
 ## 2.3.3-fold8.33 – 10.11.2026
 

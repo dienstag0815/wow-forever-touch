@@ -191,7 +191,24 @@ S.de = {
         .. "/tf bars|chat|minimap|quests|menubar [show|hide|peek], /tf xp [standard|compact|minimap|off|30-100]\n"
         .. "/tf minimap square|round|corner on|corner off|zoom big|zoom small|info, /tf bags full|pack|off, /tf quests size 50-100|height N|reset\n"
         .. "/tf chat phone|reset|mode|size|lines|bg|filter|short|stamps|compact|extra|tabs\n"
-        .. "/tf say|party|guild|whisper, /tf windows, /tf strip, /tf button, /tf reload, /tf keys",
+        .. "/tf say|party|guild|whisper, /tf windows, /tf strip, /tf button, /tf reload, /tf keys, /tf layout on|off|again|info",
+    touch_layout_windows = "Fenster fürs Touch-Layout",
+    touch_layout_windows_tip = "Legt im Bearbeitungsmodus das Layout \"Touch Forever\" an (Kopie des aktuellen Layouts) und schaltet es ein: Aktionsleisten zwischen die Sticks, Chat über den linken Stick, Einheitenfenster oben links, Questverfolgung rechts. Aus: zurück zum vorherigen Layout. Nicht im Kampf.",
+    touch_layout_again = "Touch-Layout neu berechnen",
+    touch_layout_again_tip = "Rechnet die Lage der Fenster für die aktuelle Bildschirmgröße neu und schaltet das Layout wieder ein.",
+    layout_is_on = "Layout \"%s\" ist an.",
+    layout_back_to = "Zurück zum Layout \"%s\".",
+    layout_was_not_on = "Das Touch-Layout war nicht an.",
+    layout_wait_combat = "Im Kampf nicht möglich - das Layout wird nach dem Kampf angelegt.",
+    layout_wait_edit = "Der Bearbeitungsmodus ist offen - das Layout wird nach dem Schließen angelegt.",
+    layout_no_api = "Layouts sind in diesem Spiel nicht verfügbar (C_EditMode fehlt).",
+    layout_full = "Es gibt schon 5 Account-Layouts. Bitte eines im Bearbeitungsmodus löschen und \"/tf layout\" erneut eingeben.",
+    layout_gamepad = "Das aktive Layout hat keine Hauptleiste (Gamepad-Oberfläche). Bitte ein Modern- oder Classic-Layout wählen und \"/tf layout\" eingeben.",
+    layout_bad_name = "Der Name \"Touch Forever\" ist für ein Layout nicht erlaubt.",
+    layout_unreadable = "Das aktive Layout ist nicht lesbar.",
+    layout_failed = "Layout nicht angelegt: %s",
+    layout_info = "Touch-Layout: %s, Bildschirm %dx%d, Symbolgröße %d %%, vorher: %s",
+    tf_layout_on_off_again_info = "/tf layout on|off|again|info",
 }
 
 S.en = {
@@ -371,7 +388,24 @@ S.en = {
         .. "/tf bars|chat|minimap|quests|menubar [show|hide|peek], /tf xp [standard|compact|minimap|off|30-100]\n"
         .. "/tf minimap square|round|corner on|corner off|zoom big|zoom small|info, /tf bags full|pack|off, /tf quests size 50-100|height N|reset\n"
         .. "/tf chat phone|reset|mode|size|lines|bg|filter|short|stamps|compact|extra|tabs\n"
-        .. "/tf say|party|guild|whisper, /tf windows, /tf strip, /tf button, /tf reload, /tf keys",
+        .. "/tf say|party|guild|whisper, /tf windows, /tf strip, /tf button, /tf reload, /tf keys, /tf layout on|off|again|info",
+    touch_layout_windows = "Windows for the touch layout",
+    touch_layout_windows_tip = "Creates the Edit Mode layout \"Touch Forever\" (a copy of the current layout) and switches to it: action bars between the sticks, chat above the left stick, unit frames at the top left, quest tracker at the right. Off: back to the previous layout. Not in combat.",
+    touch_layout_again = "Recalculate touch layout",
+    touch_layout_again_tip = "Calculates the window positions again for the current screen size and switches the layout on again.",
+    layout_is_on = "Layout \"%s\" is on.",
+    layout_back_to = "Back to layout \"%s\".",
+    layout_was_not_on = "The touch layout was not on.",
+    layout_wait_combat = "Not possible in combat - the layout is set up after the fight.",
+    layout_wait_edit = "Edit Mode is open - the layout is set up when you close it.",
+    layout_no_api = "Layouts are not available in this game (C_EditMode is missing).",
+    layout_full = "There are already 5 account layouts. Delete one in Edit Mode and type \"/tf layout\" again.",
+    layout_gamepad = "The active layout has no main bar (Gamepad interface). Pick a Modern or Classic layout and type \"/tf layout\".",
+    layout_bad_name = "The name \"Touch Forever\" is not allowed for a layout.",
+    layout_unreadable = "The active layout cannot be read.",
+    layout_failed = "Layout not created: %s",
+    layout_info = "Touch layout: %s, screen %dx%d, icon size %d %%, before: %s",
+    tf_layout_on_off_again_info = "/tf layout on|off|again|info",
 }
 
 local function choose()

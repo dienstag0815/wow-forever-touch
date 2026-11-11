@@ -21,6 +21,7 @@ Run from the repo root:  python tools/cooldown_strip_check.py [--write-vectors a
 import argparse
 import math
 import pathlib
+import re
 import sys
 
 from lupa import LuaRuntime
@@ -336,7 +337,7 @@ def main():
     assert S.CELL_SCR_CHECK == 254 and S.CELL_SCR_TAIL == 255 and S.SCROLL_MAX == 6
     assert S.CELL_CHAT == 315 and S.CELL_CHAT_INFO == 317 and S.CELL_CHAT_RECT == 318 and S.CELL_CHAT_CHECK == 321 and S.CELL_CHAT_TAIL == 322
     assert S.CHAT_VERSION == 1 and S.CHAT_BUILD == 5 and S.CF_VISIBLE == 1 and S.CF_BOX == 2
-    assert S.WIN_VERSION == 8 and S.WF_TRUNCATED == 1 and S.WF_COMBAT == 4 and S.WF_SCROLL_AWARE == 8
+    assert S.WIN_VERSION == 10 and S.WF_TRUNCATED == 1 and S.WF_COMBAT == 4 and S.WF_SCROLL_AWARE == 8
     order = [S.SLOTS[i + 1] for i in range(96)]
     assert order[:13] == list(range(1, 13)) + [25] and order[-1] == 180, order
 
@@ -567,7 +568,7 @@ def main():
 
     # E4: the cases from the device (character, professions book and combined bags, the maximised map), the build number
     # in the section version and the combat flag
-    assert LAST_WINDOW_VERSION[0] == 8 and S.WIN_VERSION == 8
+    assert LAST_WINDOW_VERSION[0] == 10 and S.WIN_VERSION == 10
     bags.visible = True
     char = g.makeWindow("CharacterFrame", 60, 200, 700, 1200)          # created after the login: found by the periodic scan
     char.visible = True
@@ -595,7 +596,7 @@ def main():
     d = snapshot("combat over")
     assert d["windows"][0] == 0, d["windows"]
     lines, reported, build = S.describeWindows()
-    assert build == 8 and reported == 0 and len(lines) == 1 and "no window" in lines[1], (list(lines.values()), reported, build)
+    assert build == 10 and reported == 0 and len(lines) == 1 and "no window" in lines[1], (list(lines.values()), reported, build)
 
     # E4b: the small dialogs on the left (quest giver, gossip, vendor) as seen on a foldable: x 30..690 / y 220..1190 of a
     # 2000 x 1510 picture. Every one of them must be in the strip, whatever its group (kind) is.
@@ -1237,6 +1238,43 @@ def main():
     ctx_.unit = lua.table()
     ctx_.target = None
     snapshot("context: back to idle")
+
+    # E7: replacement keys for the action bars 2 to 5 (TouchForeverBindings.lua, build 9): override bindings, only for actions without a
+    # key of the player's own, not on a key that does something else, nothing in combat
+    lua.execute(r"""
+    ownKeys = {}                    -- command -> key the player has bound
+    keyOwner = {}                   -- key -> command (what the key does without our override)
+    replOverrides = {}              -- key -> command, set through SetOverrideBinding
+    function GetBindingKey(command) return ownKeys[command] end
+    function GetBindingAction(key) return replOverrides[key] or keyOwner[key] or "" end
+    function SetOverrideBinding(owner, priority, key, command) replOverrides[key] = command end
+    function ClearOverrideBindings(owner) replOverrides = {} end
+    """)
+    nsb = lua.table()
+    g.inCombat = True
+    g.loadAddonFile((ADDON / "TouchForeverBindings.lua").read_text(encoding="utf-8"), nsb)
+    g.firePlayerLogin()
+    assert len(list(g.replOverrides.keys())) == 0                    # login in combat: nothing is set
+    g.inCombat = False
+    g.fireEvent("PLAYER_REGEN_ENABLED")
+    B = nsb.Bindings
+    assert len(list(g.replOverrides.keys())) == 48 and B.count() == 48, B.count()
+    assert g.replOverrides["ALT-SHIFT-1"] == "MULTIACTIONBAR1BUTTON1" and g.replOverrides["CTRL-SHIFT--"] == "MULTIACTIONBAR2BUTTON11"
+    assert g.replOverrides["ALT-SHIFT-PAGEUP"] == "MULTIACTIONBAR3BUTTON5" and g.replOverrides["CTRL-SHIFT-`"] == "MULTIACTIONBAR4BUTTON12"
+    assert len(list(B.KEYS.keys())) == 48 and len(set(B.KEYS.values())) == 48
+    # a key of the player's own on an action takes its replacement key away; a busy key is left alone
+    lua.execute('ownKeys["MULTIACTIONBAR1BUTTON1"] = "F1"; keyOwner["CTRL-SHIFT-5"] = "SOMETHINGELSE"')
+    g.fireEvent("UPDATE_BINDINGS")
+    assert g.replOverrides["ALT-SHIFT-1"] is None and g.replOverrides["CTRL-SHIFT-5"] is None
+    assert len(list(g.replOverrides.keys())) == 46 and B.count() == 46
+    lua.execute('ownKeys = {}; keyOwner = {}')
+    g.fireEvent("UPDATE_BINDINGS")
+    assert len(list(g.replOverrides.keys())) == 48
+    # no clash with the keys TouchForever uses elsewhere
+    others = set()
+    for name in ("TouchForeverUI.lua", "TouchForever.lua", "TouchForeverContext.lua"):
+        others.update(re.findall(r'"((?:(?:ALT|CTRL|SHIFT)-)+F[0-9]+)"', (ADDON / name).read_text(encoding="utf-8")))
+    assert others and not (others & set(B.KEYS.values())), others & set(B.KEYS.values())
 
     # F: only changed cells are painted again
     sets_before = sum(t.sets for t in frame.textures.values())

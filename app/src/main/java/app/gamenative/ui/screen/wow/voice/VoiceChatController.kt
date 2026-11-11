@@ -57,6 +57,8 @@ internal class VoiceChatController(
 
     private var state = State.IDLE
     private var recognizer: SpeechRecognizer? = null
+    private var lastIntent: Intent? = null
+    private var lastPreferredOffline = true
     private var vocabulary: VoiceVocabulary = VoiceVocabulary.EMPTY
     private var pendingText = ""
     private var pendingSpans: List<VoiceSpan> = emptyList()
@@ -264,8 +266,15 @@ internal class VoiceChatController(
         }
 
         vocabulary = VoiceSettings.loadVocabulary(context)
+        beginRecognition(preferOffline = true)
+    }
+
+    /** Neuer Erkenner und Start; [preferOffline] false = zweiter Versuch, wenn das lokale Sprachpaket fehlt (siehe [VoiceErrors]). */
+    private fun beginRecognition(preferOffline: Boolean) {
         val language = VoiceSettings.language(context)
-        val intent = recognizerIntent(language, vocabulary.biasStrings(VoiceSettings.customWords(context)))
+        val intent = recognizerIntent(language, vocabulary.biasStrings(VoiceSettings.customWords(context)), preferOffline)
+        lastIntent = intent
+        lastPreferredOffline = preferOffline
 
         releaseRecognizer()
         val created = try {
@@ -291,10 +300,10 @@ internal class VoiceChatController(
         }
     }
 
-    private fun recognizerIntent(language: VoiceLanguage, bias: List<String>): Intent =
+    private fun recognizerIntent(language: VoiceLanguage, bias: List<String>, preferOffline: Boolean): Intent =
         Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            // Recognition on the device when an offline model is installed; otherwise the system service does it as before.
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Recognition on the device when an offline model is installed; the second attempt after a missing language pack goes online.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, preferOffline)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, language.tag)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
@@ -342,20 +351,38 @@ internal class VoiceChatController(
 
         override fun onError(error: Int) {
             if (state != State.LISTENING) return
-            Timber.d("VoiceChat: recognizer error %d", error)
-            fail(errorMessage(error))
+            Timber.d("VoiceChat: recognizer error %d (offline preferred: %b)", error, lastPreferredOffline)
+            when (VoiceErrors.recovery(error, lastPreferredOffline)) {
+                VoiceErrors.Recovery.RETRY_ONLINE -> main.post { if (!destroyed && state == State.LISTENING) beginRecognition(preferOffline = false) }
+                VoiceErrors.Recovery.DOWNLOAD_MODEL -> {
+                    val started = triggerModelDownload()
+                    fail(context.getString(if (started) VoiceErrors.downloadingRes() else VoiceErrors.messageRes(error)))
+                }
+                VoiceErrors.Recovery.MESSAGE -> fail(errorMessage(error))
+            }
         }
     }
 
     private fun firstResult(bundle: Bundle?): String? =
         bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull { it.isNotBlank() }
 
-    private fun errorMessage(error: Int): String = when (error) {
-        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> context.getString(R.string.game_voice_nothing)
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> context.getString(R.string.game_voice_mic_missing)
-        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> context.getString(R.string.game_voice_no_connection)
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> context.getString(R.string.game_voice_busy)
-        else -> context.getString(R.string.game_voice_error, error)
+    private fun errorMessage(error: Int): String {
+        val res = VoiceErrors.messageRes(error)
+        return if (res == R.string.game_voice_error) context.getString(res, error) else context.getString(res)
+    }
+
+    /** Stößt den Download des Sprachpakets beim aktuellen Erkenner an (ab Android 13); false, wenn das nicht geht. */
+    private fun triggerModelDownload(): Boolean {
+        val current = recognizer
+        val intent = lastIntent
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || current == null || intent == null) return false
+        return try {
+            current.triggerModelDownload(intent)
+            true
+        } catch (e: Exception) {
+            Timber.w(e, "VoiceChat: language pack download could not be started")
+            false
+        }
     }
 
     private fun showFinal(correction: VoiceCorrection, candidates: List<String>) {

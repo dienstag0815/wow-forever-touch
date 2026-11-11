@@ -1,32 +1,38 @@
 # WoW Forever Touch – WoW Forever auf Android-Touchgeräten
 
-Play **World of Warcraft: Forever** on Snapdragon Android handhelds as a normal Android app. You tap the icon, press Play, and the game runs.
+Spiele **World of Warcraft: Forever** auf Android-Handhelds mit Snapdragon als ganz normale Android-App. Du tippst das Symbol an, drückst Spielen, und das Spiel läuft.
 
-This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs natively on the phone's CPU. Wine translates the Windows calls, and DXVK plus a patched Turnip Vulkan driver render the game on the Adreno GPU. Nothing is emulated as x86.
+Die App nutzt den **Windows-ARM64**-Client von Blizzard, das Spiel selbst läuft also nativ auf der CPU des Geräts. Wine übersetzt die Windows-Aufrufe, DXVK und ein angepasster Turnip-Vulkan-Treiber stellen das Spiel auf der Adreno-GPU dar. Es wird nichts als x86 emuliert.
 
-> Unofficial community project. Not affiliated with or endorsed by Blizzard Entertainment. You need your own Battle.net account with WoW Forever access. This repo and its releases contain **no** Blizzard game files.
+## Was dieser Launcher macht
+- **Du brauchst einen eigenen offiziellen World-of-Warcraft-Account** (Battle.net) mit aktiver Spiellizenz. Die App enthält keine Spielinhalte, gibt keine weiter, schaltet nichts frei und ändert nichts an den Spielservern.
+- WoW ist ein Windows-Spiel. Der Launcher richtet auf Android eine **Windows-Kompatibilitätsumgebung** ein (Wine plus Grafikübersetzung nach Vulkan), damit der offizielle Windows-on-ARM-Client des Spiels direkt auf der ARM-CPU des Geräts läuft. Die Spieldateien lädt der normale Client mit deinem eigenen Login bei Blizzard.
+- **Die Touch-Edition ergänzt Touch-Steuerung:** Sticks, Ringe und Knöpfe auf dem Bildschirm senden normale Tastatur- und Mauseingaben. Dazu kommt ein kleines Addon im Spiel, das die Spieloberfläche (Aktionsleisten, Minimap, Questtracker, Zielrahmen) für den Touchscreen in Größe und Position anpasst. Solche Addons nutzen die offizielle Addon-Schnittstelle des Spiels.
+- Der Spielclient wird nicht verändert. Es wird nichts eingeschleust und kein Speicher ausgelesen. Es gibt keinen Bot und keine Automatik: Jede Aktion kommt von deinem eigenen Tippen.
+- Die freiwillig gespeicherte Anmeldung bleibt verschlüsselt nur auf deinem Gerät und wird nur in den Anmeldebildschirm des Spiels getippt. Sie wird nirgendwohin gesendet.
+- Inoffizielles Fanprojekt, nicht mit Blizzard Entertainment verbunden oder von Blizzard unterstützt. Nutzung auf eigenes Risiko; für deinen Account gelten Blizzards Nutzungsbedingungen.
 
 ---
 
-## Supported devices
+## Unterstützte Geräte
 
-| Device | Status |
+| Gerät | Status |
 | :--- | :--- |
-| AYN Thor (Snapdragon 8 Gen 2 / Adreno 740) | Tested, reaches the game world with controller support |
-| Retroid Pocket 6 (Snapdragon 8 Gen 2 / Adreno 740) | Tested by the original community setup |
-| AYN Odin 2 / Mini (Snapdragon 8 Gen 2) | Expected to work |
-| OnePlus 15r (Snapdragon 8 Gen 5 / Adreno 829) | Tested in-world by Nathangarl |
-| AYN Odin Portal (Snapdragon 8 Elite / Adreno 830) | Supported via bundled Turnip v32 driver |
-| RedMagic 11 Pro (Snapdragon 8 Elite / Adreno 840) | Tested in-world by arusiasotto |
-| Poco F7 (Snapdragon 8s Gen 4 / Adreno 825) | Tested by gusebus |
-| Samsung Galaxy S23/S24/S25 / Z Fold series | Supported (with automatic Samsung UBWC optimization) |
+| AYN Thor (Snapdragon 8 Gen 2 / Adreno 740) | Getestet, erreicht die Spielwelt mit Controller-Unterstützung |
+| Retroid Pocket 6 (Snapdragon 8 Gen 2 / Adreno 740) | Vom ursprünglichen Community-Aufbau getestet |
+| AYN Odin 2 / Mini (Snapdragon 8 Gen 2) | Sollte laufen |
+| OnePlus 15r (Snapdragon 8 Gen 5 / Adreno 829) | In der Spielwelt getestet von Nathangarl |
+| AYN Odin Portal (Snapdragon 8 Elite / Adreno 830) | Unterstützt über den mitgelieferten Turnip-v32-Treiber |
+| RedMagic 11 Pro (Snapdragon 8 Elite / Adreno 840) | In der Spielwelt getestet von arusiasotto |
+| Poco F7 (Snapdragon 8s Gen 4 / Adreno 825) | Getestet von gusebus |
+| Samsung Galaxy S23/S24/S25 / Z Fold series | Unterstützt (mit automatischer Samsung-UBWC-Optimierung) |
 
-Requirements:
+Voraussetzungen:
 
-- Snapdragon 8 series (Adreno 7xx or Adreno 8xx). The app bundles both the Adreno 740 driver and the Turnip v32 driver for Snapdragon 8 Elite / Adreno 8xx, automatically detecting the GPU and applying the optimal driver and environment flags.
-- Android 10 or newer, 64-bit.
-- About **60 GB** free for the game data (internal storage or SD card), plus about 4 GB of internal storage for the app and its Windows environment.
-- Wi-Fi. A computer is optional: it only speeds up the first install by copying the game data over instead of streaming it.
+- Snapdragon der 8er-Reihe (Adreno 7xx oder Adreno 8xx). Die App bringt den Adreno-740-Treiber und den Turnip-v32-Treiber für Snapdragon 8 Elite / Adreno 8xx mit, erkennt die GPU automatisch und wählt den passenden Treiber samt Umgebungseinstellungen.
+- Android 10 oder neuer, 64-Bit.
+- Etwa **60 GB** frei für die Spieldaten (interner Speicher oder SD-Karte), dazu etwa 4 GB interner Speicher für die App und ihre Windows-Umgebung.
+- WLAN. Ein Computer ist optional: Er beschleunigt nur die erste Installation, weil die Spieldaten kopiert statt geladen werden.
 
 ---
 
@@ -76,6 +82,13 @@ Blizzard replaced the beta (`wow_classic_beta`, in `_classic_beta_/`) with the f
 - carries over your settings from `_classic_beta_/WTF/Config.wtf`
 
 Your existing `Data/` folder is reused. The `_classic_beta_/` folder can be deleted afterwards.
+
+### Manuell installieren (ohne zusätzliche Rechte)
+Die App muss sich nicht selbst aktualisieren. So installierst oder aktualisierst du von Hand:
+1. Öffne die Seite **Releases** dieses Repositorys im Browser des Handys und lade die `.apk`-Datei der gewünschten Version herunter.
+2. Tippe die heruntergeladene Datei an (sie liegt in *Downloads*). Android fragt einmal, ob dein Browser oder Dateimanager Apps installieren darf – erlaube es nur für diese App.
+3. Installieren. Ein Update behält deine Einstellungen, die Spieldateien bleiben erhalten.
+Die App selbst braucht dafür kein Recht „Apps installieren“. Lehnst du es in der App ab, bietet die Update-Karte stattdessen „Im Browser herunterladen“ an. Übereinander installieren lassen sich nur Versionen mit gleicher Signatur; zurück zu einer älteren Version geht nur nach dem Deinstallieren (vorher Backup exportieren).
 
 ### 3. Play
 

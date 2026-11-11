@@ -4,6 +4,10 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -28,6 +32,8 @@ internal data class BackupManifest(
     val inputMode: String = "",
     /** Name des aktiven Profils zu [inputMode] (nur zur Anzeige); leer, wenn die Betriebsart keins hat. */
     val activeProfile: String = "",
+    /** Gerätekennung des Sichernden ([BackupFormat.deviceTag]); leer bei Backups aus älteren Versionen. */
+    val device: String = "",
 )
 
 internal data class Backup(
@@ -48,7 +54,7 @@ internal sealed class UnpackResult {
 
 /**
  * Das Backup-Format (rein, ohne Android, per JUnit geprüft): ein Zip mit
- *  - `manifest.json`: Format, Format-Version, App-Version, Zeitpunkt, Zähler, aktive Betriebsart,
+ *  - `manifest.json`: Format, Format-Version, App-Version, Zeitpunkt (mit Sekunden), Zähler, aktive Betriebsart, Gerätekennung,
  *  - `settings.json`: `{ "<Datei>": { "<Schlüssel>": Wert } }`, nur Einstellungen der [BackupAllowlist],
  *  - `profiles/controls-<id>.icp`: je Steuerungsprofil der Inhalt der Datei.
  * Beim Lesen zählt nur, was bekannt und gültig ist; alles andere wird ignoriert (und gezählt), nichts davon wird ausgeführt oder geschrieben.
@@ -68,8 +74,31 @@ internal object BackupFormat {
     const val MAX_ENTRIES = 500
     const val MAX_NAME_LENGTH = 120
 
-    /** Vorschlag für den Dateinamen; [date] ist das Datum als `yyyy-MM-dd`. */
-    fun fileName(date: String): String = "wow-forever-touch-backup-$date.zip"
+    /** Länge der Gerätekennung im Dateinamen und im Manifest (Hex-Zeichen). */
+    const val DEVICE_TAG_LENGTH = 6
+
+    /** Zeitpunkt für den Dateinamen: `yyyy-MM-dd_HH-mm-ss`. */
+    fun fileStamp(date: Date): String = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.ROOT).format(date)
+
+    /** Zeitpunkt für das Manifest (`createdAt`): `yyyy-MM-dd HH:mm:ss`. Ältere Backups haben ihn ohne Sekunden; beide werden gelesen. */
+    fun createdAtText(date: Date): String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT).format(date)
+
+    /**
+     * Kennung eines Geräts für den Dateinamen: die ersten [DEVICE_TAG_LENGTH] Hex-Zeichen von SHA-256 über [seed], einen Zufallswert, der je
+     * Installation einmal erzeugt wird (nicht Teil des Backups). Kein Gerätemerkmal im Klartext, nicht umkehrbar.
+     */
+    fun deviceTag(seed: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(seed.toByteArray(Charsets.UTF_8))
+        val hex = StringBuilder()
+        for (b in digest) hex.append(String.format(Locale.ROOT, "%02x", b))
+        return hex.substring(0, DEVICE_TAG_LENGTH)
+    }
+
+    /** Eine gültige Gerätekennung: genau [DEVICE_TAG_LENGTH] Kleinbuchstaben/Ziffern (Hex). */
+    fun isDeviceTag(text: String): Boolean = text.length == DEVICE_TAG_LENGTH && text.all { it in '0'..'9' || it in 'a'..'f' }
+
+    /** Vorschlag für den Dateinamen: `wow-forever-touch-backup-<JJJJ-MM-TT>_<HH-MM-SS>_<gerät>.zip`; [stamp] kommt von [fileStamp]. */
+    fun fileName(stamp: String, device: String): String = "wow-forever-touch-backup-${stamp}_$device.zip"
 
     fun pack(manifest: BackupManifest, profiles: List<BackupProfile>, settings: List<BackupSetting>): ByteArray {
         val out = ByteArrayOutputStream()
@@ -97,6 +126,7 @@ internal object BackupFormat {
         .put("settingCount", m.settingCount)
         .put("inputMode", m.inputMode)
         .put("activeProfile", m.activeProfile)
+        .put("device", m.device)
 
     fun settingsJson(settings: List<BackupSetting>): JSONObject {
         val root = JSONObject()
@@ -180,6 +210,7 @@ internal object BackupFormat {
             settingCount = settings.size,
             inputMode = manifestJson.optString("inputMode"),
             activeProfile = manifestJson.optString("activeProfile"),
+            device = manifestJson.optString("device").takeIf { isDeviceTag(it) } ?: "",
         )
         return UnpackResult.Ok(Backup(manifest, profiles, settings, skipped))
     }

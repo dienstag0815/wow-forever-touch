@@ -120,10 +120,10 @@ class WowActionCatalogTest {
 
     @Test
     fun `template field without a key stays disabled but keeps its action`() {
-        val menu = WowActionCatalog.buildMenu("x", "y", listOf("MULTIACTIONBAR1BUTTON1"), emptyMap())
+        val menu = WowActionCatalog.buildMenu("x", "y", listOf("MULTIACTIONBAR5BUTTON1"), emptyMap())
         assertEquals(1, menu.slots.size)
         assertTrue(menu.slots[0].bindingCombo.isEmpty)
-        assertEquals("MULTIACTIONBAR1BUTTON1", menu.slots[0].wowAction)
+        assertEquals("MULTIACTIONBAR5BUTTON1", menu.slots[0].wowAction)
     }
 
     @Test

@@ -14,7 +14,12 @@ internal data class SettingSpec(val file: String, val key: String, val type: Set
  * Schlüssel mit einem Geheimnis darf nie versehentlich mitgesichert werden.
  *
  * Nie dabei (und per Test abgesichert): Anmeldung (`battle_net_login`), `MachineIdentity`, Spielordner und seine Zugriffsrechte,
- * Update-Feed und Zeitstempel, "schon gefragt"-Merker, Protokolle und Zwischenspeicher, Zustand des laufenden Touch-Setups.
+ * Update-Feed und Zeitstempel, "schon gefragt"-Merker, Protokolle und Zwischenspeicher.
+ *
+ * Dabei ist auch, was den Spielbildschirm ausmacht: die Einstellungen des Spiel-Containers ([FILE_CONTAINER]: Touchscreen-Modus, Shooter-Modus,
+ * Maus aus, Gesten, Gyro, Bildeffekte, FPS-Grenze) und der Stand des Touch-Setups (damit der erste Start nach dem Import die gesicherten Werte
+ * nicht mit den Voreinstellungen überschreibt). Die Container-Werte werden beim Import nicht sofort geschrieben (der Container kann fehlen),
+ * sondern vorgemerkt und beim nächsten Start angewendet ([ContainerBackup]).
  */
 internal object BackupAllowlist {
     /** Kennung für den DataStore der App (kein SharedPreferences-Dateiname). */
@@ -28,6 +33,9 @@ internal object BackupAllowlist {
     const val FILE_COOLDOWN = "abklingzeit"
     const val FILE_VISIBILITY = "controls_visibility"
 
+    /** Kein SharedPreferences-Name: die Einstellungen des Spiel-Containers (Felder und Zusatzwerte), siehe [ContainerBackup]. */
+    const val FILE_CONTAINER = "container"
+
     /** Schlüssel der Betriebsart (Standard, Touch, Touch komplett, Mein Layout): sie bestimmt das aktive Profil. */
     const val KEY_INPUT_MODE = "input_mode"
 
@@ -35,6 +43,13 @@ internal object BackupAllowlist {
     const val KEY_APP_LANGUAGE = "app_language"
 
     private fun spec(file: String, key: String, type: SettingType) = SettingSpec(file, key, type)
+
+    /** Schalter der Leistungsanzeige im DataStore (was sie zeigt). */
+    val HUD_FLAGS: List<String> = listOf(
+        "frame_rate", "cpu_usage", "gpu_usage", "ram_usage", "battery_level", "power_draw", "battery_runtime", "battery_temperature",
+        "clock_time", "cpu_temperature", "gpu_temperature", "fan", "tuner_caps", "frame_rate_graph", "cpu_usage_graph", "gpu_usage_graph",
+        "text_outline",
+    ).map { "performance_hud_show_$it" }
 
     val ALL: List<SettingSpec> = listOf(
         // Spiel: Region, Auflösung, Bildrate, Grafik
@@ -44,6 +59,8 @@ internal object BackupAllowlist {
         spec(FILE_MAIN, "graphics_preset", SettingType.STRING),
         // Steuerung
         spec(FILE_MAIN, KEY_INPUT_MODE, SettingType.STRING),
+        // Signal "Standardlayout aktiv" an das Addon (gehört zur Betriebsart; "layout_choice" ist ein Frage-Merker und bleibt draußen)
+        spec(FILE_MAIN, "layout_standard", SettingType.BOOL),
         spec(FILE_MAIN, "stick_gain_walk", SettingType.FLOAT),
         spec(FILE_MAIN, "stick_gain_camera", SettingType.FLOAT),
         spec(FILE_MAIN, "touch_hide_in_login", SettingType.BOOL),
@@ -63,6 +80,12 @@ internal object BackupAllowlist {
         spec(FILE_MAIN, "touch_wheel_left", SettingType.STRING),
         spec(FILE_MAIN, "touch_style", SettingType.STRING),
         spec(FILE_MAIN, "touch_contrast", SettingType.FLOAT),
+        // Gewähltes eigenes Layout (Profilname) und Stand des Touch-Setups: ohne sie hielte der erste Start nach dem Import die Gesten
+        // und den Touchscreen-Schalter des Backups für Voreinstellungen und überschriebe sie ("touch_setup_force_defaults" bleibt draußen).
+        spec(FILE_MAIN, "touch_layout_name", SettingType.STRING),
+        spec(FILE_MAIN, "touch_setup_mode", SettingType.STRING),
+        spec(FILE_MAIN, "touch_setup_gesture_base", SettingType.STRING),
+        spec(FILE_MAIN, "touch_setup_gesture_stash", SettingType.STRING),
         // Sprachsteuerung
         spec(FILE_MAIN, "voice_language", SettingType.STRING),
         spec(FILE_MAIN, "voice_words", SettingType.STRING),
@@ -82,7 +105,15 @@ internal object BackupAllowlist {
         spec(DATASTORE, KEY_APP_LANGUAGE, SettingType.STRING),
         spec(DATASTORE, "wow_emoji_symbols", SettingType.BOOL),
         spec(FILE_VISIBILITY, "visible_wow_forever", SettingType.BOOL),
-    )
+        // Leistungsanzeige (HUD): ob sie an ist, was sie zeigt, wo sie sitzt
+        spec(DATASTORE, "show_fps", SettingType.BOOL),
+        spec(DATASTORE, "performance_hud_compact_mode", SettingType.BOOL),
+        spec(DATASTORE, "performance_hud_size", SettingType.STRING),
+        spec(DATASTORE, "performance_hud_background_opacity", SettingType.FLOAT),
+        spec(DATASTORE, "performance_hud_color_intensity", SettingType.FLOAT),
+        spec(DATASTORE, "performance_hud_x_fraction", SettingType.FLOAT),
+        spec(DATASTORE, "performance_hud_y_fraction", SettingType.FLOAT),
+    ) + HUD_FLAGS.map { spec(DATASTORE, it, SettingType.BOOL) } + ContainerBackup.SPECS
 
     private val byId: Map<Pair<String, String>, SettingSpec> = ALL.associateBy { it.file to it.key }
 

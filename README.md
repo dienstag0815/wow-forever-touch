@@ -6,7 +6,13 @@ Play **World of Warcraft: Forever** on Snapdragon Android handhelds as a normal 
 
 This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs natively on the phone's CPU. Wine translates the Windows calls, and DXVK plus a patched Turnip Vulkan driver render the game on the Adreno GPU. Nothing is emulated as x86.
 
-> Unofficial community project. Not affiliated with or endorsed by Blizzard Entertainment. You need your own Battle.net account with WoW Forever access. This repo and its releases contain **no** Blizzard game files.
+## What this launcher does
+- **You need your own official World of Warcraft account** (Battle.net) with an active game license. The app does not include, share or unlock any game content and does not change anything on the game servers.
+- WoW is a Windows game. The launcher sets up a **Windows compatibility environment on Android** (Wine plus graphics translation to Vulkan), so the game's official Windows-on-ARM client runs natively on the phone's ARM CPU. The game files are downloaded from Blizzard by the normal client, using your own login.
+- **This Touch edition adds touch controls:** on-screen sticks, rings and buttons that send normal keyboard and mouse input, plus a small in-game addon that resizes and repositions the game's own interface (action bars, minimap, quest tracker, target frame) for a touch screen. Addons like this use the game's official addon interface.
+- The game client is not modified, and nothing is injected into it or read from its memory. There is no bot or automation: every action comes from your own tap.
+- Your optional saved login stays encrypted on your device only and is just typed into the game's login screen for you. It is never sent anywhere else.
+- Unofficial fan project, not affiliated with or endorsed by Blizzard Entertainment. Use at your own risk; Blizzard's terms of use apply to your account.
 
 ---
 
@@ -78,6 +84,13 @@ Blizzard replaced the beta (`wow_classic_beta`, in `_classic_beta_/`) with the f
 - carries over your settings from `_classic_beta_/WTF/Config.wtf`
 
 Your existing `Data/` folder is reused. The `_classic_beta_/` folder can be deleted afterwards.
+
+### Manual install (no extra permissions)
+You don't have to let the app update itself. To install or update by hand:
+1. Open the **Releases** page of this repository in your phone's browser and download the `.apk` file of the version you want.
+2. Tap the downloaded file (it is in *Downloads*). Android asks once whether your browser or file manager may install apps – allow it for that app only.
+3. Install. An update keeps your settings; your game files stay in place.
+The app never needs the "install apps" permission for this. If you deny it inside the app, the update card offers "Download in browser" instead. Only versions with the same signature can be installed over each other; going back to an older version requires uninstalling first (export a backup before).
 
 ### 3. Play
 

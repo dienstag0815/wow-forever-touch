@@ -76,6 +76,7 @@ import app.gamenative.ui.screen.xserver.editor.sheet.SheetPlacement
 import app.gamenative.ui.screen.xserver.editor.sheet.alignment
 import app.gamenative.ui.screen.xserver.editor.sheet.editorColor
 import app.gamenative.wowaction.ActionBarTemplates
+import com.winlator.container.Container
 import com.winlator.widget.InputControlsView
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -98,10 +99,11 @@ fun ControlsEditorOverlay(
     onCancel: () -> Unit,
     onCopyFromProfile: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    container: Container? = null,
 ) {
     // Calm dark colors with a bronze accent for the whole editor (bars, sheet, dialogs), not the app's purple.
     EditorTheme {
-        ControlsEditorOverlayContent(session, view, onDone, onCancel, onCopyFromProfile, modifier)
+        ControlsEditorOverlayContent(session, view, onDone, onCancel, onCopyFromProfile, modifier, container)
     }
 }
 
@@ -113,11 +115,13 @@ private fun ControlsEditorOverlayContent(
     onCancel: () -> Unit,
     onCopyFromProfile: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    container: Container? = null,
 ) {
     LaunchedEffect(view) { session.begin(view) }
     DisposableEffect(session) { onDispose { session.detach() } }
 
     var paletteOpen by remember { mutableStateOf(false) }
+    val templateGuard = remember(session) { TemplateEditGuard(session) }
     val sheetState = remember(session, view) { ElementSheetState(session, view) }
     val selected = session.selected
     val sheetOpen = session.sheetOpen
@@ -134,11 +138,12 @@ private fun ControlsEditorOverlayContent(
             session = session,
             profiles = profiles,
             onAdd = { paletteOpen = true },
-            onDone = onDone,
+            onDone = { if (!templateGuard.intercept(view.profile)) onDone() },
             onCancel = onCancel,
             onCopyFromProfile = onCopyFromProfile,
             modifier = Modifier.align(Alignment.TopCenter),
         )
+        templateGuard.Dialogs(onDone = onDone, onCancel = onCancel, container = container)
 
         if (selected != null && sheetOpen) {
             // The sheet sits opposite the element (side panel) or above/below it, so the element stays visible while it is edited.

@@ -147,6 +147,14 @@ data class ShooterModeConfig(
         private const val KEY_OUTER_RING_SPRINT_PRESS_MODE = "outerRingSprintPressMode"
         private const val KEY_SPRINT_BINDING = "sprintBinding"
 
+        /**
+         * Ob der Shooter-Umschaltknopf im Spielbildschirm erscheint. Im WoW-Forever-Container nie,
+         * unabhängig vom Schalter [ShooterModeConfig.showRuntimeToggle].
+         */
+        @JvmStatic
+        fun runtimeToggleVisible(isWowContainer: Boolean, config: ShooterModeConfig?): Boolean =
+            !isWowContainer && (config?.showRuntimeToggle ?: true)
+
         @JvmStatic
         fun fromJson(json: String?): ShooterModeConfig {
             if (json.isNullOrBlank()) return ShooterModeConfig()

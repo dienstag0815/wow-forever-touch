@@ -242,16 +242,24 @@ class WowTouchFullProfileTest {
 
     @Test
     fun lowerLeftCluster_followsTheScreenshot() {
-        at(buttonWithBinding("OPEN_NAVIGATION_MENU"), 58, 1175)
         val menus = ofType("BUTTON").filter { it.getJSONArray("bindings").get(0) == "OPEN_RADIAL_MENU" }
         at(menus.single { it.getString("radialMenuId") == "default" }, 177, 1175)
         at(menus.single { it.getString("radialMenuId") == "emotes" }, 177, 1290)
         at(menus.single { it.getString("radialMenuId") == "attacks" }, 295, 1410)
         at(buttonWithBinding("VOICE_CHAT"), 58, 1290)
         at(buttonWithBinding("MOUSE_RIGHT_BUTTON"), 295, 1290)
-        at(buttonWithBinding("KEY_ESC"), 58, 1430)
-        at(buttonWithBinding("SHOW_KEYBOARD"), 177, 1430)
         at(buttonWithBinding("OPEN_CONTROLS_EDITOR"), 167, 510)
+    }
+
+    /** ESC, Tastatur und Menue stehen oben links neben der Mikromenue-Leiste (Entscheidung zum Standardlayout), nicht mehr unten. */
+    @Test
+    fun topRow_escKeyboardMenuSitTogetherAtTheTop() {
+        assertEquals(0.27, buttonWithBinding("KEY_ESC").getDouble("x"), 0.001)
+        assertEquals(0.328, buttonWithBinding("SHOW_KEYBOARD").getDouble("x"), 0.001)
+        assertEquals(0.386, buttonWithBinding("OPEN_NAVIGATION_MENU").getDouble("x"), 0.001)
+        for (name in listOf("KEY_ESC", "SHOW_KEYBOARD", "OPEN_NAVIGATION_MENU")) {
+            assertEquals("y of $name", 0.052, buttonWithBinding(name).getDouble("y"), 0.001)
+        }
     }
 
     @Test
@@ -364,12 +372,18 @@ class WowTouchFullProfileTest {
         "Erfahrungsleiste" to doubleArrayOf(0.37, 0.0, 0.74, 0.025),
     )
 
+    private val topRowBindings = setOf("KEY_ESC", "SHOW_KEYBOARD", "OPEN_NAVIGATION_MENU")
+
     @Test
     fun nothingCoversTheWowHud() {
         for ((w, h) in screens) {
             for ((i, e) in all().withIndex()) {
                 val shape = shapeOf(e, w, h)
+                // Begründete Ausnahme: ESC, Tastatur und Menue liegen oben über Ziel-/Erfahrungsleiste,
+                // weil die Oberfläche per Addon passend verschoben wird (Auftrag uilayout).
+                val topRowException = bindingNames(e).any { it in topRowBindings }
                 for ((name, z) in hudZones) {
+                    if (topRowException) break
                     val zone = Shape.Rect((z[0] * w).toFloat(), (z[1] * h).toFloat(), (z[2] * w).toFloat(), (z[3] * h).toFloat())
                     assertFalse("element $i covers $name at ${w}x$h", overlap(shape, zone))
                 }
@@ -399,7 +413,7 @@ class WowTouchFullProfileTest {
     @Test
     fun menuOffersTheFullTemplateBetweenTouchAndOwnLayout() {
         assertEquals(
-            listOf(InputMode.CLASSIC, InputMode.TOUCH, InputMode.TOUCH_FULL, InputMode.TOUCH_CUSTOM),
+            listOf(InputMode.CLASSIC, InputMode.TOUCH, InputMode.TOUCH_FULL, InputMode.TOUCH_STANDARD, InputMode.TOUCH_CUSTOM),
             InputMode.entries.toList(),
         )
         assertEquals("Touch (WoW komplett)", InputMode.TOUCH_FULL.label)
@@ -409,7 +423,7 @@ class WowTouchFullProfileTest {
 
     @Test
     fun newInstallation_startsWithTheFullTemplateAnUpdatedOneKeepsStandard() {
-        assertEquals(InputMode.TOUCH_FULL, InputMode.defaultFor(freshInstall = true))
+        assertEquals(InputMode.TOUCH_STANDARD, InputMode.defaultFor(freshInstall = true))
         assertEquals(InputMode.CLASSIC, InputMode.defaultFor(freshInstall = false))
         assertTrue(InputMode.isFreshInstall(1000L, 1000L))
         assertFalse(InputMode.isFreshInstall(1000L, 2000L))

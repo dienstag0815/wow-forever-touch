@@ -60,8 +60,10 @@ internal object TouchSetupPolicy {
     ): TouchSetupPlan {
         // A touch mode with no gestures anywhere is a container that was created anew: set it up from scratch.
         val freshContainer = mode.isTouch && containerGestures.isBlank() && state.gestureStash.isNullOrBlank()
+        // Within the touch family (Standard layout, WoW, complete, own layouts) a switch is no change of Steuerung: the player's
+        // touchscreen switch and gestures stay. Only Standard <-> Touch counts.
         val modeChanged = state.forceDefaults || freshContainer ||
-            (state.mode?.let { it != mode.name } ?: (hadTouchSetup != mode.isTouch))
+            (state.mode?.let { saved -> familyChanged(saved, mode) } ?: (hadTouchSetup != mode.isTouch))
         val touchscreen = if (modeChanged) mode.isTouch else containerTouchscreen
         val next = state.copy(mode = mode.name, forceDefaults = false)
         return when {
@@ -133,6 +135,12 @@ internal object TouchSetupPolicy {
         holdMs = config.holdLeftDelay.coerceIn(TouchOptions.MIN_HOLD_MS, TouchOptions.MAX_HOLD_MS),
         tapWindowMs = config.tapWindowDelay.coerceIn(0, TouchOptions.MAX_TAP_WINDOW_MS),
     )
+
+    /** [saved] is the [InputMode.name] of the last start. A name this version does not know is compared as a plain name. */
+    private fun familyChanged(saved: String, mode: InputMode): Boolean {
+        val before = InputMode.entries.firstOrNull { it.name == saved } ?: return saved != mode.name
+        return before.isTouch != mode.isTouch
+    }
 
     private fun same(a: Any?, b: Any?): Boolean = a != null && b != null && a.toString() == b.toString()
 

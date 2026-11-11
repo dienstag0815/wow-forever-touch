@@ -110,6 +110,7 @@ import app.gamenative.ui.data.PerformanceHudConfig
 import app.gamenative.ui.data.PerformanceHudSize
 import app.gamenative.ui.data.XServerState
 import app.gamenative.ui.widget.PerformanceHudView
+import app.gamenative.ui.screen.wow.FirstLayoutChoice
 import app.gamenative.ui.screen.wow.chatbar.ChatActionRunner
 import app.gamenative.ui.screen.wow.voice.VoiceChatController
 import app.gamenative.utils.AssetUtils
@@ -234,6 +235,7 @@ private const val DEFAULT_FPS_LIMITER_MAX_HZ = 60
 private const val DEFAULT_FPS_LIMITER_TARGET_HZ = 60
 private const val FPS_LIMITER_ENABLED_EXTRA = "fpsLimiterEnabled"
 private const val FPS_LIMITER_TARGET_EXTRA = "fpsLimiterTarget"
+private const val WOW_CONTAINER_ID = "wow_forever"
 
 private fun initialFpsLimiterEnabled(container: Container): Boolean =
     parseBooleanExtra(container.getExtra(FPS_LIMITER_ENABLED_EXTRA)) ?: true
@@ -1353,6 +1355,7 @@ fun XServerScreen(
                         areControlsVisible = true
                     }
                 }
+                PluviaApp.inputControlsView?.setWowContainer(container.id == WOW_CONTAINER_ID)
                 PluviaApp.inputControlsView?.setContainerShooterMode(newMode)
                 PluviaApp.inputControlsView?.setShooterModeConfig(currentShooterConfig)
                 false
@@ -1413,20 +1416,25 @@ fun XServerScreen(
         showQuickMenu = true
     }
 
-    val gameBack: () -> Unit = gameBack@{
-        val imeVisible = ViewCompat.getRootWindowInsets(view)
-            ?.isVisible(WindowInsetsCompat.Type.ime()) == true
+    val isSoftKeyboardVisible: () -> Boolean = {
+        ViewCompat.getRootWindowInsets(view)?.isVisible(WindowInsetsCompat.Type.ime()) == true
+    }
 
-        if (imeVisible) {
-            imeInputReceiver?.hideKeyboard()
-            view.post {
-                if (Build.VERSION.SDK_INT >= 30) {
-                    view.windowInsetsController?.hide(WindowInsets.Type.ime())
-                } else {
-                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    if (view.windowToken != null) imm.hideSoftInputFromWindow(view.windowToken, 0)
-                }
+    val hideSoftKeyboard: () -> Unit = {
+        imeInputReceiver?.hideKeyboard()
+        view.post {
+            if (Build.VERSION.SDK_INT >= 30) {
+                view.windowInsetsController?.hide(WindowInsets.Type.ime())
+            } else {
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                if (view.windowToken != null) imm.hideSoftInputFromWindow(view.windowToken, 0)
             }
+        }
+    }
+
+    val gameBack: () -> Unit = gameBack@{
+        if (isSoftKeyboardVisible()) {
+            hideSoftKeyboard()
             return@gameBack
         }
 
@@ -2457,6 +2465,7 @@ fun XServerScreen(
                 setOverlayOpacity(opacity)
 
                 // Set container-level shooter mode
+                setWowContainer(container.id == WOW_CONTAINER_ID)
                 setContainerShooterMode(container.isShooterMode)
                 setShooterModeConfig(currentShooterConfig)
             }
@@ -2464,9 +2473,10 @@ fun XServerScreen(
             // Emoji or vector symbol for WoW actions (read once here, the drawing code only reads the field)
             app.gamenative.wowaction.BindingCaption.emojiMode = PrefManager.wowEmojiSymbols
 
-            // Wire SHOW_KEYBOARD binding callback for overlay control buttons
+            // Wire SHOW_KEYBOARD binding callback for overlay control buttons: the same button opens and closes the keyboard
             icView.setShowKeyboardCallback {
-                showSoftKeyboard(icView, "onscreen_keyboard_enabled_from_binding")
+                if (isSoftKeyboardVisible()) hideSoftKeyboard()
+                else showSoftKeyboard(icView, "onscreen_keyboard_enabled_from_binding")
             }
             // Wire OPEN_NAVIGATION_MENU binding: on-screen button opens the quick menu (same as back gesture)
             icView.setOpenNavigationMenuCallback {
@@ -2715,6 +2725,18 @@ fun XServerScreen(
             }
         }
 
+        // "Eigenes Layout erstellen" at the first start: open the editor once the controls overlay is there (never again afterwards).
+        LaunchedEffect(Unit) {
+            if (!FirstLayoutChoice.takeOpenEditor(context)) return@LaunchedEffect
+            var waitedMs = 0
+            while (PluviaApp.inputControlsView == null && waitedMs < 60_000) {
+                delay(500)
+                waitedMs += 500
+            }
+            delay(2_000)
+            if (!isEditMode) onQuickMenuItemSelected(QuickMenuAction.EDIT_CONTROLS)
+        }
+
         // Direct editor for the on-screen controls: select/move/resize on the picture, settings sheet, "+" gallery, undo
         if (isEditMode && areControlsVisible) {
             val editorView = PluviaApp.inputControlsView
@@ -2722,6 +2744,7 @@ fun XServerScreen(
                 ControlsEditorOverlay(
                     session = editorSession,
                     view = editorView,
+                    container = container,
                     onDone = {
                         // Save profile changes and leave edit mode
                         editorSession.finish()
@@ -3028,11 +3051,12 @@ private fun ManualResumeOverlay(onResume: () -> Unit) {
     }
 }
 
-private fun showInputControls(profile: ControlsProfile, winHandler: WinHandler, container: Container) {
+internal fun showInputControls(profile: ControlsProfile, winHandler: WinHandler, container: Container) {
     profile.setVirtualGamepad(true)
     PluviaApp.radialMenuCoordinator?.setProfile(profile)
 
     PluviaApp.inputControlsView?.let { icView ->
+        icView.setWowContainer(container.id == WOW_CONTAINER_ID)
         icView.setContainerShooterMode(container.isShooterMode)
         icView.setShooterModeConfigJson(container.getShooterConfig())
         // Check if we need to load/reload elements with valid dimensions

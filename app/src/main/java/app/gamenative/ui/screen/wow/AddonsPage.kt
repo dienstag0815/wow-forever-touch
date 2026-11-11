@@ -358,12 +358,14 @@ private fun AddonCardRows(
             actionText = stringResource(if (isWorking) R.string.launcher_addons_running else R.string.launcher_addons_get),
             enabled = canChange && latest is LatestResult.Ok,
             onClick = onInstall,
+            primary = true,
         )
         AddonInstallState.UPDATE_AVAILABLE -> CardActionRow(
             title = stringResource(R.string.launcher_addons_update),
             actionText = stringResource(if (isWorking) R.string.launcher_addons_running else R.string.launcher_addons_get),
             enabled = canChange && latest is LatestResult.Ok,
             onClick = onInstall,
+            primary = true,
         )
         AddonInstallState.FOREIGN -> CardText(stringResource(R.string.launcher_addons_foreign_short), 2)
         AddonInstallState.INSTALLED -> Unit
@@ -396,6 +398,7 @@ private fun AddonCard(
                 actionText = stringResource(if (isWorking) R.string.launcher_addons_running else R.string.launcher_addons_install),
                 enabled = canChange && latest is LatestResult.Ok,
                 onClick = onInstall,
+                primary = true,
             )
             AddonInstallState.UPDATE_AVAILABLE -> SettingActionRow(
                 title = stringResource(R.string.launcher_addons_update),
@@ -403,6 +406,7 @@ private fun AddonCard(
                 actionText = stringResource(if (isWorking) R.string.launcher_addons_running else R.string.launcher_addons_update),
                 enabled = canChange && latest is LatestResult.Ok,
                 onClick = onInstall,
+                primary = true,
             )
             AddonInstallState.FOREIGN -> SettingNote(stringResource(R.string.launcher_addons_foreign_long, entry.folders.first()))
             AddonInstallState.INSTALLED -> Unit

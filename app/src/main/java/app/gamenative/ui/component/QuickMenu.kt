@@ -108,6 +108,8 @@ import app.gamenative.data.GyroSettings
 import app.gamenative.ui.component.dialog.GyroSettingsDialog
 import app.gamenative.ui.screen.wow.WindowHideMode
 import app.gamenative.ui.screen.wow.InputMode
+import app.gamenative.ui.screen.wow.LayoutNameDialog
+import app.gamenative.ui.screen.wow.LayoutPickerDialog
 import app.gamenative.ui.screen.wow.LayoutResetDialog
 import app.gamenative.ui.screen.wow.QuickMenuAccordion
 import app.gamenative.ui.screen.wow.QuickMenuContext
@@ -181,6 +183,8 @@ object QuickMenuAction {
     const val SWIPE_SPEED = 41
     const val RESET_LAYOUT = 42
     const val COOLDOWN_GCD = 43
+    const val LAYOUT_CHOOSE = 44
+    const val LAYOUT_SAVE_AS = 45
 }
 
 private object QuickMenuTab {
@@ -441,8 +445,10 @@ fun QuickMenu(
     // Im Login zeigt das Menü die Anmeldezeilen, in der Spielwelt nicht. Beim Öffnen einmal geprüft (das Spiel steht dann still),
     // damit die Zeilen beim Schließen nicht noch springen.
     var inLogin by remember { mutableStateOf(true) }
+    var touchLayoutsAvailable by remember { mutableStateOf(true) }
     LaunchedEffect(isVisible) {
         if (isVisible) {
+            touchLayoutsAvailable = InputMode.current(checkContext).isTouch
             inLogin = wowQuick.inLogin()
             // Andere Orte schreiben dieselben Werte (Touch-Editor: Sticks, Zahnrad: Gesten): bei jedem Öffnen frisch lesen.
             wowQuick.reload()
@@ -455,6 +461,7 @@ fun QuickMenu(
         hasReportNote = wowQuick.reportNote != null,
         hasPhysicalController = hasPhysicalController,
         hasContainer = container != null,
+        hasTouchLayouts = touchLayoutsAvailable,
     )
     val spielSections = quickMenuSections(QuickMenuPage.SPIEL, layoutContext)
     val steuerungSections = quickMenuSections(QuickMenuPage.STEUERUNG, layoutContext)
@@ -930,6 +937,7 @@ fun QuickMenu(
     }
 
     QuickMenuWowDialogs(wowQuick)
+    QuickMenuLayoutDialogs(wowQuick)
 
     if (showGyroSettingsDialog && gyroMenu != null) {
         GyroSettingsDialog(
@@ -1711,9 +1719,33 @@ private fun QuickMenuWowDialogs(wowQuick: WowQuickSettings) {
     }
     if (wowQuick.showResetConfirm) {
         LayoutResetDialog(
-            text = stringResource(WowTouchProfiles.RESET_CONFIRM_TEXT, WowTouchProfiles.resetTargetName(InputMode.current(context))),
+            text = stringResource(WowTouchProfiles.RESET_CONFIRM_TEXT, WowTouchProfiles.resetTargetDisplayName(context, InputMode.current(context))),
             onConfirm = { wowQuick.confirmResetLayout() },
             onDismiss = { wowQuick.showResetConfirm = false },
+        )
+    }
+}
+
+/** Dialoge der Zeilen "Layout" (Auswahlliste) und "Als neues Layout speichern". */
+@Composable
+private fun QuickMenuLayoutDialogs(wowQuick: WowQuickSettings) {
+    if (wowQuick.showLayoutPicker) {
+        LayoutPickerDialog(
+            entries = wowQuick.layoutEntries(),
+            activeId = wowQuick.activeLayoutId(),
+            onPick = { wowQuick.chooseLayout(it) },
+            onSaveAs = {
+                wowQuick.showLayoutPicker = false
+                wowQuick.showLayoutNameDialog = true
+            },
+            onDismiss = { wowQuick.showLayoutPicker = false },
+        )
+    }
+    if (wowQuick.showLayoutNameDialog) {
+        LayoutNameDialog(
+            existingProfileNames = wowQuick.layoutEntries().map { it.profileName },
+            onSave = { wowQuick.saveLayoutAs(it) },
+            onDismiss = { wowQuick.showLayoutNameDialog = false },
         )
     }
 }

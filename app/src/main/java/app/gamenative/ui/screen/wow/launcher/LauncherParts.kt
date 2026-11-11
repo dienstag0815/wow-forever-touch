@@ -248,17 +248,15 @@ internal fun HomeTile(
 
 /**
  * Hero der Startseite: das Bild füllt den Platz (Zuschnitt auf den Fokus, siehe [LauncherArt.Hero]), unten der Textbalken mit Titel
- * (Cinzel Bold in Versalien, 40 bis 48 sp aufgeklappt), Zeile (15 bis 16 sp), Anmelde-Chip, Hauptknopf und Countdown. Rahmen wie die Kacheln.
+ * (Cinzel Bold in Versalien, 40 bis 48 sp aufgeklappt), Zeile (15 bis 16 sp), Hauptknopf und Countdown. Rahmen wie die Kacheln.
  */
 @Composable
 internal fun HeroCard(
     hero: HeroUi,
-    hasSavedLogin: Boolean,
     autoUi: AutoStartUi,
     compact: Boolean,
     art: LauncherArt,
     onAction: (HeroAction) -> Unit,
-    onLogin: () -> Unit,
     onCancelCountdown: () -> Unit,
     modifier: Modifier = Modifier,
     density: HomeDensity = HomeDensity.Roomy,
@@ -310,9 +308,6 @@ internal fun HeroCard(
                     modifier = Modifier.weight(1f, fill = false),
                 )
             }
-            if (hero.showLogin) {
-                LoginChip(hasSavedLogin, onLogin)
-            }
             hero.primary?.let { PlayButton(it, compact, density) { onAction(it.action) } }
             hero.secondary?.let { sec ->
                 TextButton(onClick = { onAction(sec.action) }, enabled = sec.enabled) {
@@ -329,24 +324,6 @@ internal fun HeroCard(
                 CountdownLine(autoUi, onCancelCountdown)
             }
         }
-    }
-}
-
-/** Anmeldung als Chip im Hero: ein Tipp richtet sie ein oder ändert sie (Vergessen steht auf der Seite "Spieldateien"). */
-@Composable
-private fun LoginChip(hasSavedLogin: Boolean, onClick: () -> Unit) {
-    val color = if (hasSavedLogin) LauncherColors.Ok else LauncherColors.Gold
-    Box(
-        modifier = Modifier
-            .heightIn(min = 38.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(LauncherColors.StoneDark.copy(alpha = 0.78f))
-            .border(1.dp, LauncherColors.Bronze, RoundedCornerShape(999.dp))
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text = loginChipText(hasSavedLogin).asString(), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = color)
     }
 }
 

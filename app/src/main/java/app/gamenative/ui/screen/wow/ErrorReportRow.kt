@@ -22,6 +22,7 @@ internal fun ErrorReportSettingRow() {
         title = stringResource(R.string.game_report_row_title),
         description = note ?: stringResource(R.string.game_report_row_desc),
         actionText = stringResource(R.string.game_report_row_action),
+        primary = true,
         onClick = { ErrorReport.start(context) { note = it } },
     )
 }

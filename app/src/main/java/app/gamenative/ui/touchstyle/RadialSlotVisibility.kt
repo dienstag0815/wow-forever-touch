@@ -32,6 +32,21 @@ object RadialSlotVisibility {
     }
 
     /**
+     * Wie [isEmpty] für ein Ringfeld: ein Feld mit WoW-Aktion zählt auch ohne Taste als belegt. Die Taste kommt aus den Tastenbelegungen
+     * von WoW; hat die Aktion dort keine (Aktionsleisten 2 bis 8 sind ab Werk ungebunden), ist die Belegung leer, das Feld aber nicht:
+     * es bleibt sichtbar (abgeblendet, siehe [isInactive]), statt im Spiel zu fehlen, während der Editor es zeigt.
+     */
+    @JvmStatic
+    fun isEmptyInRing(slot: RadialMenu.Slot?): Boolean {
+        if (slot == null) return true
+        return isEmpty(slot.isEnabled || slot.wowAction != null, ActionSlotMap.slotFor(slot.wowAction)) { liveFilled(it) }
+    }
+
+    /** Ob ein sichtbares Ringfeld ohne Taste und Chat-Befehl ist (WoW-Aktion ohne Taste in WoW): es tut beim Antippen nichts. */
+    @JvmStatic
+    fun isInactive(slot: RadialMenu.Slot?): Boolean = slot != null && !slot.isEnabled
+
+    /**
      * Ob der Platz [slot] der Aktionsleiste belegt ist: zuerst der Abklingzeit-Streifen des Addons (live), sonst die Daten, die das Addon
      * zuletzt ins SavedVariables-File schrieb (nur bei /reload und Abmelden, kann veraltet sein); ohne beides null (unbekannt).
      */

@@ -146,7 +146,7 @@ class WowInterfaceActionsTest {
     fun `toc loads the interface module and the save variable stays`() {
         val toc = File(addonDir, "TouchForever.toc").readText(Charsets.UTF_8)
         val files = toc.lines().filter { it.isNotBlank() && !it.startsWith("##") }.map { it.trim() }
-        assertEquals(listOf("TouchForeverLang.lua", "TouchForeverLocale.lua", "TouchForever.lua", "TouchForeverUI.lua", "TouchForeverOptions.lua", "TouchForeverCooldown.lua", "TouchForeverContext.lua"), files)
+        assertEquals(listOf("TouchForeverLang.lua", "TouchForeverLocale.lua", "TouchForever.lua", "TouchForeverUI.lua", "TouchForeverLayout.lua", "TouchForeverOptions.lua", "TouchForeverCooldown.lua", "TouchForeverContext.lua", "TouchForeverBindings.lua"), files)
         assertTrue(toc.contains("## SavedVariablesPerCharacter: TouchForeverDB"))
         for (name in files) assertTrue(name, File(addonDir, name).isFile)
         // Bindings.xml is picked up by the game by its name, it is not part of the toc
@@ -264,7 +264,7 @@ class WowInterfaceActionsTest {
     fun `options page and window cover everything the commands do`() {
         // every value option of the window / settings page and the matching setter of the interface module
         val ids = Regex("\\{ id = \"(\\w+)\", page = (\\d), kind = \"(\\w+)\"").findAll(optionsLua).map { Triple(it.groupValues[1], it.groupValues[2], it.groupValues[3]) }.toList()
-        assertEquals(41, ids.size) // fold8.17: + Minikarte am Rand (fold8.16: Chat links, Andocken, Taschenleiste, Weltkarte)
+        assertEquals(43, ids.size) // fold8.34: + Touch-Forever-Layout an/neu (fold8.17: + Minikarte am Rand (fold8.16: Chat links, Andocken, Taschenleiste, Weltkarte)
         // a set, the order of the rows does not matter; "note" (fold8.24) is a hint line without a control: only the touch window
         // draws it, the Settings API page has no branch for it (nothing to set there) and OPT.change ignores it
         assertEquals(setOf("check", "slider", "choice", "action", "buttons", "note"), ids.map { it.third }.toSet())

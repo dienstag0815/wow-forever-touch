@@ -24,7 +24,6 @@ class HomeUiStateTest {
         assertEquals(HeroButton(UiText.res(R.string.launcher_play), HeroAction.Play, enabled = true), ui.hero.primary)
         assertNull(ui.hero.secondary)
         assertTrue(ui.hero.showCountdown)
-        assertTrue(ui.hero.showLogin)
         assertFalse(ui.hero.showSpinner)
         assertEquals(PillTone.Ok, ui.pill.tone)
         assertEquals(UiText.res(R.string.launcher_join_dot, UiText.res(R.string.launcher_pill_ready), "12.0.1.65432"), ui.pill.text)
@@ -97,7 +96,6 @@ class HomeUiStateTest {
         assertEquals(HeroButton(UiText.res(R.string.launcher_cancel_install_button), HeroAction.CancelInstall), auto.hero.secondary)
         assertTrue(auto.hero.showSpinner)
         assertEquals(UiText.raw("Datei 3 von 9"), auto.hero.line)
-        assertFalse(auto.hero.showLogin)
         assertEquals(PillTone.Info, auto.pill.tone)
 
         val manual = homeUiState(ready.copy(isUpdating = true, isAutoInstall = false, busyText = "Lade ..."))
@@ -170,12 +168,6 @@ class HomeUiStateTest {
         )
         val actions = states.flatMap { homeUiState(it).hero.let { h -> listOfNotNull(h.primary?.action, h.secondary?.action) } }.toSet()
         assertEquals(HeroAction.entries.toSet(), actions)
-    }
-
-    @Test
-    fun loginChipTextFollowsTheSavedLogin() {
-        assertEquals(UiText.res(R.string.launcher_login_saved), loginChipText(true))
-        assertEquals(UiText.res(R.string.launcher_login_setup), loginChipText(false))
     }
 
     // --- Layout und Navigation ---

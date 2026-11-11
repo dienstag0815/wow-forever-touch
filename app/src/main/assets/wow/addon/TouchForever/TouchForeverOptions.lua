@@ -162,6 +162,12 @@ local list = {
       get = function() return ns.button and ns.button.get() or false end, set = function(v) if ns.button then ns.button.set(v) end end },
 
     -- page 6: touch and windows --------------------------------------------------------------------------------------------
+    { id = "layout", page = 6, kind = "check", label = L.touch_layout_windows, default = false,
+      tip = L.touch_layout_windows_tip,
+      get = function() return ns.layout ~= nil and ns.layout.IsActive() end, set = function(v) if ns.layout then ns.layout.Set(v) end end },
+    { id = "layoutagain", page = 6, kind = "action", label = L.touch_layout_again,
+      tip = L.touch_layout_again_tip,
+      run = function() if ns.layout then ns.layout.Again() end end },
     { id = "windows", page = 6, kind = "action", label = L.show_detected_windows,
       tip = L.shows_which_open_game_windows_the,
       run = function() OPT.setInfo(6, OPT.windowsText()) end },

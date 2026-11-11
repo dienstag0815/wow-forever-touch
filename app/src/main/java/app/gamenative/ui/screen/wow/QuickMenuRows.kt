@@ -57,6 +57,7 @@ internal fun quickMenuRowKind(id: Int): QuickMenuRowKind? = when (id) {
     QuickMenuAction.CONTEXT_MENU, QuickMenuAction.TOUCH_HIDE_WINDOWS, QuickMenuAction.TOUCH_STYLE -> QuickMenuRowKind.CHOICE
     QuickMenuAction.LOGIN_NOTE -> QuickMenuRowKind.NOTE
     QuickMenuAction.EDIT_CONTROLS, QuickMenuAction.EDIT_PHYSICAL_CONTROLLER, QuickMenuAction.RESET_LAYOUT,
+    QuickMenuAction.LAYOUT_CHOOSE, QuickMenuAction.LAYOUT_SAVE_AS,
     QuickMenuAction.RADIAL_MENU, QuickMenuAction.TOUCH_SHOW_NOW, QuickMenuAction.WHEEL_CENTER, QuickMenuAction.WHEEL_UP,
     QuickMenuAction.WHEEL_RIGHT, QuickMenuAction.WHEEL_DOWN, QuickMenuAction.WHEEL_LEFT, QuickMenuAction.KEYBOARD,
     QuickMenuAction.LOGIN_FULL, QuickMenuAction.LOGIN_PASSWORD, QuickMenuAction.LOGIN_EMAIL, QuickMenuAction.CHECK_ICONS,
@@ -88,7 +89,7 @@ internal data class QuickMenuValues(
     val swipeScroll: Boolean = true,
     val swipeSpeed: Float = SwipeScrollMath.DEFAULT_SPEED,
     val windowHide: WindowHideMode = WindowHideMode.DEFAULT,
-    val style: TouchStyle = TouchStyle.CURRENT,
+    val style: TouchStyle = TouchStyle.DEFAULT,
     val contrast: Float = TouchStyleMath.CONTRAST_DEFAULT,
     val cooldowns: Boolean = false,
     val shooterMode: Boolean = false,
@@ -98,6 +99,8 @@ internal data class QuickMenuValues(
     val loginNote: String? = null,
     val addonNote: String? = null,
     val layoutNote: String? = null,
+    val layoutName: String = "",
+    val layoutSwitchNote: String? = null,
     val voiceLabel: String = "",
 )
 
@@ -180,6 +183,9 @@ private fun choiceView(title: TextRef, chips: List<TextRef>, selected: Int, full
 private fun valueView(title: TextRef, value: TextRef, note: String? = null) =
     QuickMenuRowView(QuickMenuRowKind.VALUE, title, value, note = note)
 
+/** Name des aktiven Layouts; ist er unbekannt, steht "Öffnen" da (die Zeile öffnet die Auswahl). */
+private fun layoutNameText(name: String): TextRef = if (name.isBlank()) TextRef(R.string.game_qm_row_open) else TextRef.plain(name)
+
 private fun stepView(title: TextRef, value: TextRef) = QuickMenuRowView(QuickMenuRowKind.STEP, title, value)
 
 private fun toggleView(title: TextRef, enabled: Boolean = true) =
@@ -198,6 +204,8 @@ internal fun quickMenuRowView(id: Int, v: QuickMenuValues): QuickMenuRowView? {
     }
     return when (id) {
         QuickMenuAction.INPUT_CONTROLS -> toggleView(TextRef(R.string.game_qm_row_touch_controls))
+        QuickMenuAction.LAYOUT_CHOOSE -> valueView(TextRef(R.string.game_qm_row_layout), layoutNameText(v.layoutName), note = v.layoutSwitchNote)
+        QuickMenuAction.LAYOUT_SAVE_AS -> valueView(TextRef(R.string.game_qm_row_layout_save_as), TextRef(R.string.game_qm_row_save))
         QuickMenuAction.EDIT_CONTROLS -> valueView(TextRef(R.string.game_qm_row_edit_controls), TextRef(R.string.game_qm_row_open))
         QuickMenuAction.EDIT_PHYSICAL_CONTROLLER -> valueView(TextRef(R.string.game_qm_row_physical), TextRef(R.string.game_qm_row_open))
         QuickMenuAction.RESET_LAYOUT -> valueView(TextRef(R.string.game_qm_row_layout_default), TextRef(R.string.game_qm_row_reset), note = v.layoutNote)
@@ -268,6 +276,7 @@ internal fun quickMenuGroupSummary(groupId: String?, v: QuickMenuValues): TextRe
             STYLE_CHIPS[v.style.ordinal.coerceIn(STYLE_CHIPS.indices)],
             TouchStyleMath.contrastLabel(v.contrast),
         )
+    QuickMenuGroups.MORE -> TextRef(R.string.game_qm_sum_more)
     QuickMenuGroups.MODES -> buildList {
         if (v.shooterMode) add(TextRef(R.string.game_qm_sum_shooter))
         if (v.gyro) add(TextRef(R.string.game_qm_sum_gyro))

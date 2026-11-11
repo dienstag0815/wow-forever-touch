@@ -12,6 +12,8 @@ TouchForeverLang.lua
 TouchForeverLocale.lua
 TouchForever.lua
 TouchForeverUI.lua
+TouchForeverLayout.lua
 TouchForeverOptions.lua
 TouchForeverCooldown.lua
 TouchForeverContext.lua
+TouchForeverBindings.lua

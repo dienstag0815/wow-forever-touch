@@ -110,10 +110,10 @@ object CooldownStrip {
     // Window section.
     /**
      * Version of the window section = build number of the addon. 1: TouchForever 1.6.0 with the window section (fold8.3, fold8.4);
-     * 2: plus the combat flag [WF_COMBAT] and the reload key; 3: plus the scroll section; 4: plus the context section; 5: plus the chat section; 6: the scroll section is always reported (no addon switch); 7: minimap flush in its cluster and corner rule (fold8.26). Must equal `S.WIN_VERSION` in TouchForeverCooldown.lua (a unit test
+     * 2: plus the combat flag [WF_COMBAT] and the reload key; 3: plus the scroll section; 4: plus the context section; 5: plus the chat section; 6: the scroll section is always reported (no addon switch); 7: minimap flush in its cluster and corner rule (fold8.26); 8: texts from TouchForeverLocale.lua; 9: replacement keys for the action bars 2 to 5 (TouchForeverBindings.lua); 10: layout plan with the quest tracker flush right below the minimap. Must equal `S.WIN_VERSION` in TouchForeverCooldown.lua (a unit test
      * compares the two). A decoder reads every version from 1 to 15 (newer ones add flags, never move cells).
      */
-    const val ADDON_BUILD = 8
+    const val ADDON_BUILD = 10
 
     /** First addon build that has the scroll section ([WF_SCROLL_AWARE]). */
     const val SCROLL_BUILD = 3

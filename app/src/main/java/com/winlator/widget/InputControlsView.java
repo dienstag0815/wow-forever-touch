@@ -142,6 +142,7 @@ public class InputControlsView extends View {
     // Container-level shooter mode (auto-replaces STICK elements)
     private boolean containerShooterMode = false;
     private boolean containerShooterModeRuntime = false; // runtime toggle state
+    private boolean wowContainer = false; // WoW-Forever-Container: runtime toggle never shown
 
     private final GyroController gyroController;
     private volatile boolean gyroEnabled;
@@ -943,9 +944,12 @@ public class InputControlsView extends View {
         if (radialMenuListener != null) radialMenuListener.onRadialMenuTouchEnd(finishedPointerId, commit);
     }
 
-    /** Check if a STICK element should be hidden because container shooter mode replaces it. */
+    /**
+     * Check if a STICK element should be hidden because container shooter mode replaces it. Never in the editor: a stick (and its key
+     * ring) that is hidden there still has its selection frame, so it looks missing and cannot be edited (Backup import, 10.11.2026).
+     */
     private boolean isStickHiddenByShooterMode(ControlElement element) {
-        if (!containerShooterModeRuntime) return false;
+        if (editMode || !containerShooterModeRuntime) return false;
         if (element.getType() != ControlElement.Type.STICK) return false;
         Binding b0 = element.getBindingAt(0);
         return b0 == Binding.GAMEPAD_LEFT_THUMB_UP || b0 == Binding.GAMEPAD_RIGHT_THUMB_UP;
@@ -1033,7 +1037,13 @@ public class InputControlsView extends View {
     }
 
     private boolean isRuntimeToggleVisible() {
-        return shooterModeConfig == null || shooterModeConfig.getShowRuntimeToggle();
+        return ShooterModeConfig.runtimeToggleVisible(wowContainer, shooterModeConfig);
+    }
+
+    /** WoW-Forever-Container: der Shooter-Umschaltknopf erscheint dort nie. */
+    public void setWowContainer(boolean wow) {
+        this.wowContainer = wow;
+        invalidate();
     }
 
     private float getJoystickOpacity() {

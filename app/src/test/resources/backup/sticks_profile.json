@@ -1,0 +1,107 @@
+{
+ "id": 8,
+ "name": "Touch (Mein Layout)",
+ "cursorSpeed": 1,
+ "elements": [
+  {
+   "type": "STICK",
+   "shape": "CIRCLE",
+   "bindings": [
+    "GAMEPAD_LEFT_THUMB_UP",
+    "GAMEPAD_LEFT_THUMB_RIGHT",
+    "GAMEPAD_LEFT_THUMB_DOWN",
+    "GAMEPAD_LEFT_THUMB_LEFT"
+   ],
+   "scale": 1,
+   "x": 0.30392158031463623,
+   "y": 0.8176407217979431,
+   "toggleSwitch": false,
+   "text": "",
+   "iconId": 0
+  },
+  {
+   "type": "STICK",
+   "shape": "CIRCLE",
+   "bindings": [
+    "GAMEPAD_RIGHT_THUMB_UP",
+    "GAMEPAD_RIGHT_THUMB_RIGHT",
+    "GAMEPAD_RIGHT_THUMB_DOWN",
+    "GAMEPAD_RIGHT_THUMB_LEFT"
+   ],
+   "scale": 1,
+   "x": 0.716911792755127,
+   "y": 0.7813853025436401,
+   "toggleSwitch": false,
+   "text": "",
+   "iconId": 0,
+   "ring": {
+    "segments": 8,
+    "startAngle": -90,
+    "width": 2.9000000953674316,
+    "gap": 0.75,
+    "items": [
+     {
+      "label": "",
+      "binding": "KEY_1",
+      "wowAction": "ACTIONBUTTON1"
+     },
+     {
+      "label": "",
+      "binding": "KEY_2",
+      "wowAction": "ACTIONBUTTON2"
+     },
+     {
+      "label": "",
+      "binding": "KEY_3",
+      "wowAction": "ACTIONBUTTON3"
+     },
+     {
+      "label": "",
+      "binding": "KEY_4",
+      "wowAction": "ACTIONBUTTON4"
+     },
+     {
+      "label": "",
+      "binding": "KEY_5",
+      "wowAction": "ACTIONBUTTON5"
+     },
+     {
+      "label": "",
+      "binding": "KEY_6",
+      "wowAction": "ACTIONBUTTON6"
+     },
+     {
+      "label": "",
+      "binding": "KEY_7",
+      "wowAction": "ACTIONBUTTON7"
+     },
+     {
+      "label": "",
+      "binding": "KEY_8",
+      "wowAction": "ACTIONBUTTON8"
+     }
+    ],
+    "outer": [
+     {
+      "label": "",
+      "binding": "KEY_TAB"
+     },
+     {
+      "label": "",
+      "binding": "MOUSE_RIGHT_BUTTON"
+     },
+     null,
+     null,
+     null,
+     null,
+     null,
+     null
+    ]
+   },
+   "center": {
+    "label": "",
+    "binding": "KEY_SPACE"
+   }
+  }
+ ]
+}

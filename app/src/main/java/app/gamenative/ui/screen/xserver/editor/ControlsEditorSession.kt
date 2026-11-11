@@ -248,12 +248,30 @@ class ControlsEditorSession : EditorListener {
 
     // ---- leaving ---------------------------------------------------------------------------------------------------
 
+    /** The profile file as it was before this session started (null when there was none); needed to put a template back. */
+    fun originalFileText(): String? = originalText
+
+    /** The profile differs from how it was when the session started (pending input is committed first). */
+    fun changedSinceStart(): Boolean {
+        flushPending?.invoke()
+        val profile = view?.profile ?: return false
+        profile.save()
+        val now = readProfileText(profile) ?: return false
+        return now != firstText
+    }
+
     /** "Fertig": the profile is saved, the session ends. */
     fun finish() {
         val inputView = view
         val profile = inputView?.profile
         if (inputView != null && profile != null) {
             profile.save()
+            // Nothing changed: put the file's original bytes back. begin() and save() re-serialize the profile, and a bundled
+            // template whose bytes differ from what the app wrote counts as "edited by the player" and is never refreshed again.
+            val original = originalText
+            if (original != null && readProfileText(profile) == firstText) {
+                FileUtils.writeString(ControlsProfile.getProfileFile(inputView.context, profile.id), original)
+            }
             inputView.onControlsProfileContentChanged(false)
         }
         end()

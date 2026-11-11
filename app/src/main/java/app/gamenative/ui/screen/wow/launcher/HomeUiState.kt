@@ -58,7 +58,6 @@ internal data class HomeInput(
     val busyText: String? = null,
     val errorMessage: String? = null,
     val canPlay: Boolean = true,
-    val hasSavedLogin: Boolean = true,
     val regionLabel: String = "Europe",
     val resolutionLabel: String = "1080p",
     val fpsLabel: String = "60",
@@ -130,8 +129,6 @@ internal data class HeroUi(
     val showSpinner: Boolean,
     /** Countdown/Autostart-Zeile unter dem Knopf (nur beim Spielen). */
     val showCountdown: Boolean,
-    /** Anmelde-Chip; wie bisher nur, solange nichts läuft. */
-    val showLogin: Boolean,
 )
 
 /** " · 112,0 GB frei" (bzw. " · 112.0 GB free"); leer, wenn der freie Platz nicht bekannt ist. */
@@ -144,8 +141,6 @@ internal fun gbText(bytes: Long): UiText {
     return UiText.res(R.string.launcher_gb, tenths / 10.0)
 }
 
-internal fun loginChipText(hasSavedLogin: Boolean): UiText = if (hasSavedLogin) LauncherTexts.LOGIN_SAVED else LauncherTexts.LOGIN_SETUP
-
 /** Wie der große Knopf früher (MainAction): Reihenfolge Zugriff, Installation, Spiel-Update, Spielen. */
 internal fun heroUi(i: HomeInput): HeroUi {
     val busyText = i.busyText
@@ -156,15 +151,15 @@ internal fun heroUi(i: HomeInput): HeroUi {
                 HeroKind.Installing, UiText.res(R.string.launcher_pill_installing), line,
                 primary = null,
                 secondary = if (i.isAutoInstall) HeroButton(LauncherTexts.CANCEL_INSTALL_BUTTON, HeroAction.CancelInstall) else null,
-                showSpinner = true, showCountdown = false, showLogin = false,
+                showSpinner = true, showCountdown = false,
             )
             i.isLaunching -> HeroUi(
                 HeroKind.Starting, UiText.res(R.string.launcher_pill_starting), line,
-                primary = null, secondary = null, showSpinner = true, showCountdown = false, showLogin = false,
+                primary = null, secondary = null, showSpinner = true, showCountdown = false,
             )
             else -> HeroUi(
                 HeroKind.Checking, UiText.res(R.string.launcher_hero_checking), line,
-                primary = null, secondary = null, showSpinner = true, showCountdown = false, showLogin = false,
+                primary = null, secondary = null, showSpinner = true, showCountdown = false,
             )
         }
     }
@@ -174,26 +169,26 @@ internal fun heroUi(i: HomeInput): HeroUi {
             HeroKind.NeedAccess, UiText.res(R.string.launcher_pill_access),
             UiText.res(R.string.launcher_hero_access_line),
             primary = HeroButton(LauncherTexts.GRANT_BUTTON, HeroAction.GrantStorage),
-            secondary = null, showSpinner = false, showCountdown = false, showLogin = true,
+            secondary = null, showSpinner = false, showCountdown = false,
         )
         i.needsInstall && i.isLegacyBeta -> HeroUi(
             HeroKind.Upgrade, UiText.res(R.string.launcher_hero_upgrade_title),
             UiText.res(R.string.launcher_hero_upgrade_line),
             primary = HeroButton(LauncherTexts.UPGRADE_BUTTON, HeroAction.Install),
-            secondary = find, showSpinner = false, showCountdown = false, showLogin = true,
+            secondary = find, showSpinner = false, showCountdown = false,
         )
         i.needsInstall -> HeroUi(
             HeroKind.Install, UiText.res(R.string.launcher_hero_install_title),
             UiText.res(R.string.launcher_hero_install_line, freeSpaceSuffix(i.freeSpaceBytes)),
             primary = HeroButton(LauncherTexts.INSTALL_BUTTON, HeroAction.Install),
-            secondary = find, showSpinner = false, showCountdown = false, showLogin = true,
+            secondary = find, showSpinner = false, showCountdown = false,
         )
         i.clientOutdated -> HeroUi(
             HeroKind.Update, UiText.res(R.string.launcher_pill_update),
             UiText.res(R.string.launcher_hero_outdated_line, i.clientRemote.orEmpty(), i.clientLocal.orEmpty()),
             primary = HeroButton(UiText.res(R.string.launcher_hero_update_to, i.clientRemote.orEmpty()), HeroAction.Update, enabled = i.canPlay),
             secondary = HeroButton(LauncherTexts.PLAY_OUTDATED_BUTTON, HeroAction.Play, enabled = i.canPlay, danger = true),
-            showSpinner = false, showCountdown = false, showLogin = true,
+            showSpinner = false, showCountdown = false,
         )
         else -> {
             val wrong = i.isWrongGame
@@ -204,7 +199,7 @@ internal fun heroUi(i: HomeInput): HeroUi {
                 if (wrong) UiText.res(R.string.launcher_pill_wrong_game) else LauncherTexts.PLAY_TITLE,
                 if (wrong) UiText.res(R.string.launcher_hero_wrong_game_line) else UiText.raw(line),
                 primary = HeroButton(if (wrong) LauncherTexts.WRONG_GAME_BUTTON else LauncherTexts.PLAY_BUTTON, HeroAction.Play, enabled = i.canPlay),
-                secondary = null, showSpinner = false, showCountdown = true, showLogin = true,
+                secondary = null, showSpinner = false, showCountdown = true,
             )
         }
     }

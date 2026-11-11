@@ -184,7 +184,7 @@ class QuickMenuRowsTest {
         assertEquals("Halten 350 ms · 2 Finger an", TestTexts.de(quickMenuGroupSummary(QuickMenuGroups.TAP_HOLD, defaults)))
         assertEquals("an · Mitte Linksklick", TestTexts.de(quickMenuGroupSummary(QuickMenuGroups.CLICK_WHEEL, defaults)))
         assertEquals("an · 1x", TestTexts.de(quickMenuGroupSummary(QuickMenuGroups.SWIPE, defaults)))
-        assertEquals("Aktuell · Kontrast 100 %", TestTexts.de(quickMenuGroupSummary(QuickMenuGroups.ELEMENTS, defaults)))
+        assertEquals("G · Kontrast 100 %", TestTexts.de(quickMenuGroupSummary(QuickMenuGroups.ELEMENTS, defaults)))
         assertEquals("alle aus", TestTexts.de(quickMenuGroupSummary(QuickMenuGroups.MODES, defaults)))
     }
 

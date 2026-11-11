@@ -42,6 +42,8 @@ import app.gamenative.R
 import app.gamenative.ui.component.NoExtractOutlinedTextField
 import app.gamenative.ui.screen.wow.SettingActionRow
 import app.gamenative.ui.screen.wow.SettingSwitchRow
+import app.gamenative.ui.screen.wow.launcher.ExpandRow
+import app.gamenative.ui.screen.wow.launcher.InsetPanel
 import app.gamenative.ui.screen.wow.launcher.LauncherColors
 import app.gamenative.ui.screen.wow.launcher.asString
 import app.gamenative.ui.screen.wow.launcher.ornateFrame
@@ -284,39 +286,41 @@ internal fun UpdateSettingsBlock(enabled: Boolean) {
             description = stringResource(R.string.launcher_update_check_desc),
             actionText = stringResource(if (state is UpdateState.Checking) R.string.launcher_home_checking else R.string.launcher_action_check),
             enabled = enabled && !busy,
+            primary = true,
         ) { UpdateManager.checkManually(context) }
         SettingActionRow(
             title = stringResource(R.string.launcher_update_changes_title),
             description = stringResource(R.string.launcher_update_changes_desc),
             actionText = stringResource(R.string.launcher_action_show),
         ) { showChangelog = true }
-        SettingActionRow(
+        UpdateSourceBlock(enabled)
+        ExpandRow(
             title = stringResource(R.string.launcher_update_advanced),
             description = stringResource(R.string.launcher_update_advanced_desc),
-            actionText = stringResource(if (advancedOpen) R.string.launcher_action_hide else R.string.launcher_action_show),
+            expanded = advancedOpen,
         ) { advancedOpen = !advancedOpen }
         if (advancedOpen) {
-            NoExtractOutlinedTextField(
-                value = baseUrl,
-                onValueChange = {
-                    baseUrl = it
-                    UpdateSettings.saveBaseUrl(context, it)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                enabled = enabled,
-                textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-                label = { Text(stringResource(R.string.launcher_update_address_label, BuildConfig.UPDATE_FEED_URL), fontSize = 12.sp, color = LauncherColors.Subtle) },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = LauncherColors.Gold,
-                    unfocusedBorderColor = LauncherColors.Bronze,
-                    cursorColor = LauncherColors.Gold,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                ),
-            )
+            InsetPanel {
+                NoExtractOutlinedTextField(
+                    value = baseUrl,
+                    onValueChange = {
+                        baseUrl = it
+                        UpdateSettings.saveBaseUrl(context, it)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = enabled,
+                    textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
+                    label = { Text(stringResource(R.string.launcher_update_address_label, BuildConfig.UPDATE_FEED_URL), fontSize = 12.sp, color = LauncherColors.Subtle) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = LauncherColors.Gold,
+                        unfocusedBorderColor = LauncherColors.Bronze,
+                        cursorColor = LauncherColors.Gold,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                    ),
+                )
+            }
         }
     }
 }

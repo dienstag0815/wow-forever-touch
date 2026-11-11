@@ -1,9 +1,12 @@
 package app.gamenative.backup
 
 import java.io.ByteArrayOutputStream
+import java.util.Calendar
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -191,7 +194,71 @@ class BackupFormatTest {
     }
 
     @Test
-    fun `file name carries the date`() {
-        assertEquals("wow-forever-touch-backup-2026-11-10.zip", BackupFormat.fileName("2026-11-10"))
+    fun `file name carries date, time to the second and the device tag`() {
+        assertEquals(
+            "wow-forever-touch-backup-2026-11-11_14-05-09_a1b2c3.zip",
+            BackupFormat.fileName("2026-11-11_14-05-09", "a1b2c3"),
+        )
+        val at = Calendar.getInstance().apply { clear(); set(2026, Calendar.NOVEMBER, 11, 14, 5, 9) }.time
+        assertEquals("2026-11-11_14-05-09", BackupFormat.fileStamp(at))
+        assertEquals("2026-11-11 14:05:09", BackupFormat.createdAtText(at))
+        assertTrue(Regex("""wow-forever-touch-backup-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_[0-9a-f]{6}\.zip""")
+            .matches(BackupFormat.fileName(BackupFormat.fileStamp(at), BackupFormat.deviceTag("x"))))
+    }
+
+    @Test
+    fun `two backups never share a name - other second or other device`() {
+        val a = Calendar.getInstance().apply { clear(); set(2026, Calendar.NOVEMBER, 11, 14, 5, 9) }.time
+        val b = Calendar.getInstance().apply { clear(); set(2026, Calendar.NOVEMBER, 11, 14, 5, 10) }.time
+        val phone = BackupFormat.deviceTag("seed one")
+        val tablet = BackupFormat.deviceTag("seed two")
+        assertNotEquals(BackupFormat.fileName(BackupFormat.fileStamp(a), phone), BackupFormat.fileName(BackupFormat.fileStamp(b), phone))
+        assertNotEquals(BackupFormat.fileName(BackupFormat.fileStamp(a), phone), BackupFormat.fileName(BackupFormat.fileStamp(a), tablet))
+    }
+
+    @Test
+    fun `device tag is six hex characters of the SHA-256 of the seed`() {
+        // SHA-256("abc") = ba7816bf 8f01cfea ...
+        assertEquals("ba7816", BackupFormat.deviceTag("abc"))
+        assertEquals(BackupFormat.DEVICE_TAG_LENGTH, BackupFormat.deviceTag("anything").length)
+        assertTrue(BackupFormat.isDeviceTag(BackupFormat.deviceTag("anything")))
+        assertEquals(BackupFormat.deviceTag("same"), BackupFormat.deviceTag("same"))
+        assertNotEquals(BackupFormat.deviceTag("same"), BackupFormat.deviceTag("other"))
+        // the seed itself never shows up in the tag
+        assertFalse(BackupFormat.deviceTag("0123456789abcdef").contains("012345"))
+    }
+
+    @Test
+    fun `only a plain six character hex tag is a device tag`() {
+        assertTrue(BackupFormat.isDeviceTag("0a9f3c"))
+        assertFalse(BackupFormat.isDeviceTag(""))
+        assertFalse(BackupFormat.isDeviceTag("0A9F3C"))
+        assertFalse(BackupFormat.isDeviceTag("0a9f3"))
+        assertFalse(BackupFormat.isDeviceTag("0a9f3cd"))
+        assertFalse(BackupFormat.isDeviceTag("../../x"))
+        assertFalse(BackupFormat.isDeviceTag("zzzzzz"))
+    }
+
+    @Test
+    fun `manifest with seconds and device tag survives packing`() {
+        val m = BackupManifest(1, "2.3.3-fold8.35", 290, "2026-11-11 14:05:09", 0, 0, "TOUCH_STANDARD", "Touch (Standard)", "a1b2c3")
+        val back = ok(BackupFormat.pack(m, emptyList(), emptyList()))
+        assertEquals(m, back.manifest)
+        assertEquals("a1b2c3", back.manifest.device)
+        assertEquals("2026-11-11 14:05:09", back.manifest.createdAt)
+    }
+
+    @Test
+    fun `an old backup without device tag and seconds is still read`() {
+        // manifest() is the old form: createdAt "2026-11-10 12:00", no device field
+        val back = ok(zip("manifest.json" to manifest()))
+        assertEquals("", back.manifest.device)
+        assertEquals("2026-11-10 12:00", back.manifest.createdAt)
+    }
+
+    @Test
+    fun `a device field that is not a tag is dropped`() {
+        val text = """{"format":"${BackupFormat.FORMAT_NAME}","formatVersion":1,"createdAt":"2026-11-11 14:05:09","device":"../../etc"}"""
+        assertEquals("", ok(zip("manifest.json" to text)).manifest.device)
     }
 }

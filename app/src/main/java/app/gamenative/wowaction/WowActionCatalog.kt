@@ -102,7 +102,7 @@ object WowActionCatalog {
             add(
                 WowAction(
                     "MULTIACTIONBAR1BUTTON$number", "Aktionsleiste 2 (unten links), Platz $number",
-                    "Bottom Left Bar $number", WowActionGroup.ACTION_BAR, null, false, "slot",
+                    "Bottom Left Bar $number", WowActionGroup.ACTION_BAR, ReplacementKeys.keyFor("MULTIACTIONBAR1BUTTON$number"), false, "slot",
                     shortName = "2.$number",
                 ),
             )
@@ -112,13 +112,14 @@ object WowActionCatalog {
             add(
                 WowAction(
                     "MULTIACTIONBAR2BUTTON$number", "Aktionsleiste 3 (unten rechts), Platz $number",
-                    "Bottom Right Bar $number", WowActionGroup.ACTION_BAR, null, false, "slot",
+                    "Bottom Right Bar $number", WowActionGroup.ACTION_BAR, ReplacementKeys.keyFor("MULTIACTIONBAR2BUTTON$number"), false, "slot",
                     shortName = "3.$number",
                 ),
             )
         }
         // Bars 4 to 8 (retail numbering of the key bindings window): MULTIACTIONBAR3 = right, MULTIACTIONBAR4 = right 2,
-        // MULTIACTIONBAR5 to 7 = bars 6 to 8. No standard keys; the keys come from WoW once the player binds them there.
+        // MULTIACTIONBAR5 to 7 = bars 6 to 8. No standard keys in WoW; bars 2 to 5 get the replacement keys of [ReplacementKeys] (the addon
+        // sets them while the player has no key of their own), bars 6 to 8 get their keys from WoW once the player binds them there.
         val extraBars = listOf(4 to "4 (rechts)", 5 to "5 (rechts 2)", 6 to "6", 7 to "7", 8 to "8")
         for ((bar, nameDe) in extraBars) {
             for (index in 0 until 12) {
@@ -126,7 +127,8 @@ object WowActionCatalog {
                 add(
                     WowAction(
                         "MULTIACTIONBAR${bar - 1}BUTTON$number", "Aktionsleiste $nameDe, Platz $number",
-                        "Action Bar $bar Button $number", WowActionGroup.ACTION_BAR, null, false, "slot",
+                        "Action Bar $bar Button $number", WowActionGroup.ACTION_BAR,
+                        ReplacementKeys.keyFor("MULTIACTIONBAR${bar - 1}BUTTON$number"), false, "slot",
                         shortName = "$bar.$number",
                     ),
                 )

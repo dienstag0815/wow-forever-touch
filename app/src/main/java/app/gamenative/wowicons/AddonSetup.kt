@@ -41,7 +41,10 @@ object AddonSetup {
                 assets.open("${BridgeInstaller.ASSET_DIR}/$name").use { files[name] = it.readBytes() }
             }
             // The language of the app for the addon (TouchForeverLang.lua is loaded before TouchForeverLocale.lua).
-            files[LANG_FILE] = addonLanguageFile(app.gamenative.ui.screen.wow.launcher.AppLanguageSetting.currentTag())
+            files[LANG_FILE] = addonLanguageFile(
+                app.gamenative.ui.screen.wow.launcher.AppLanguageSetting.currentTag(),
+                AddonLayoutSignal.isOn(context.applicationContext),
+            )
             install(gameRoot, files)
         } catch (e: Throwable) {
             Timber.tag(TAG).w(e, "addon installation failed")
@@ -51,13 +54,17 @@ object AddonSetup {
         return result
     }
 
-    /** Name of the small file that tells the addon which language the app uses. */
+    /** Name of the small file that tells the addon which language the app uses (and whether the standard layout is active). */
     internal const val LANG_FILE = "TouchForeverLang.lua"
 
-    /** Content of [LANG_FILE]: "de" for a German app, "en" for every other language (also an empty tag). */
-    internal fun addonLanguageFile(languageTag: String): ByteArray {
+    /**
+     * Content of [LANG_FILE]: "de" for a German app, "en" for every other language (also an empty tag).
+     * With [standardLayout] the addon also learns that the launcher uses the standard touch layout (ns.layoutStandard).
+     */
+    internal fun addonLanguageFile(languageTag: String, standardLayout: Boolean = false): ByteArray {
         val language = if (languageTag.substringBefore('-').substringBefore('_').equals("de", ignoreCase = true)) "de" else "en"
-        return "local _, ns = ...\nif ns then ns.appLanguage = \"$language\" end\n".toByteArray(Charsets.UTF_8)
+        val layout = if (standardLayout) "if ns then ns.layoutStandard = true end\n" else ""
+        return ("local _, ns = ...\nif ns then ns.appLanguage = \"$language\" end\n" + layout).toByteArray(Charsets.UTF_8)
     }
 
     /** The file part of [run] (no Android classes, tested): copy, allow out-of-date addons, verify. */

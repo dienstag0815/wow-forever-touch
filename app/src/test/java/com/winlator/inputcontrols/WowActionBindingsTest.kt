@@ -112,10 +112,10 @@ class WowActionBindingsTest {
 
     @Test
     fun `a field whose action is unbound in wow stays disabled when it has no stored key`() {
-        val slot = RadialMenu.Slot("Plätze", BindingCombo.none(), "MULTIACTIONBAR1BUTTON1")
+        val slot = RadialMenu.Slot("Plätze", BindingCombo.none(), "MULTIACTIONBAR5BUTTON1")
         assertFalse(slot.isEnabled)
         WowActionBindings.setResolved(
-            mapOf("MULTIACTIONBAR1BUTTON1" to BindingCombo.fromBindings(listOf(Binding.KEY_SHIFT_L, Binding.KEY_1))),
+            mapOf("MULTIACTIONBAR5BUTTON1" to BindingCombo.fromBindings(listOf(Binding.KEY_SHIFT_L, Binding.KEY_1))),
         )
         assertTrue(slot.isEnabled)
     }

@@ -20,11 +20,17 @@ class TouchStyleModelTest {
     // ---- Stil ------------------------------------------------------------------------------------------------------
 
     @Test
-    fun unknownOrEmptyStyleIdMeansTheCurrentLook() {
-        assertEquals(TouchStyle.CURRENT, TouchStyle.fromId(null))
-        assertEquals(TouchStyle.CURRENT, TouchStyle.fromId(""))
-        assertEquals(TouchStyle.CURRENT, TouchStyle.fromId("zzz"))
+    fun unknownOrEmptyStyleIdMeansTheWowDefault() {
+        assertEquals(TouchStyle.G, TouchStyle.fromId(null))
+        assertEquals(TouchStyle.G, TouchStyle.fromId(""))
+        assertEquals(TouchStyle.G, TouchStyle.fromId("zzz"))
         for (style in TouchStyle.entries) assertEquals(style, TouchStyle.fromId(style.id))
+    }
+
+    @Test
+    fun `standardthema ist WoW (G), aktuell bleibt waehlbar`() {
+        assertEquals(TouchStyle.G, TouchStyle.DEFAULT)
+        assertEquals(TouchStyle.CURRENT, TouchStyle.fromId("aktuell"))
         assertEquals(TouchStyle.entries.size, TouchStyle.entries.map { it.id }.toSet().size)
     }
 

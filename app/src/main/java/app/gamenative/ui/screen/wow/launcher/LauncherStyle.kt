@@ -20,6 +20,12 @@ internal object LauncherPalette {
     const val SURFACE_PRESSED = 0xFF32261AL
     const val ERR_FILL = 0xFF2E1512L
 
+    /** Eingerückte Fläche innerhalb einer Karte (aufgeklappter Inhalt, Formulare): heller als die Karte. */
+    const val SURFACE_INSET = 0xFF34281BL
+    const val OK_FILL = 0xFF14281AL
+    const val WARN_FILL = 0xFF2E2010L
+    const val INFO_FILL = 0xFF12222FL
+
     // Metalle
     const val GOLD_BRIGHT = 0xFFE2C995L
     const val GOLD = 0xFFB59A72L
@@ -48,6 +54,10 @@ internal object LauncherPalette {
     const val ERR = 0xFFFC8181L
     const val INFO = 0xFF63B3EDL
     const val ERR_TEXT = 0xFFFFC9C0L
+    const val OK_BORDER = 0xFF2F7A4EL
+    const val WARN_BORDER = 0xFF7A5628L
+    const val BAD_BORDER = 0xFF8A4545L
+    const val INFO_BORDER = 0xFF2F5F8AL
     const val DISABLED_FILL = 0xFF2A241DL
     const val DISABLED_TEXT = 0xFFA09378L
 
@@ -75,6 +85,7 @@ internal object LauncherColors {
     val SurfaceRaised = LauncherPalette.SURFACE_RAISED.argb()
     val SurfacePressed = LauncherPalette.SURFACE_PRESSED.argb()
     val ErrFill = LauncherPalette.ERR_FILL.argb()
+    val SurfaceInset = LauncherPalette.SURFACE_INSET.argb()
 
     /** Frühere Namen für Karten (Kachel, Seitenkarte): jetzt Leder statt Marineblau. */
     val CardFill = Surface
@@ -105,8 +116,8 @@ internal object LauncherColors {
     val Info = LauncherPalette.INFO.argb()
     val ErrText = LauncherPalette.ERR_TEXT.argb()
     val FocusRing = TextHead
-    val WarnBorder = Color(0xFF7A5628)
-    val BadBorder = Color(0xFF8A4545)
+    val WarnBorder = LauncherPalette.WARN_BORDER.argb()
+    val BadBorder = LauncherPalette.BAD_BORDER.argb()
     val DisabledFill = LauncherPalette.DISABLED_FILL.argb()
     val DisabledText = LauncherPalette.DISABLED_TEXT.argb()
 
@@ -236,7 +247,7 @@ internal object LauncherContrast {
     val pairs: List<ContrastPair> = with(LauncherPalette) {
         val surfaces = listOf(
             "Stein dunkel" to STONE_DARK, "Stein hell" to STONE_LIGHT, "Fläche" to SURFACE,
-            "Fläche erhöht" to SURFACE_RAISED, "Fläche gedrückt" to SURFACE_PRESSED,
+            "Fläche erhöht" to SURFACE_RAISED, "Fläche gedrückt" to SURFACE_PRESSED, "Fläche eingerückt" to SURFACE_INSET,
         )
         val texts = listOf(
             "Text hell" to TEXT_HEAD, "Titel hell" to TEXT_BRIGHT, "Unterzeile" to TEXT_BAR_SUB, "Text" to BODY, "Gedämpft" to MUTED, "Leise" to SUBTLE, "Gold" to GOLD,
@@ -252,6 +263,10 @@ internal object LauncherContrast {
             add(ContrastPair("Tinte auf Gold", INK, GOLD))
             add(ContrastPair("Tinte auf Hellgold", INK, GOLD_BRIGHT))
             add(ContrastPair("Gesperrt", DISABLED_TEXT, DISABLED_FILL))
+            add(ContrastPair("Ok auf Okfläche", OK, OK_FILL))
+            add(ContrastPair("Warnung auf Warnfläche", WARN, WARN_FILL))
+            add(ContrastPair("Info auf Infofläche", INFO, INFO_FILL))
+            add(ContrastPair("Text auf Fehlerfläche", ERR_TEXT, ERR_FILL))
             add(ContrastPair("Abzeichen Nur hier", BADGE_HERE_TEXT, BADGE_HERE_FILL))
             add(ContrastPair("Abzeichen Auch im Spiel", BADGE_GAME_TEXT, BADGE_GAME_FILL))
         }

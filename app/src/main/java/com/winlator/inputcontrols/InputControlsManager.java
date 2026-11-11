@@ -87,7 +87,7 @@ public class InputControlsManager {
                 for (File file : files) {
                     ControlsProfile targetProfile = loadProfile(context, file);
                     if (originProfile == null || targetProfile == null) continue;
-                    if (originProfile.id == targetProfile.id && originProfile.getName().equals(targetProfile.getName())) {
+                    if (ProfileUpdatePolicy.sameProfile(originProfile.id, originProfile.getName(), targetProfile.id, targetProfile.getName())) {
                         targetFile = file;
                         break;
                     }
@@ -109,13 +109,9 @@ public class InputControlsManager {
                 } else if (originProfile != null) {
                     // New asset profile — add if not already present
                     File defaultFile = new File(profilesDir, assetFile);
-                    if (!defaultFile.exists()) {
-                        FileUtils.copy(context, assetPath, defaultFile);
-                        rememberProfileHash(context, defaultFile);
-                    } else {
-                        // Filename occupied by a different profile — check if
-                        // this asset profile (by name) already exists under any ID
-                        boolean alreadyExists = false;
+                    boolean alreadyExists = false;
+                    if (defaultFile.exists()) {
+                        // Filename occupied by a different profile: does this asset profile (by name) already exist under any ID?
                         for (File file2 : files) {
                             ControlsProfile p = loadProfile(context, file2);
                             if (p != null && p.getName().equals(originProfile.getName())) {
@@ -123,18 +119,23 @@ public class InputControlsManager {
                                 break;
                             }
                         }
-                        if (!alreadyExists) {
-                            int newId = nextNewId++;
-                            File freeFile = ControlsProfile.getProfileFile(context, newId);
-                            try {
-                                String json = FileUtils.readString(context, assetPath);
-                                JSONObject data = new JSONObject(json);
-                                data.put("id", newId);
-                                FileUtils.writeString(freeFile, data.toString());
-                                rememberProfileHash(context, freeFile);
-                            } catch (Exception e) {
-                                Log.w("InputControlsManager", "Failed to create profile '" + originProfile.getName() + "' (newId=" + newId + ", file=" + freeFile + ")", e);
-                            }
+                    }
+                    ProfileUpdatePolicy.NewAssetAction newAction = ProfileUpdatePolicy.decideNewAsset(defaultFile.exists(), alreadyExists);
+                    if (newAction == ProfileUpdatePolicy.NewAssetAction.WRITE_SAME_FILE) {
+                        FileUtils.copy(context, assetPath, defaultFile);
+                        rememberProfileHash(context, defaultFile);
+                    } else if (newAction == ProfileUpdatePolicy.NewAssetAction.WRITE_NEW_ID) {
+                        // The player's own profile keeps the file; the bundled one gets a fresh id.
+                        int newId = nextNewId++;
+                        File freeFile = ControlsProfile.getProfileFile(context, newId);
+                        try {
+                            String json = FileUtils.readString(context, assetPath);
+                            JSONObject data = new JSONObject(json);
+                            data.put("id", newId);
+                            FileUtils.writeString(freeFile, data.toString());
+                            rememberProfileHash(context, freeFile);
+                        } catch (Exception e) {
+                            Log.w("InputControlsManager", "Failed to create profile '" + originProfile.getName() + "' (newId=" + newId + ", file=" + freeFile + ")", e);
                         }
                     }
                 }

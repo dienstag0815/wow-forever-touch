@@ -58,6 +58,8 @@ internal enum class InputMode(@StringRes val labelRes: Int, val profileName: Str
     TOUCH(R.string.game_input_touch, WowTouch.PROFILE_NAME),
     /** Touch with the complete template: walk stick with key ring, action arc, scroll wheel, wheels and top row. */
     TOUCH_FULL(R.string.game_input_touch_full, WowTouch.FULL_PROFILE_NAME),
+    /** The first-start standard layout: both sticks carry a key ring (left game menus, right action bar), ESC/keyboard/menu on top. */
+    TOUCH_STANDARD(R.string.game_input_touch_standard, WowTouch.STANDARD_PROFILE_NAME),
     TOUCH_CUSTOM(R.string.game_input_touch_custom, WowTouch.CUSTOM_PROFILE_NAME);
 
     /** The name in the current app language (the profile itself keeps its stored [profileName]). */
@@ -70,26 +72,45 @@ internal enum class InputMode(@StringRes val labelRes: Int, val profileName: Str
         private const val KEY_MODE = "input_mode"
 
         /**
-         * Mode of a player who never chose one: a fresh install starts with the complete touch template, an app that was
-         * already installed before (an update) keeps the old Standard mode. Pure, unit tested.
+         * Mode of a player who never chose one: a fresh install starts with the standard layout (two sticks with a key ring, ESC,
+         * keyboard and menu buttons on top), also when the first-start dialog is dismissed. An app that was already installed before (an update) keeps the old Standard mode.
+         * Pure, unit tested.
          */
-        fun defaultFor(freshInstall: Boolean): InputMode = if (freshInstall) TOUCH_FULL else CLASSIC
+        fun defaultFor(freshInstall: Boolean): InputMode = defaultFor(freshInstall, launchedBefore = true)
+
+        /**
+         * Like [defaultFor], but an "update" that never started a game (a second install over a failed first one, a restored
+         * app) is still a first-time player and gets the standard layout too; only a player who really used the old Standard
+         * mode keeps it. Pure, unit tested.
+         */
+        fun defaultFor(freshInstall: Boolean, launchedBefore: Boolean): InputMode =
+            if (freshInstall || !launchedBefore) TOUCH_STANDARD else CLASSIC
+
+        /**
+         * The mode for a stored choice ([saved], null = never chose). A saved choice always wins (also one a backup import
+         * wrote); an unknown name falls back to Standard. [freshInstall] is null when the install times were unreadable.
+         * Pure, unit tested.
+         */
+        fun resolve(saved: String?, freshInstall: Boolean?, launchedBefore: Boolean): InputMode {
+            if (saved != null) return entries.firstOrNull { it.name == saved } ?: CLASSIC
+            return defaultFor(freshInstall ?: false, launchedBefore)
+        }
 
         /** First install and last update time are equal: the app was never updated, so this is a new installation. */
         fun isFreshInstall(firstInstallTime: Long, lastUpdateTime: Long): Boolean = firstInstallTime == lastUpdateTime
 
-        /** The saved mode; without a saved choice the default of [defaultFor] is decided once and remembered. */
+        /** The saved mode; without a saved choice the default of [resolve] is decided once and remembered. */
         fun current(context: Context): InputMode {
             val prefs = wowPrefs(context)
             val saved = prefs.getString(KEY_MODE, null)
-            if (saved != null) return entries.firstOrNull { it.name == saved } ?: CLASSIC
+            if (saved != null) return resolve(saved, null, true)
             val fresh = try {
                 val info = context.packageManager.getPackageInfo(context.packageName, 0)
                 isFreshInstall(info.firstInstallTime, info.lastUpdateTime)
             } catch (e: Exception) {
-                false
+                null
             }
-            return defaultFor(fresh).also { save(context, it) }
+            return resolve(null, fresh, WowTouch.hasLaunched(context)).also { save(context, it) }
         }
 
         fun save(context: Context, mode: InputMode) {
@@ -120,9 +141,14 @@ internal object WowTouch {
         wowPrefs(context).edit().putBoolean(KEY_APPLIED, applied).apply()
     }
 
+    /** A game was started with this app before: [markApplied] writes the flag on every launch (true or false). */
+    fun hasLaunched(context: Context): Boolean = wowPrefs(context).contains(KEY_APPLIED)
+
     const val PROFILE_NAME = "Touch (WoW)"
     /** The bundled complete template (controls-7.icp); "Layout zurücksetzen" writes it back. */
     const val FULL_PROFILE_NAME = "Touch (WoW komplett)"
+    /** The bundled standard layout (controls-8.icp, offered at the first start); "Layout zurücksetzen" writes it back. */
+    const val STANDARD_PROFILE_NAME = "Touch (Standard)"
     /** The player's own copy of [PROFILE_NAME]; not in the assets, so an update can never overwrite it. */
     const val CUSTOM_PROFILE_NAME = "Touch (Mein Layout)"
     const val EXTRA_KEY = "wowTouch"

@@ -257,7 +257,7 @@ class LauncherReadabilityTest {
         assumeTrue("LauncherParts.kt nicht gefunden", parts.isFile)
         val text = parts.readText()
         val tile = text.substringAfter("// --- Kachel ---").substringBefore("// --- Hero ---")
-        val hero = text.substringAfter("// --- Hero ---").substringBefore("/** Anmeldung als Chip im Hero")
+        val hero = text.substringAfter("// --- Hero ---").substringBefore("// --- Banner und Fuß ---")
         assertTrue(tile.contains(".softFrame("))
         assertTrue(hero.contains(".softFrame("))
         assertFalse(tile.contains(".ornateFrame("))

@@ -26,8 +26,6 @@ internal object LauncherTexts {
     val ORIGIN_LINES: UiText = UiText.res(R.string.launcher_origin_lines)
 
     // --- Hero ---
-    val LOGIN_SAVED: UiText = UiText.res(R.string.launcher_login_saved)
-    val LOGIN_SETUP: UiText = UiText.res(R.string.launcher_login_setup)
     val PLAY_TITLE: UiText = UiText.res(R.string.launcher_play)
     val PLAY_BUTTON: UiText = UiText.res(R.string.launcher_play)
     val WRONG_GAME_BUTTON: UiText = UiText.res(R.string.launcher_wrong_game_button)

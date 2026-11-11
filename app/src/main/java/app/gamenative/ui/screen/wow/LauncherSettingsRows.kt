@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -36,35 +35,47 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import app.gamenative.ui.screen.wow.launcher.ActionButton
 import app.gamenative.ui.screen.wow.launcher.LauncherColors
+import app.gamenative.ui.screen.wow.launcher.ValueChip
+import app.gamenative.ui.screen.wow.launcher.ValueText
+import app.gamenative.ui.screen.wow.launcher.actionKindOf
 import app.gamenative.ui.screen.wow.launcher.LauncherSectionTitle
 import app.gamenative.ui.screen.wow.launcher.asString
 import app.gamenative.ui.screen.wow.launcher.ornateFrame
 
 /*
- * Gemeinsamer Zeilenstil der Einstellungsseite: Titel, kleiner Erklärtext, rechts Wert oder Schalter, mindestens 52 dp hoch
- * (Daumen). Die Blöcke für Klick-Rad, Sprache, Symbole und Updates benutzen dieselben Zeilen.
+ * Gemeinsamer Zeilenstil der Einstellungsseite: Titel, kleiner Erklärtext, rechts ein Knopf (Aktion), ein Auswahlfeld (antippbarer
+ * Wert), ein Schalter oder gedämpfter Text (reiner Wert), mindestens 48 dp hoch (Daumen). Die Bausteine dafür stehen in
+ * launcher/SettingsControls.kt; die Blöcke für Klick-Rad, Sprache, Symbole und Updates benutzen dieselben Zeilen.
  */
 
 private val RowTitleColor = LauncherColors.Body
 private val DividerColor = LauncherColors.Divider
 
-/** Gruppe: Überschrift in Gold (Serif) über einer Karte aus Leder mit doppeltem Goldrahmen. */
+/**
+ * Gruppe als Karte: oben ein Kopfband mit der Überschrift in Gold (Serif) auf eigener, hellerer Fläche, darunter die Zeilen auf Leder
+ * mit doppeltem Goldrahmen. Der Abstand zwischen Gruppen ist größer als der zwischen Zeilen.
+ */
 @Composable
 internal fun SettingGroupCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        LauncherSectionTitle(text = title, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-        Column(
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .ornateFrame(fill = LauncherColors.Surface.copy(alpha = 0.94f), corners = false),
+    ) {
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .ornateFrame(fill = LauncherColors.Surface.copy(alpha = 0.94f), corners = false)
-                .padding(vertical = 3.dp),
-            content = content,
-        )
+                .background(LauncherColors.SurfaceRaised)
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        ) {
+            LauncherSectionTitle(text = title)
+        }
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 3.dp), content = content)
     }
 }
 
@@ -123,7 +134,7 @@ internal fun SettingRow(
                 drawLine(DividerColor, Offset(inset, y), Offset(size.width - inset, y), strokeWidth = 1f)
             }
             .then(if (onClick != null) Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick) else Modifier)
-            .heightIn(min = 42.dp)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 14.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -182,7 +193,7 @@ internal fun SettingSwitchRow(
     }
 }
 
-/** Wert rechts in Gold; Antippen wechselt zum nächsten Wert (Stepper, der herumläuft) oder öffnet etwas. */
+/** Wert rechts: mit [onClick] ein Auswahlfeld (Antippen wechselt zum nächsten Wert, ein Stepper, der herumläuft), sonst gedämpfter Text. */
 @Composable
 internal fun SettingValueRow(
     title: String,
@@ -190,22 +201,14 @@ internal fun SettingValueRow(
     description: String? = null,
     enabled: Boolean = true,
     scope: SettingScope? = null,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     SettingRow(title = title, description = description, enabled = enabled, onClick = onClick, scope = scope) {
-        Text(
-            text = value,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = LauncherColors.Gold,
-            textAlign = TextAlign.End,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (onClick != null) ValueChip(value, enabled) else ValueText(value)
     }
 }
 
-/** Auswahl aus einer Liste: Wert rechts, Antippen öffnet ein Menü direkt darunter. */
+/** Auswahl aus einer Liste: Auswahlfeld mit Pfeil rechts, Antippen öffnet ein Menü direkt darunter. */
 @Composable
 internal fun <T> SettingChoiceRow(
     title: String,
@@ -221,10 +224,7 @@ internal fun <T> SettingChoiceRow(
     var expanded by remember { mutableStateOf(false) }
     SettingRow(title = title, description = description, enabled = enabled, onClick = { expanded = true }, scope = scope) {
         Box {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = value, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = LauncherColors.Gold, maxLines = 1)
-                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = LauncherColors.Muted)
-            }
+            ValueChip(value, enabled)
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 options.forEach { option ->
                     DropdownMenuItem(
@@ -241,7 +241,11 @@ internal fun <T> SettingChoiceRow(
     }
 }
 
-/** Zeile, die nur etwas auslöst (Aktion statt Wert); [danger] färbt den Titel rot. */
+/**
+ * Zeile, die etwas auslöst: rechts ein Knopf ([ActionButton]) mit [actionText]; [primary] = Hauptaktion des Bereichs (gefüllt in Gold),
+ * [danger] = gefährlich (rot umrandet), sonst umrandet. Mit Knopf ist nur der Knopf tippbar; ohne [actionText] ist die ganze Zeile
+ * die Aktion (dann mit Pfeil rechts).
+ */
 @Composable
 internal fun SettingActionRow(
     title: String,
@@ -249,12 +253,17 @@ internal fun SettingActionRow(
     actionText: String? = null,
     enabled: Boolean = true,
     danger: Boolean = false,
+    primary: Boolean = false,
     scope: SettingScope? = null,
     onClick: () -> Unit,
 ) {
-    SettingRow(title = title, description = description, enabled = enabled, onClick = onClick, scope = scope) {
-        if (actionText != null) {
-            Text(text = actionText, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = if (danger) LauncherColors.Err else LauncherColors.Gold)
+    if (actionText != null) {
+        SettingRow(title = title, description = description, enabled = enabled, scope = scope) {
+            ActionButton(text = actionText, kind = actionKindOf(primary, danger), enabled = enabled, onClick = onClick)
+        }
+    } else {
+        SettingRow(title = title, description = description, enabled = enabled, onClick = onClick, scope = scope) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = LauncherColors.Gold)
         }
     }
 }

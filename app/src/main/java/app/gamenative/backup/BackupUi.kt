@@ -12,6 +12,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +29,10 @@ import app.gamenative.ui.screen.wow.SettingGroupCard
 import app.gamenative.ui.screen.wow.SettingRow
 import app.gamenative.ui.screen.wow.launcher.DetailHint
 import app.gamenative.ui.screen.wow.launcher.LauncherColors
+import app.gamenative.update.RollbackFiles
+import app.gamenative.update.RollbackLogic
+import app.gamenative.update.UpdateSettings
+import app.gamenative.utils.StorageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -94,7 +99,7 @@ internal fun ColumnScope.BackupDetailBody() {
             title = stringResource(R.string.backup_export),
             description = stringResource(R.string.backup_export_desc),
             enabled = !busy,
-            onClick = { exportPicker.launch(BackupStore.suggestedFileName()) },
+            onClick = { exportPicker.launch(BackupStore.suggestedFileName(context)) },
         )
         SettingRow(
             title = stringResource(R.string.backup_import),
@@ -104,38 +109,104 @@ internal fun ColumnScope.BackupDetailBody() {
         )
     }
 
+    BackupDialogs(dialog, onDialog = { dialog = it }, onBusy = { busy = it })
+}
+
+/** Die Rückfragen und Meldungen des Backups (Info, Vorschau, Ergebnis) samt dem Übernehmen; für die Ansicht "Backup" und den Vorschlag nach einer Neuinstallation. */
+@Composable
+private fun BackupDialogs(dialog: BackupDialog?, onDialog: (BackupDialog?) -> Unit, onBusy: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     fun apply(preview: BackupDialog.Preview, policy: ConflictPolicy) {
-        dialog = null
-        busy = true
+        onDialog(null)
+        onBusy(true)
         scope.launch {
             // Auf dem Hauptfaden: die Zwischenspeicher der Oberfläche (Bilder, Abklingzeiten) werden dabei nachgezogen.
             val result = BackupStore.apply(context, preview.backup, policy)
-            busy = false
-            dialog = BackupDialog.Done(result)
+            onBusy(false)
+            onDialog(BackupDialog.Done(result))
         }
     }
 
-    when (val d = dialog) {
+    when (dialog) {
         null -> Unit
         is BackupDialog.Info -> BackupAlert(
             title = stringResource(R.string.backup_title),
-            text = d.text,
-            confirm = stringResource(R.string.backup_ok) to { dialog = null },
+            text = dialog.text,
+            confirm = stringResource(R.string.backup_ok) to { onDialog(null) },
         )
         is BackupDialog.Preview -> PreviewDialog(
-            preview = d,
-            onApply = { policy -> apply(d, policy) },
-            onCancel = { dialog = null },
+            preview = dialog,
+            onApply = { policy -> apply(dialog, policy) },
+            onCancel = { onDialog(null) },
         )
         is BackupDialog.Done -> BackupAlert(
             title = stringResource(R.string.backup_done_title),
-            text = doneText(context, d.result),
+            text = doneText(context, dialog.result),
             confirm = stringResource(R.string.backup_ok) to {
-                dialog = null
+                onDialog(null)
                 findActivity(context)?.recreate()
             },
         )
     }
+}
+
+/**
+ * Nach einer Neuinstallation (erster Start, Rückstufen oder Neuaufbau): liegt in Downloads ein Backup dieser App, schlägt der Launcher
+ * einmal den Import des neuesten vor. "Importieren" liest die Datei und zeigt die übliche Vorschau; "Nein, danke" und jede Antwort
+ * beenden den Vorschlag. Ohne Speicherzugriff bleibt er offen, bis die Datei lesbar ist.
+ */
+@Composable
+internal fun BackupResumeHost() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var offer by remember { mutableStateOf<java.io.File?>(null) }
+    var dialog by remember { mutableStateOf<BackupDialog?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (!UpdateSettings.backupSuggestPending(context)) return@LaunchedEffect
+        val found = withContext(Dispatchers.IO) {
+            if (!StorageUtils.hasStoragePermission(context, RollbackFiles.downloadsDir().absolutePath)) null else RollbackFiles.newestBackup()
+        }
+        when {
+            RollbackLogic.shouldSuggestImport(true, found?.name) -> offer = found
+            StorageUtils.hasStoragePermission(context, RollbackFiles.downloadsDir().absolutePath) ->
+                UpdateSettings.setBackupSuggestPending(context, false)
+        }
+    }
+
+    offer?.let { file ->
+        val decline = {
+            UpdateSettings.setBackupSuggestPending(context, false)
+            offer = null
+        }
+        BackupAlert(
+            title = stringResource(R.string.backup_resume_title),
+            text = stringResource(R.string.backup_resume_text, file.name),
+            confirm = stringResource(R.string.backup_resume_yes) to {
+                UpdateSettings.setBackupSuggestPending(context, false)
+                offer = null
+                busy = true
+                scope.launch {
+                    val read = withContext(Dispatchers.IO) {
+                        when (val r = BackupStore.read(context, android.net.Uri.fromFile(file))) {
+                            is UnpackResult.Ok -> r to BackupStore.conflicts(context, r.backup)
+                            is UnpackResult.Failed -> r to emptyList()
+                        }
+                    }
+                    busy = false
+                    dialog = when (val r = read.first) {
+                        is UnpackResult.Ok -> BackupDialog.Preview(r.backup, read.second)
+                        is UnpackResult.Failed -> BackupDialog.Info(context.getString(errorText(r.error)))
+                    }
+                }
+            },
+            dismiss = stringResource(R.string.backup_resume_no) to decline,
+        )
+    }
+    BackupDialogs(dialog, onDialog = { dialog = it }, onBusy = { busy = it })
 }
 
 @Composable

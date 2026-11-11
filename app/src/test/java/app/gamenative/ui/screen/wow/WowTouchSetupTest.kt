@@ -120,12 +120,33 @@ class WowTouchSetupTest {
     }
 
     @Test
-    fun changingSteuerung_setsTouchscreenFromModeButKeepsGestureChanges() {
-        var c = start(fresh)
-        c = c.copy(touchscreen = false, gestures = withGesture(c.gestures, "longPressDelay", 650))
+    fun standardToTouch_setsTouchscreenOnButKeepsGestureChanges() {
+        var c = start(fresh, InputMode.CLASSIC)
+        c = c.copy(gestures = "{\"longPressDelay\":650}")
         c = start(c, InputMode.TOUCH_CUSTOM)
         assertTrue(c.touchscreen)
         assertEquals(650, JSONObject(c.gestures).getInt("longPressDelay"))
+    }
+
+    @Test
+    fun touchToTouch_keepsTouchscreenSwitchAndGestures() {
+        var c = start(fresh)
+        c = c.copy(touchscreen = false, gestures = withGesture(c.gestures, "longPressDelay", 650))
+        for (next in listOf(InputMode.TOUCH_CUSTOM, InputMode.TOUCH_STANDARD, InputMode.TOUCH_FULL, InputMode.TOUCH)) {
+            c = start(c, next)
+            assertFalse("switch to $next", c.touchscreen)
+            assertEquals(650, JSONObject(c.gestures).getInt("longPressDelay"))
+            assertEquals(next.name, c.state.mode)
+        }
+    }
+
+    @Test
+    fun touchToTouch_reset_stillWritesDefaults() {
+        var c = start(fresh)
+        c = c.copy(touchscreen = false, state = c.state.copy(forceDefaults = true))
+        c = start(c, InputMode.TOUCH_CUSTOM)
+        assertTrue(c.touchscreen)
+        assertEquals(defaults, c.gestures)
     }
 
     @Test

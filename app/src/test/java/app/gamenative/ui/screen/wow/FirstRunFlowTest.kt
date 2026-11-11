@@ -17,7 +17,6 @@ class FirstRunFlowTest {
         isWrongGame = false,
         isLegacyBeta = false,
         needsInstall = true,
-        hasSavedLogin = false,
         locationChosen = false,
         unmetered = true,
         autoLaunchPending = false,
@@ -26,7 +25,6 @@ class FirstRunFlowTest {
         notificationsRequested = false,
         batteryRequested = false,
         installAttempted = false,
-        loginPrompted = false,
     )
 
     private val withAccess = fresh.copy(hasStorageAccess = true, micGranted = true, notificationsOk = true, batteryExempt = true)
@@ -86,7 +84,7 @@ class FirstRunFlowTest {
 
     @Test
     fun permissionPromptsWaitWhileGameAutoLaunches() {
-        val pending = fresh.copy(hasStorageAccess = true, micGranted = true, needsInstall = false, hasSavedLogin = true, autoLaunchPending = true)
+        val pending = fresh.copy(hasStorageAccess = true, micGranted = true, needsInstall = false, autoLaunchPending = true)
         assertEquals(FirstRunStep.None, step(pending))
     }
 
@@ -101,7 +99,7 @@ class FirstRunFlowTest {
 
     @Test
     fun microphoneNotAskedWhileGameAutoLaunches() {
-        val pending = withAccess.copy(micGranted = false, needsInstall = false, hasSavedLogin = true, autoLaunchPending = true)
+        val pending = withAccess.copy(micGranted = false, needsInstall = false, autoLaunchPending = true)
         assertEquals(FirstRunStep.None, step(pending))
     }
 
@@ -142,23 +140,10 @@ class FirstRunFlowTest {
     }
 
     @Test
-    fun afterInstallWithoutLogin_opensLoginOnce() {
+    fun afterInstall_withoutSavedLogin_asksForNothingAutomatically() {
         val installed = withAccess.copy(needsInstall = false, installAttempted = true)
-        assertEquals(FirstRunStep.PromptLogin, step(installed))
-        assertEquals(FirstRunStep.None, step(installed.copy(loginPrompted = true)))
-    }
-
-    @Test
-    fun savedLogin_noPrompt() {
-        assertEquals(FirstRunStep.None, step(withAccess.copy(needsInstall = false, hasSavedLogin = true)))
-    }
-
-    @Test
-    fun launchAfterLogin_onlyWhenInstalledAndCurrent() {
-        assertTrue(shouldLaunchAfterLogin(installed = true, isWrongGame = false, isOutdated = false))
-        assertFalse(shouldLaunchAfterLogin(installed = false, isWrongGame = false, isOutdated = false))
-        assertFalse(shouldLaunchAfterLogin(installed = true, isWrongGame = true, isOutdated = false))
-        assertFalse(shouldLaunchAfterLogin(installed = true, isWrongGame = false, isOutdated = true))
+        assertEquals(FirstRunStep.None, step(installed))
+        assertEquals(FirstRunStep.None, step(installed.copy(batteryRequested = true)))
     }
 
     @Test

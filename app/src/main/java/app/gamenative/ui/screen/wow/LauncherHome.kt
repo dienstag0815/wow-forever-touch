@@ -37,6 +37,7 @@ import app.gamenative.ui.screen.wow.launcher.homeMetricsFor
 import app.gamenative.ui.screen.wow.launcher.homeUiState
 import app.gamenative.ui.screen.wow.launcher.tileRows
 import app.gamenative.update.UpdateBanner
+import app.gamenative.backup.BackupResumeHost
 import app.gamenative.update.UpdateManager
 import app.gamenative.update.isOffered
 
@@ -102,7 +103,6 @@ internal fun LauncherHomeState.toHomeInput(
     busyText = busyText,
     errorMessage = errorMessage,
     canPlay = canPlay,
-    hasSavedLogin = hasSavedLogin,
     regionLabel = regionLabel,
     resolutionLabel = resolutionLabel,
     fpsLabel = fpsLabel,
@@ -170,6 +170,8 @@ internal fun LauncherHome(s: LauncherHomeState, a: LauncherHomeActions, artOverr
     val openSource: () -> Unit = { runCatching { uriHandler.openUri(LauncherTexts.SOURCE_URL) } }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // After a fresh installation: offers the newest backup from Downloads once (rollback or reinstall).
+        BackupResumeHost()
         // Breite und Höhe hier lesen: in der Column ist der Empfänger von BoxWithConstraints nicht mehr implizit (Falle aus fold8.20).
         val m = homeMetricsFor(maxWidth.value, maxHeight.value)
         val compact = m.layout.heroOnTop
@@ -221,12 +223,10 @@ internal fun LauncherHome(s: LauncherHomeState, a: LauncherHomeActions, artOverr
             val hero: @Composable (Modifier) -> Unit = { mod ->
                 HeroCard(
                     hero = ui.hero,
-                    hasSavedLogin = s.hasSavedLogin,
                     autoUi = s.autoUi,
                     compact = compact,
                     art = art,
                     onAction = onHero,
-                    onLogin = a.onLogin,
                     onCancelCountdown = a.onCancelCountdown,
                     modifier = mod,
                     density = m.density,

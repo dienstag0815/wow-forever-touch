@@ -92,4 +92,24 @@ class ShooterModeConfigTest {
 
         assertEquals(ShooterModeConfig.SPRINT_BINDING_SHIFT, config.sprintBinding)
     }
+
+    @Test
+    fun `runtime toggle is never shown for the WoW container`() {
+        val showing = ShooterModeConfig(showRuntimeToggle = true)
+
+        assertFalse(ShooterModeConfig.runtimeToggleVisible(isWowContainer = true, config = showing))
+        assertFalse(ShooterModeConfig.runtimeToggleVisible(isWowContainer = true, config = null))
+    }
+
+    @Test
+    fun `runtime toggle follows its setting for other containers`() {
+        assertTrue(ShooterModeConfig.runtimeToggleVisible(isWowContainer = false, config = null))
+        assertTrue(ShooterModeConfig.runtimeToggleVisible(isWowContainer = false, config = ShooterModeConfig()))
+        assertFalse(
+            ShooterModeConfig.runtimeToggleVisible(
+                isWowContainer = false,
+                config = ShooterModeConfig(showRuntimeToggle = false),
+            ),
+        )
+    }
 }

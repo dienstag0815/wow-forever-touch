@@ -14,7 +14,9 @@ import android.provider.Settings
 import app.gamenative.BuildConfig
 import app.gamenative.R
 import app.gamenative.ui.screen.wow.launcher.UiText
+import app.gamenative.backup.BackupStore
 import app.gamenative.ui.util.SnackbarManager
+import app.gamenative.utils.StorageUtils
 import app.gamenative.utils.Net
 import java.io.File
 import java.io.IOException
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Protocol
 import okhttp3.Request
@@ -114,6 +117,13 @@ object UpdateManager {
             .build()
     }
 
+    /** Custom sources never follow a redirect from https to http. */
+    private val customDownloadHttp by lazy { ReleaseFetcher.forSource(downloadHttp) }
+
+    private fun releaseFetcher() = ReleaseFetcher(ReleaseFetcher.forSource(feedHttp), userAgent)
+
+    private val userAgent: String get() = "WoW-Forever-Android/${BuildConfig.VERSION_NAME}"
+
     /** The check at app start (first launcher visit of the process); [awaitStartCheck] waits for it. */
     @Volatile
     private var startCheck: Deferred<Unit>? = null
@@ -130,6 +140,8 @@ object UpdateManager {
         // Back in the launcher: an install still shown as running may already be done (no status came, or the app restarted).
         _state.update { settleInstalled(it, BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME) }
         if (started.compareAndSet(false, true)) {
+            // First start of a fresh installation: the launcher may offer the backup it finds in Downloads (set here, before the screen asks).
+            if (UpdateSettings.seenVersionCode(app) == 0) UpdateSettings.setBackupSuggestPending(app, true)
             startCheck = scope.async {
                 runCatching {
                     val seen = UpdateSettings.seenVersionCode(app)
@@ -242,6 +254,36 @@ object UpdateManager {
         scope.launch { checkNow(app, force = true) }
     }
 
+    /**
+     * "Verbindung prüfen" of the source form: reads the newest release of [source] with [token] and reports it, without
+     * saving anything or touching the update state. Blocking work runs on the IO dispatcher.
+     */
+    suspend fun testSource(source: CustomSource, token: String?): SourceResult = withContext(Dispatchers.IO) {
+        releaseFetcher().fetch(source, token)
+    }
+
+    /** False while a check, download or install runs: the source must not change under it. */
+    fun canChangeSource(): Boolean = !busy()
+
+    /**
+     * The source was switched (custom saved or "Zurück zu offiziell"): forget the offer and the loaded APK of the old one and
+     * check the new one at once. Does nothing while a job runs ([canChangeSource]).
+     */
+    fun sourceChanged(context: Context) {
+        val app = context.applicationContext
+        if (busy()) return
+        job?.cancel()
+        _ready.value = null
+        _autoHeld.value = null
+        clearVersions()
+        _state.value = UpdateState.Idle
+        _checkPhase.value = CheckPhase.Unknown
+        scope.launch {
+            runCatching { File(updatesDir(app)).deleteRecursively() }
+            checkNow(app, force = true)
+        }
+    }
+
     fun dismiss() {
         when (val s = _state.value) {
             is UpdateState.Installed, is UpdateState.UpToDate -> _state.value = UpdateState.Idle
@@ -351,6 +393,145 @@ object UpdateManager {
         }
     }
 
+    // ---- manual way: the browser --------------------------------------------------------------------------------
+
+    /** The address the browser should open for the offered [info] (APK of a public source, release page of a tester or private one); null = none. */
+    fun browserTarget(context: Context, info: UpdateInfo): BrowserDownload.Target? {
+        val app = context.applicationContext
+        val custom = UpdateSettings.customSource(app)
+        val official = if (custom == null) UpdateLogic.feedUrl(UpdateSettings.baseUrl(app))?.let { UpdateLogic.resolveApkUrl(it, info) } else null
+        val token = if (custom != null) UpdateSettings.sourceToken(app) else null
+        return BrowserDownload.choose(info, custom?.ref, UpdateSettings.sourceForm(app).tester, token, official)
+    }
+
+    /** The release page of [tag] of the active custom source (version list); null without a custom source. */
+    fun releasePageTarget(context: Context, tag: String): BrowserDownload.Target? =
+        UpdateSettings.customSource(context.applicationContext)?.let { BrowserDownload.releasePage(it.ref, tag) }
+
+    /** Opens [target] in the browser (ACTION_VIEW). The app needs no storage or install right for this; no token is sent. */
+    fun openInBrowser(context: Context, target: BrowserDownload.Target): Boolean {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(target.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching { context.applicationContext.startActivity(intent) }.onFailure { Timber.w(it, "Browser could not be opened") }.isSuccess
+    }
+
+    // ---- versions and rollback (tester area) ------------------------------------------------------------------
+
+    private val _versions = MutableStateFlow<VersionsState>(VersionsState.Idle)
+    val versions: StateFlow<VersionsState> = _versions.asStateFlow()
+    private val _rollback = MutableStateFlow<RollbackState>(RollbackState.Idle)
+    val rollback: StateFlow<RollbackState> = _rollback.asStateFlow()
+
+    @Volatile
+    private var releasesByTag: Map<String, ReleaseEntry> = emptyMap()
+    private var rollbackJob: Job? = null
+
+    /** Reads the release list of the custom (tester) source for the list "Versionen". */
+    fun loadVersions(context: Context) {
+        val app = context.applicationContext
+        val custom = UpdateSettings.customSource(app) ?: return
+        if (_versions.value is VersionsState.Loading) return
+        if (!hasNetwork(app)) {
+            _versions.value = VersionsState.Failed(UiText.res(R.string.launcher_update_no_network))
+            return
+        }
+        _versions.value = VersionsState.Loading
+        scope.launch {
+            _versions.value = when (val listed = releaseFetcher().list(custom, UpdateSettings.sourceToken(app))) {
+                is ReleaseListResult.Failed -> VersionsState.Failed(listed.reason)
+                is ReleaseListResult.Ok -> {
+                    releasesByTag = listed.releases.associateBy { it.tag }
+                    VersionsState.Loaded(RollbackLogic.rows(listed.releases, BuildConfig.VERSION_NAME, includePrereleases = true))
+                }
+            }
+        }
+    }
+
+    /** Forgets the list and any rollback result (source changed, page closed). */
+    fun clearVersions() {
+        if (_rollback.value is RollbackState.Working) return
+        _versions.value = VersionsState.Idle
+        _rollback.value = RollbackState.Idle
+        releasesByTag = emptyMap()
+    }
+
+    fun dismissRollback() {
+        if (_rollback.value !is RollbackState.Working) _rollback.value = RollbackState.Idle
+    }
+
+    private fun infoOf(app: Context, tag: String): UpdateInfo {
+        val custom = UpdateSettings.customSource(app) ?: throw UpdateFailure(UiText.res(R.string.launcher_rollback_err_no_source))
+        val release = releasesByTag[tag] ?: throw UpdateFailure(UiText.res(R.string.launcher_rollback_err_gone))
+        return when (val found = releaseFetcher().infoFor(custom, UpdateSettings.sourceToken(app), release)) {
+            is SourceResult.Failed -> throw UpdateFailure(found.reason)
+            is SourceResult.Found -> found.info
+        }
+    }
+
+    /** A newer version from the list: the normal update (offer, download, install session). */
+    fun updateToVersion(context: Context, tag: String) {
+        val app = context.applicationContext
+        if (busy()) return
+        scope.launch {
+            try {
+                val info = infoOf(app, tag)
+                if (RollbackLogic.relation(info, BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME) != VersionRelation.Newer) {
+                    throw UpdateFailure(UiText.res(R.string.launcher_rollback_err_not_newer))
+                }
+                _ready.value = null
+                _state.value = UpdateState.Available(info)
+                install(app)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "Version update failed")
+                _state.value = UpdateState.Error(failureText(e), null)
+            }
+        }
+    }
+
+    /**
+     * An older version from the list, steps a) and b) of the downgrade: export the backup into the shared Downloads folder, load
+     * and verify the old APK there. The uninstall itself ([startUninstall]) waits for the player's tap on the result.
+     */
+    fun prepareRollback(context: Context, tag: String) {
+        val app = context.applicationContext
+        if (busy()) return
+        val version = RollbackLogic.nameOf(tag)
+        _rollback.value = RollbackState.Working(RollbackStep.Backup, version)
+        rollbackJob = scope.launch {
+            try {
+                if (!hasNetwork(app)) throw UpdateFailure(UiText.res(R.string.launcher_update_no_network))
+                val info = infoOf(app, tag)
+                if (RollbackLogic.relation(info, BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME) != VersionRelation.Older) {
+                    throw UpdateFailure(UiText.res(R.string.launcher_rollback_err_not_older))
+                }
+                val downloads = RollbackFiles.downloadsDir()
+                if (!StorageUtils.hasStoragePermission(app, downloads.absolutePath)) {
+                    throw UpdateFailure(UiText.res(R.string.launcher_rollback_err_storage))
+                }
+                val backup = BackupStore.exportToFile(app, downloads) ?: throw UpdateFailure(UiText.res(R.string.launcher_rollback_err_backup))
+                _rollback.value = RollbackState.Working(RollbackStep.Download, version, 0f)
+                val apk = downloadAndVerify(app, info, File(downloads, RollbackLogic.apkFileName(info))) { fraction ->
+                    _rollback.value = RollbackState.Working(RollbackStep.Download, version, fraction)
+                }
+                RollbackFiles.scan(app, backup, apk)
+                _rollback.value = RollbackState.Ready(version, backup.name, apk.name)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "Rollback preparation failed")
+                _rollback.value = RollbackState.Failed(failureText(e))
+            }
+        }
+    }
+
+    /** Step c): asks Android to uninstall this app (its own dialog). False when no uninstaller could be started. */
+    fun startUninstall(context: Context): Boolean {
+        val app = context.applicationContext
+        val intent = Intent(Intent.ACTION_DELETE, Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return runCatching { app.startActivity(intent) }.onFailure { Timber.w(it, "Uninstall dialog failed") }.isSuccess
+    }
+
     // ---- check ------------------------------------------------------------------------------------------------
 
     private fun hasNetwork(context: Context): Boolean = runCatching {
@@ -361,11 +542,11 @@ object UpdateManager {
 
     private fun busy(): Boolean = _state.value.let {
         it is UpdateState.Checking || it is UpdateState.Downloading || it is UpdateState.Installing
-    }
+    } || _rollback.value is RollbackState.Working
 
     private fun showCachedFeed(context: Context) {
         val cached = UpdateSettings.cachedFeed(context) ?: return
-        val ok = UpdateLogic.parseFeed(cached) as? FeedResult.Ok ?: return
+        val ok = UpdateLogic.parseFeed(cached, requireSha = UpdateSettings.customSource(context) != null) as? FeedResult.Ok ?: return
         if (UpdateLogic.isNewer(ok.info, BuildConfig.VERSION_CODE, BuildConfig.VERSION_NAME)) {
             _state.compareAndSet(UpdateState.Idle, UpdateState.Available(ok.info))
         }
@@ -380,8 +561,9 @@ object UpdateManager {
             if (force) _state.value = UpdateState.Error(UiText.res(R.string.launcher_update_no_network), null)
             return
         }
+        val custom = UpdateSettings.customSource(context)
         val feedUrl = UpdateLogic.feedUrl(UpdateSettings.baseUrl(context))
-        if (feedUrl == null) {
+        if (custom == null && feedUrl == null) {
             _checkPhase.value = CheckPhase.Failed
             if (force) _state.value = UpdateState.Error(UiText.res(R.string.launcher_update_bad_address), null)
             return
@@ -392,13 +574,26 @@ object UpdateManager {
         // Counts as an attempt even when it fails, so a broken server is not hit on every screen visit.
         UpdateSettings.saveLastCheck(context, now)
         try {
-            val body = feedHttp.newCall(
-                Request.Builder().url(feedUrl).header("User-Agent", "WoW-Forever-Android/${BuildConfig.VERSION_NAME}").build(),
-            ).execute().use { rsp ->
-                if (!rsp.isSuccessful) throw UpdateFailure(UiText.res(R.string.launcher_update_http_error, rsp.code))
-                rsp.peekBody(64 * 1024).string()
+            val body: String
+            val parsed: FeedResult
+            if (custom != null) {
+                when (val found = releaseFetcher().fetch(custom, UpdateSettings.sourceToken(context))) {
+                    is SourceResult.Failed -> throw UpdateFailure(found.reason)
+                    is SourceResult.Found -> {
+                        parsed = FeedResult.Ok(found.info)
+                        body = UpdateSourceLogic.toFeedJson(found.info)
+                    }
+                }
+            } else {
+                body = feedHttp.newCall(
+                    Request.Builder().url(feedUrl!!).header("User-Agent", userAgent).build(),
+                ).execute().use { rsp ->
+                    if (!rsp.isSuccessful) throw UpdateFailure(UiText.res(R.string.launcher_update_http_error, rsp.code))
+                    rsp.peekBody(64 * 1024).string()
+                }
+                parsed = UpdateLogic.parseFeed(body)
             }
-            when (val parsed = UpdateLogic.parseFeed(body)) {
+            when (parsed) {
                 is FeedResult.Invalid -> throw UpdateFailure(UiText.res(R.string.launcher_update_feed_unusable, parsed.reason))
                 is FeedResult.Ok -> {
                     UpdateSettings.saveFeed(context, body)
@@ -426,25 +621,46 @@ object UpdateManager {
     private fun updatesDir(context: Context): String =
         File(context.externalCacheDir ?: context.cacheDir, UPDATES_DIR).absolutePath
 
-    private suspend fun downloadAndVerify(context: Context, info: UpdateInfo): File {
-        val feedUrl = UpdateLogic.feedUrl(UpdateSettings.baseUrl(context)) ?: throw UpdateFailure(UiText.res(R.string.launcher_update_bad_address))
-        val apkUrl = UpdateLogic.resolveApkUrl(feedUrl, info) ?: throw UpdateFailure(UiText.res(R.string.launcher_update_apk_address_unusable))
-        val dir = File(updatesDir(context))
-        dir.deleteRecursively()
-        _ready.value = null
+    /**
+     * Loads and verifies the APK of [info]. Normally into [updatesDir] with the shown progress of [state]. With [target] (a
+     * rollback: the old APK in the shared Downloads folder, which survives an uninstall) only that one file is written, nothing else
+     * in its folder is touched, and the progress goes to [onProgress] instead of [state].
+     */
+    private suspend fun downloadAndVerify(context: Context, info: UpdateInfo, target: File? = null, onProgress: ((Float) -> Unit)? = null): File {
+        val custom = UpdateSettings.customSource(context)
+        val token = if (custom != null) UpdateSettings.sourceToken(context) else null
+        val apkUrl = if (custom != null) {
+            // The address comes from the release's own asset; only https, and the token only to the repository's hosts.
+            info.url.takeIf { it.startsWith(custom.ref.scheme + "://", ignoreCase = true) }
+                ?: throw UpdateFailure(UiText.res(R.string.launcher_update_apk_address_unusable))
+        } else {
+            val feedUrl = UpdateLogic.feedUrl(UpdateSettings.baseUrl(context)) ?: throw UpdateFailure(UiText.res(R.string.launcher_update_bad_address))
+            UpdateLogic.resolveApkUrl(feedUrl, info) ?: throw UpdateFailure(UiText.res(R.string.launcher_update_apk_address_unusable))
+        }
+        val dir = target?.parentFile ?: File(updatesDir(context))
+        if (target == null) {
+            dir.deleteRecursively()
+            _ready.value = null
+        }
         dir.mkdirs()
-        // The file plus the copy Android keeps in the install session.
-        val needed = info.size * 2 + SAFETY_MARGIN_BYTES
+        // The file plus the copy Android keeps in the install session (a rollback only keeps the file).
+        val needed = info.size * (if (target == null) 2 else 1) + SAFETY_MARGIN_BYTES
         if (dir.usableSpace < needed) {
             throw UpdateFailure(UiText.res(R.string.launcher_update_low_storage_download, needed / (1024 * 1024)))
         }
-        val target = File(dir, APK_NAME)
-        val part = File(dir, target.name + ".part")
-        _state.value = UpdateState.Downloading(info, 0f)
+        val file = target ?: File(dir, APK_NAME)
+        val part = File(dir, file.name + ".part")
+        if (target == null) _state.value = UpdateState.Downloading(info, 0f) else onProgress?.invoke(0f)
         val digest = java.security.MessageDigest.getInstance("SHA-256")
-        downloadHttp.newCall(Request.Builder().url(apkUrl).header("User-Agent", "WoW-Forever-Android/${BuildConfig.VERSION_NAME}").build())
+        val request = Request.Builder().url(apkUrl).header("User-Agent", userAgent)
+        if (custom != null) {
+            UpdateSourceLogic.requestHeaders(custom.ref, token, apkUrl, wantFile = true).forEach { (name, value) -> request.header(name, value) }
+        }
+        (if (custom != null) customDownloadHttp else downloadHttp).newCall(request.build())
             .execute().use { rsp ->
-                if (!rsp.isSuccessful) throw UpdateFailure(UiText.res(R.string.launcher_update_download_failed, rsp.code))
+                if (!rsp.isSuccessful) {
+                    throw UpdateFailure(if (custom != null && rsp.code in listOf(401, 403, 404)) UpdateSourceLogic.httpFailure(rsp.code) else UiText.res(R.string.launcher_update_download_failed, rsp.code))
+                }
                 val body = rsp.body ?: throw UpdateFailure(UiText.res(R.string.launcher_update_download_empty))
                 var read = 0L
                 var lastShown = -1
@@ -462,7 +678,9 @@ object UpdateManager {
                             val percent = (read * 100 / info.size).toInt()
                             if (percent != lastShown) {
                                 lastShown = percent
-                                if (_state.value is UpdateState.Downloading) {
+                                if (target != null) {
+                                    onProgress?.invoke(read.toFloat() / info.size)
+                                } else if (_state.value is UpdateState.Downloading) {
                                     _state.value = UpdateState.Downloading(info, read.toFloat() / info.size)
                                 }
                             }
@@ -476,20 +694,22 @@ object UpdateManager {
             throw UpdateFailure(UiText.res(R.string.launcher_update_download_incomplete, part.length(), info.size))
         }
         val actual = UpdateLogic.hex(digest.digest())
-        if (!actual.equals(info.sha256, ignoreCase = true)) {
+        // A blank checksum (custom source without latest.json): size check above, Android's signature check at install.
+        if (info.sha256.isNotBlank() && !actual.equals(info.sha256, ignoreCase = true)) {
             part.delete()
             throw UpdateFailure(UiText.res(R.string.launcher_update_hash_cancelled))
         }
-        if (!part.renameTo(target)) {
-            part.copyTo(target, overwrite = true)
+        if (file.exists()) file.delete()
+        if (!part.renameTo(file)) {
+            part.copyTo(file, overwrite = true)
             part.delete()
         }
         // Belt and braces: check the file as it now sits on disk.
-        UpdateLogic.verifyFile(target, info.size, info.sha256)?.let {
-            target.delete()
+        UpdateLogic.verifyFile(file, info.size, info.sha256)?.let {
+            file.delete()
             throw UpdateFailure(UiText.res(R.string.launcher_update_verify_cancelled, it))
         }
-        return target
+        return file
     }
 
     // ---- install ----------------------------------------------------------------------------------------------
@@ -637,9 +857,16 @@ object UpdateManager {
             PackageInstaller.STATUS_FAILURE_STORAGE ->
                 _state.value = UpdateState.Error(UiText.res(R.string.launcher_update_low_storage_install, message), info)
             PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ->
-                _state.value = UpdateState.Error(UiText.res(R.string.launcher_update_rejected, message), info)
+                _state.value = UpdateState.Error(UpdateLogic.rejectedText(message), info)
             else ->
-                _state.value = UpdateState.Error(UiText.res(R.string.launcher_update_install_failed, status, message), info)
+                _state.value = UpdateState.Error(
+                    if (UpdateSourceLogic.isSignatureMismatch(message)) {
+                        UpdateLogic.rejectedText(message)
+                    } else {
+                        UiText.res(R.string.launcher_update_install_failed, status, message)
+                    },
+                    info,
+                )
         }
     }
 }

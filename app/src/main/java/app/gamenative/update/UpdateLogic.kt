@@ -29,6 +29,8 @@ data class UpdateInfo(
     val sha256: String,
     val size: Long,
     val notes: String,
+    /** Release tag of a custom source (for the release page in the browser); empty for the official feed. */
+    val tag: String = "",
 )
 
 sealed class FeedResult {
@@ -82,7 +84,8 @@ object UpdateLogic {
 
     private val SHA256_HEX = Regex("^[0-9a-fA-F]{64}$")
 
-    fun parseFeed(json: String?): FeedResult {
+    /** [requireSha] false (custom source cache only): a missing checksum is allowed; a given one must still be valid. */
+    fun parseFeed(json: String?, requireSha: Boolean = true): FeedResult {
         if (json.isNullOrBlank()) return FeedResult.Invalid(UiText.res(R.string.launcher_update_feed_empty))
         val obj = try {
             JSONObject(json)
@@ -95,7 +98,7 @@ object UpdateLogic {
         val url = obj.optString("url", "").trim()
         if (file.isEmpty() && url.isEmpty()) return FeedResult.Invalid(UiText.res(R.string.launcher_update_feed_no_file))
         val sha = obj.optString("sha256", "").trim()
-        if (!SHA256_HEX.matches(sha)) return FeedResult.Invalid(UiText.res(R.string.launcher_update_feed_bad_sha))
+        if (!(sha.isEmpty() && !requireSha) && !SHA256_HEX.matches(sha)) return FeedResult.Invalid(UiText.res(R.string.launcher_update_feed_bad_sha))
         val size = obj.optLong("bytes", 0L)
         if (size <= 0L) return FeedResult.Invalid(UiText.res(R.string.launcher_update_feed_no_bytes))
         val code = obj.optInt("versionCode", 0).coerceAtLeast(0)
@@ -267,12 +270,21 @@ object UpdateLogic {
         CheckPhase.Unknown -> UiText.res(R.string.launcher_update_check_unknown, installedName)
     }
 
-    /** Null when the file has the expected size and SHA-256, otherwise the reason for the error line. */
+    /** Text for a refused install: a signature mismatch gets its own explanation, anything else the generic one with Android's [message]. */
+    fun rejectedText(message: String): UiText =
+        if (UpdateSourceLogic.isSignatureMismatch(message)) {
+            UiText.res(R.string.launcher_update_signature_mismatch)
+        } else {
+            UiText.res(R.string.launcher_update_rejected, message)
+        }
+
+    /** Null when the file has the expected size and SHA-256 (a blank [expectedSha256] = none reported, only the size is checked), otherwise the reason for the error line. */
     fun verifyFile(file: File, expectedSize: Long, expectedSha256: String): UiText? {
         if (!file.isFile) return UiText.res(R.string.launcher_update_verify_missing)
         if (file.length() != expectedSize) {
             return UiText.res(R.string.launcher_update_verify_size, file.length(), expectedSize)
         }
+        if (expectedSha256.isBlank()) return null
         val actual = file.inputStream().use { sha256Hex(it) }
         if (!actual.equals(expectedSha256.trim(), ignoreCase = true)) return UiText.res(R.string.launcher_update_verify_hash)
         return null

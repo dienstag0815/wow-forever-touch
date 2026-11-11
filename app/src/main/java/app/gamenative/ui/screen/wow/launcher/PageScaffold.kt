@@ -232,6 +232,9 @@ private fun CardTitle(text: String, hasDetail: Boolean) {
     }
 }
 
+/** Abstand zwischen den Gruppen einer Detailansicht; größer als der zwischen Zeilen, damit man Gruppen als Karten erkennt. */
+internal const val DETAIL_GROUP_GAP_DP = 20f
+
 /** Detailansicht über der ganzen Seite: Kopf mit Zurück, darunter eine scrollende Spalte. Zurück schließt nur sie. */
 @Composable
 private fun DetailSheet(detail: PageDetail) {
@@ -270,7 +273,7 @@ private fun DetailSheet(detail: PageDetail) {
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(start = PAGE_SIDE_DP.dp, end = PAGE_SIDE_DP.dp, top = 8.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(DETAIL_GROUP_GAP_DP.dp),
             content = detail.content,
         )
     }

@@ -16,7 +16,7 @@ import sys
 from lupa import LuaRuntime
 
 ADDON = pathlib.Path(__file__).resolve().parent.parent / "app/src/main/assets/wow/addon/TouchForever"
-FILES = ["TouchForeverLang.lua", "TouchForeverLocale.lua", "TouchForever.lua", "TouchForeverUI.lua", "TouchForeverOptions.lua", "TouchForeverCooldown.lua"]
+FILES = ["TouchForeverLang.lua", "TouchForeverLocale.lua", "TouchForever.lua", "TouchForeverUI.lua", "TouchForeverLayout.lua", "TouchForeverOptions.lua", "TouchForeverCooldown.lua"]
 
 MOCK = r"""
 local unpack = unpack or table.unpack
@@ -371,7 +371,7 @@ def main():
     # ---- old saved variables of addon 1.5.0 --------------------------------------------------------------------------
     run("""TouchForeverDB = { settings = { button = true }, ui = { chat = { enabled = true, size = 10, lines = 8, bg = 20,
         filter = true, short = true, stamps = false, mode = "normal" }, uiVersion = 2, questsScale = 70, barsHidden = true } }""")
-    for name in FILES[:5]:  # the cooldown strip has its own check (cooldown_strip_check.py)
+    for name in FILES[:6]:  # the cooldown strip has its own check (cooldown_strip_check.py)
         source = (ADDON / name).read_text(encoding="utf-8")
         G.loadAddonFile(source, "@" + name)
     run('dispatch("ADDON_LOADED", "TouchForever")')
@@ -1158,7 +1158,7 @@ def main():
         ("xp compact", "xpmode"), ("xp 40", "xpwidth"), ("xp peek", "peek"),
         ("menubar show", "menubar"), ("menubar hide", "menubar"), ("menubar peek", "peek"),
         ("peek", "peekall"), ("say", "openchat"), ("party", "openchat"), ("guild", "openchat"), ("whisper", "openchat"),
-        ("windows", "windows"), ("strip", "strip"), ("button", "reloadbutton"), ("reload", "reloadicons"),
+        ("layout info", "layout"), ("layout again", "layoutagain"), ("windows", "windows"), ("strip", "strip"), ("button", "reloadbutton"), ("reload", "reloadicons"),
     ]
     option_ids = {entry.split(":")[0] for entry in listing.split(",")}
     for command, option_id in COMMAND_OPTIONS:

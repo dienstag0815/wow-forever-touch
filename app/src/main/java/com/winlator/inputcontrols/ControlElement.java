@@ -2572,11 +2572,16 @@ public class ControlElement {
         for (int i = 0; i < ringSegments; i++) {
             if (outerBand && !hasRingOuter(i)) continue;
             // An empty field (no assignment, or an action bar slot without a spell) is not shown in the game; the editor shows it dashed.
-            boolean emptyField = RadialSlotVisibility.isEmpty(outerBand ? getRingOuterItem(i) : getRingItem(i));
+            RadialMenu.Slot fieldItem = outerBand ? getRingOuterItem(i) : getRingItem(i);
+            boolean emptyField = RadialSlotVisibility.isEmptyInRing(fieldItem);
             if (emptyField && !editing) continue;
             boolean pressed = i == ringActiveSegment && ringActiveOuter == outerBand;
             boolean segmentActive = editSelected || pressed;
             int color = segmentActive ? activeColor : normalColor;
+            // A WoW action without a key in WoW is shown dimmed: it is there, but a tap does nothing until the key is set in WoW.
+            if (!emptyField && RadialSlotVisibility.isInactive(fieldItem)) {
+                color = ColorUtils.setAlphaComponent(color, (color >>> 24) * 2 / 5);
+            }
             float centerAngle = StickRing.segmentCenterAngle(i, ringSegments, ringStartAngle);
             // Styles F and G: the segment frame comes from TouchStyleDraw; symbol and text follow its colours and the pressed size.
             float contentThickness = thickness;
@@ -2851,7 +2856,7 @@ public class ControlElement {
     /** True when ring field [index] (inner or [outerBand]) is empty and therefore not shown and not tappable in the game; never in the editor. */
     private boolean isRingSegmentHidden(int index, boolean outerBand) {
         if (index < 0 || inputControlsView.isEditMode()) return false;
-        return RadialSlotVisibility.isEmpty(outerBand ? getRingOuterItem(index) : getRingItem(index));
+        return RadialSlotVisibility.isEmptyInRing(outerBand ? getRingOuterItem(index) : getRingItem(index));
     }
 
     private float getArcCenterAngle() {

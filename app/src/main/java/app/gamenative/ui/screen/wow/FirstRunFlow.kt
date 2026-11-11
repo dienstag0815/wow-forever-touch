@@ -5,7 +5,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 
 /** What the launcher does on its own at first start, so a new player doesn't have to find and press each button. */
-internal enum class FirstRunStep { None, RequestStorage, RequestMicrophone, RequestNotifications, RequestBatteryExemption, AutoInstall, PromptLogin }
+internal enum class FirstRunStep { None, RequestStorage, RequestMicrophone, RequestNotifications, RequestBatteryExemption, AutoInstall }
 
 internal data class FirstRunInput(
     /** An install, update or launch is already running. */
@@ -19,7 +19,6 @@ internal data class FirstRunInput(
     val isWrongGame: Boolean,
     val isLegacyBeta: Boolean,
     val needsInstall: Boolean,
-    val hasSavedLogin: Boolean,
     /** The player picked an install folder (or located existing files), so the default location is not wanted. */
     val locationChosen: Boolean,
     /** Wi-Fi or another unmetered, non-cellular connection. */
@@ -31,13 +30,13 @@ internal data class FirstRunInput(
     val notificationsRequested: Boolean,
     val batteryRequested: Boolean,
     val installAttempted: Boolean,
-    val loginPrompted: Boolean,
 )
 
 /**
  * The next automatic step, or [FirstRunStep.None]. Every step has a "done once" flag in the input, so declining,
  * cancelling or failing a step ends the flow instead of repeating it; the matching button stays available.
- * Order: file access, microphone, notifications, battery exemption, install, login. Notifications and the battery
+ * Order: file access, microphone, notifications, battery exemption, install. The login is never asked for automatically;
+ * it is only offered in the settings. Notifications and the battery
  * exemption keep the connection alive during long sessions; refusing either blocks nothing.
  */
 internal fun nextFirstRunStep(i: FirstRunInput): FirstRunStep = when {
@@ -50,7 +49,6 @@ internal fun nextFirstRunStep(i: FirstRunInput): FirstRunStep = when {
     i.needsInstall ->
         // A beta upgrade keeps its explanatory dialog; a chosen folder or mobile data keeps the manual button.
         if (!i.isLegacyBeta && !i.locationChosen && i.unmetered && !i.installAttempted) FirstRunStep.AutoInstall else FirstRunStep.None
-    !i.hasSavedLogin && !i.loginPrompted -> FirstRunStep.PromptLogin
     else -> FirstRunStep.None
 }
 
@@ -66,10 +64,6 @@ internal fun firstRunPermissionsPending(context: Context) = permissionPromptPend
     notificationsOk = NotificationPermission.granted(context), notificationsRequested = NotificationPermission.wasAsked(context),
     batteryExempt = BatteryExemption.exempt(context), batteryRequested = BatteryExemption.wasAsked(context),
 )
-
-/** Saving the login the flow asked for starts the game, unless something still needs the player's attention. */
-internal fun shouldLaunchAfterLogin(installed: Boolean, isWrongGame: Boolean, isOutdated: Boolean) =
-    installed && !isWrongGame && !isOutdated
 
 /** A multi-GB-capable download starts by itself only on an unmetered connection that isn't cellular. */
 internal fun allowsAutoDownload(hasInternet: Boolean, notMetered: Boolean, isCellular: Boolean) =

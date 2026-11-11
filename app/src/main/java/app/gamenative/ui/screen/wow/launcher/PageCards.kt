@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -32,15 +31,13 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /*
- * Bausteine der Karten auf den Unterseiten: kompakte Zeilen (48 dp, Titel bis zu zwei Zeilen, Wert oder Schalter rechts) und
- * Textzeilen. Die Höhen kommen aus PageGrid.kt (CARD_ROW_DP, CARD_TEXT_LINE_DP), damit die Rechnung des Rasters stimmt. Das lange
+ * Bausteine der Karten auf den Unterseiten: kompakte Zeilen (48 dp, Titel bis zu zwei Zeilen, rechts Knopf, Auswahlfeld, Schalter
+ * oder gedämpfter Wert) und Textzeilen. Die Höhen kommen aus PageGrid.kt (CARD_ROW_DP, CARD_TEXT_LINE_DP), damit die Rechnung des Rasters stimmt. Das lange
  * Erklärende (Beschreibungen, Abzeichen) steht in der Detailansicht, nicht in der Übersicht.
  */
 
@@ -80,61 +77,67 @@ private fun RowScope.CardRowTitle(text: String) {
     )
 }
 
-/** Wert rechts in Gold (eine Zeile); [onClick] macht die ganze Zeile tippbar. Ohne [value] steht nur der Titel. */
+/**
+ * Wert rechts: antippbar ([onClick]) als Feld mit Rahmen und Pfeil ([ValueChip]), sonst gedämpfter Text ([ValueText]). Die ganze Zeile
+ * ist das Touch-Ziel. Ohne [value] steht nur der Titel.
+ */
 @Composable
 internal fun CardValueRow(title: String, value: String = "", enabled: Boolean = true, onClick: (() -> Unit)? = null) {
     CardRowShell(enabled, onClick) {
         CardRowTitle(title)
         if (value.isNotEmpty()) {
-            Text(
-                text = value,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                color = LauncherColors.Gold,
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 8.dp).widthIn(max = 130.dp),
-            )
+            Box(modifier = Modifier.padding(start = 8.dp).widthIn(max = 150.dp)) {
+                if (onClick != null) ValueChip(value, enabled) else ValueText(value)
+            }
         }
     }
 }
 
-/** Zeile, die etwas auslöst: rechts der Name der Aktion in Gold, bei [danger] in Rot. */
+/**
+ * Zeile, die etwas auslöst: rechts der Knopf ([ActionButton]; [primary] gefüllt in Gold, [danger] rot umrandet, sonst umrandet).
+ * Die Zeile selbst ist nicht tippbar, nur der Knopf.
+ */
 @Composable
-internal fun CardActionRow(title: String, actionText: String, enabled: Boolean = true, danger: Boolean = false, onClick: () -> Unit) {
-    CardRowShell(enabled, onClick) {
+internal fun CardActionRow(
+    title: String,
+    actionText: String,
+    enabled: Boolean = true,
+    danger: Boolean = false,
+    primary: Boolean = false,
+    onClick: () -> Unit,
+) {
+    CardRowShell(enabled, onClick = null) {
         CardRowTitle(title)
-        Text(
+        ActionButton(
             text = actionText,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (danger) LauncherColors.Err else LauncherColors.Gold,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 8.dp).widthIn(max = 130.dp),
+            kind = actionKindOf(primary, danger),
+            enabled = enabled,
+            modifier = Modifier.padding(start = 8.dp),
+            onClick = onClick,
         )
     }
 }
 
-/** Sprung in einen eigenen Bereich (Detailansicht oder andere Seite): Titel, rechts "Öffnen" ([openText]) in Gold und ein Pfeil. */
+/** Sprung in einen eigenen Bereich (Detailansicht oder andere Seite): Titel, rechts der Knopf "Öffnen" ([openText]) mit Pfeil. */
 @Composable
 internal fun CardOpenRow(title: String, openText: String, enabled: Boolean = true, onClick: () -> Unit) {
-    CardRowShell(enabled, onClick) {
+    CardRowShell(enabled, onClick = null) {
         CardRowTitle(title)
-        Text(
+        ActionButton(
             text = openText,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = LauncherColors.Gold,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 8.dp).widthIn(max = 130.dp),
+            enabled = enabled,
+            modifier = Modifier.padding(start = 8.dp),
+            trailingIcon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            onClick = onClick,
         )
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = LauncherColors.Gold, modifier = Modifier.size(24.dp))
     }
+}
+
+/** Welche Art Knopf zu den Angaben einer Zeile gehört: gefährlich vor Hauptaktion vor Nebenaktion. */
+internal fun actionKindOf(primary: Boolean, danger: Boolean): ActionKind = when {
+    danger -> ActionKind.Danger
+    primary -> ActionKind.Primary
+    else -> ActionKind.Secondary
 }
 
 /** Schalter an/aus; die ganze Zeile schaltet um. */
@@ -174,10 +177,7 @@ internal fun <T> CardChoiceRow(
     CardRowShell(enabled, { expanded = true }) {
         CardRowTitle(title)
         Box(modifier = Modifier.padding(start = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = value, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = LauncherColors.Gold, maxLines = 1)
-                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = LauncherColors.Muted)
-            }
+            ValueChip(value, enabled)
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 options.forEach { option ->
                     DropdownMenuItem(

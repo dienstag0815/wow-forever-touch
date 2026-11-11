@@ -34,6 +34,7 @@ import app.gamenative.update.ChangelogList
 import app.gamenative.update.UpdateLogic
 import app.gamenative.update.UpdateManager
 import app.gamenative.update.UpdateState
+import app.gamenative.update.BrowserDownloadBlock
 import app.gamenative.update.offeredInfo
 
 /**
@@ -75,7 +76,8 @@ internal fun NewsPage(canInstall: Boolean, onBack: () -> Unit) {
                 plan.card(
                     "offer",
                     stringResource(R.string.launcher_news_update_available),
-                    onOpen = if (offerEntries.isNotEmpty()) ({ detailId = "offer" }) else null,
+                    // The detail holds the manual way (browser) next to the changes, so an offer always opens it.
+                    onOpen = { detailId = "offer" },
                 ) {
                     val transition = UpdateLogic.versionTransition(BuildConfig.VERSION_NAME, offered.versionName)
                     CardText("$transition · ${UpdateLogic.megabytes(offered.size)}", 1, LauncherColors.Body)
@@ -150,6 +152,7 @@ internal fun NewsPage(canInstall: Boolean, onBack: () -> Unit) {
                     if (!canInstall) {
                         Text(offerBlocked, fontSize = 14.sp, color = LauncherColors.Muted)
                     }
+                    BrowserDownloadBlock(offered)
                 }
             }
         }

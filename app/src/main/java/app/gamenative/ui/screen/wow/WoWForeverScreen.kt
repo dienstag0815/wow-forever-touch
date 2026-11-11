@@ -64,6 +64,7 @@ import app.gamenative.ui.theme.WowMuted
 import app.gamenative.ui.theme.WowSubtle
 import app.gamenative.utils.StorageUtils
 import app.gamenative.wowaction.WowActionSource
+import app.gamenative.wowicons.AddonLayoutSignal
 import com.winlator.container.Container
 import com.winlator.container.ContainerManager
 import com.winlator.contents.ContentProfile
@@ -94,7 +95,6 @@ object WoWLauncherState {
     // First-run steps that already ran in this process, so none of them can repeat (see nextFirstRunStep).
     internal var storageRequested = false
     internal var autoInstallAttempted = false
-    internal var loginPrompted = false
 }
 
 private const val CONTAINER_ID = "wow_forever"
@@ -142,9 +142,10 @@ fun WoWForeverScreen(
     var isAutoInstall by remember { mutableStateOf(false) }
     // The default Status() reads as "needs install", so the first-run flow waits until checkFiles() has really looked.
     var filesChecked by remember { mutableStateOf(false) }
-    var loginOpenedByFlow by remember { mutableStateOf(false) }
     var showFoldHint by remember { mutableStateOf(false) }
     var showStartCheck by remember { mutableStateOf(false) }
+    // Einmalige Wahl vor dem allerersten Spielstart: Standardlayout oder eigenes Layout (FirstLayoutChoice.kt).
+    var showLayoutChoice by remember { mutableStateOf(false) }
     var startCheckOn by remember { mutableStateOf(StartCheck.enabled(context)) }
     var autoStartOn by remember { mutableStateOf(AutoStartSettings.enabled(context)) }
     var autoStartSeconds by remember { mutableIntStateOf(AutoStartSettings.seconds(context)) }
@@ -207,6 +208,11 @@ fun WoWForeverScreen(
             return
         }
         showStartCheck = false
+        if (FirstLayoutChoice.shouldAsk(context)) {
+            // Fold- und Startcheck sind hier schon durch; die Wahl setzt den Start mit ignoreFold/ignoreStartCheck fort.
+            showLayoutChoice = true
+            return
+        }
         StartCheck.onLaunch(context, File(gamePath))
         // Fold state at start: sets the picture size and what the hint says when folding/unfolding during play.
         val foldedAtStart = isFoldedNow(context)
@@ -396,7 +402,6 @@ fun WoWForeverScreen(
                 isWrongGame = files.isWrongGame,
                 isLegacyBeta = files.isLegacyBeta,
                 needsInstall = files.needsInstall,
-                hasSavedLogin = hasSavedLogin,
                 locationChosen = GamePath.hasChosenLocation(context),
                 unmetered = isUnmeteredNetwork(context),
                 autoLaunchPending = WoWLauncherState.shouldAutoLaunch,
@@ -405,7 +410,6 @@ fun WoWForeverScreen(
                 notificationsRequested = NotificationPermission.wasAsked(context),
                 batteryRequested = BatteryExemption.wasAsked(context),
                 installAttempted = WoWLauncherState.autoInstallAttempted || GamePath.autoInstallDeclined(context),
-                loginPrompted = WoWLauncherState.loginPrompted,
             ),
         )
         Timber.i("WoWForeverScreen first run: step=$step")
@@ -437,12 +441,6 @@ fun WoWForeverScreen(
                 WoWLauncherState.autoInstallAttempted = true
                 PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
                 startInstall(auto = true)
-            }
-            FirstRunStep.PromptLogin -> {
-                WoWLauncherState.loginPrompted = true
-                PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
-                loginOpenedByFlow = true
-                showLoginDialog = true
             }
         }
     }
@@ -542,6 +540,8 @@ fun WoWForeverScreen(
         else -> null
     }
 
+    // A chosen own layout shows with its name ("Touch · Raid"); read on each composition, the choice is made in the game menu.
+    val inputModeText = TouchLayouts.customLabel(inputMode, TouchLayouts.chosenName(context)) ?: inputMode.label
     val homeState = LauncherHomeState(
         edition = gpu.edition,
         files = files,
@@ -559,7 +559,7 @@ fun WoWForeverScreen(
         regionLabel = region.label,
         resolutionLabel = resolution.label,
         fpsLabel = fpsLimit.label,
-        inputModeLabel = inputMode.label,
+        inputModeLabel = inputModeText,
         homeCovered = launcherPage != null || showSettings || showAddons || showAbout,
     )
     val homeActions = LauncherHomeActions(
@@ -603,6 +603,7 @@ fun WoWForeverScreen(
         fpsLimit = fpsLimit,
         graphicsPreset = graphicsPreset,
         inputMode = inputMode,
+        inputModeText = inputModeText,
         walkGain = walkGain,
         cameraGain = cameraGain,
         gamePath = gamePath,
@@ -618,7 +619,7 @@ fun WoWForeverScreen(
         onResolution = { RenderResolution.save(context, it); resolution = it },
         onFps = { FpsLimit.save(context, it); fpsLimit = it },
         onGraphics = { GraphicsPreset.save(context, it); graphicsPreset = it },
-        onInputMode = { InputMode.save(context, it); inputMode = it },
+        onInputMode = { InputMode.save(context, it); TouchLayouts.saveChosen(context, null); FirstLayoutChoice.markDecidedBySettings(context); AddonLayoutSignal.set(context, it == InputMode.TOUCH_STANDARD); inputMode = it },
         onWalkGain = { StickSensitivity.saveWalk(context, it); walkGain = it },
         onCameraGain = { StickSensitivity.saveCamera(context, it); cameraGain = it },
         onPickFolder = { folderPicker.launch(null) },
@@ -676,20 +677,13 @@ fun WoWForeverScreen(
     }
 
     if (showLoginDialog) {
+        // Freiwillig aus den Einstellungen: Überspringen oder Speichern startet nichts von selbst.
         BattleNetCredentialDialog(
-            onDismiss = {
-                showLoginDialog = false
-                loginOpenedByFlow = false
-            },
+            onDismiss = { showLoginDialog = false },
             onConfirm = { login ->
                 showLoginDialog = false
                 BattleNetSignIn.save(context, login)
                 hasSavedLogin = true
-                // Only the login prompt opened by the first-run flow continues into the game; a manual "Update Login" doesn't.
-                if (loginOpenedByFlow) {
-                    loginOpenedByFlow = false
-                    if (shouldLaunchAfterLogin(!files.needsInstall, files.isWrongGame, versionStatus?.isOutdated == true)) launchGame()
-                }
             },
         )
     }
@@ -701,7 +695,7 @@ fun WoWForeverScreen(
             text = {
                 Column {
                     Text(
-                        text = stringResource(WowTouchProfiles.RESET_CONFIRM_TEXT, WowTouchProfiles.resetTargetName(inputMode)),
+                        text = stringResource(WowTouchProfiles.RESET_CONFIRM_TEXT, WowTouchProfiles.resetTargetDisplayName(context, inputMode)),
                         fontSize = 13.sp,
                         color = Color(0xFFE2E8F0),
                         lineHeight = 18.sp,
@@ -750,6 +744,17 @@ fun WoWForeverScreen(
             containerColor = Color(0xFF1B2838),
             shape = RoundedCornerShape(16.dp),
         )
+    }
+
+    if (showLayoutChoice) {
+        FirstLayoutDialog { choice ->
+            showLayoutChoice = false
+            scope.launch {
+                withContext(Dispatchers.IO) { FirstLayoutChoice.choose(context, choice) }
+                inputMode = FirstLayoutChoice.planFor(choice).mode
+                startLaunch(ignoreFold = true, ignoreStartCheck = true)
+            }
+        }
     }
 
     if (showStartCheck) {
@@ -1163,6 +1168,9 @@ private fun prepareLaunch(
     val container = containerManager.getContainerById(CONTAINER_ID)
     if (container == null) {
         onStatus(context.getString(R.string.game_status_wine))
+        // A new container starts with shooter mode on (upstream default): it hides the sticks and draws the "Maus aktivieren" button on top.
+        // WoW does not want either, so the container is created with it off; a later start leaves the player's own switch alone.
+        config.put("shooterMode", false)
         containerManager.createContainer(CONTAINER_ID, config)
     } else {
         container.loadData(config)
@@ -1346,6 +1354,8 @@ private fun extractBundledWcp(context: Context, assetName: String, destination: 
 /** Writes the input mode into the game container: touchscreen flag, gesture config, the stick-only profile and the "wowTouch" marker. */
 private fun applyInputSettings(context: Context, container: Container?, input: InputLaunchSettings, inputMode: InputMode) {
     if (container == null) return
+    // Values of an imported backup (touchscreen switch, shooter mode, gestures, gyro ...) go in first, so the setup below sees them as the player's own.
+    app.gamenative.backup.ContainerBackupStore.applyPending(context, container)
     val hadTouchSetup = container.getExtra(WowTouch.EXTRA_KEY) == "1"
     // The player's own values (Quick menu "Touchscreen-Modus" switch, gesture dialog) win over our defaults; the defaults
     // are written on first setup, when another Steuerung is chosen and after "Zurücksetzen" (see TouchSetupPolicy).
@@ -1358,6 +1368,8 @@ private fun applyInputSettings(context: Context, container: Container?, input: I
         state = TouchSetupStore.load(context),
     )
     container.setTouchscreenMode(plan.touchscreenMode)
+    // First-start choice: the new container starts with shooter mode on, which hides the sticks; off once for the chosen layout.
+    if (FirstLayoutChoice.takeShooterOff(context)) container.setShooterMode(FirstLayoutChoice.shooterModeFor(true, container.isShooterMode()))
     plan.gestureConfig?.let { container.setGestureConfig(it) }
     if (input.touchscreenMode) {
         // "Touch (Mein Layout)" is created from the current "Touch (WoW)" the first time; "Touch (WoW komplett)" is the

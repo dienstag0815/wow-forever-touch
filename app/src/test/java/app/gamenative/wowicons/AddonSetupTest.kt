@@ -82,6 +82,16 @@ class AddonSetupTest {
     }
 
     @Test
+    fun languageFileCarriesTheStandardLayoutSignalOnlyWhenOn() {
+        fun text(on: Boolean) = String(AddonSetup.addonLanguageFile("de", on), Charsets.UTF_8)
+        assertFalse(text(false).contains("layoutStandard"))
+        assertEquals(text(false), String(AddonSetup.addonLanguageFile("de"), Charsets.UTF_8))
+        assertTrue(text(true).contains("ns.layoutStandard = true"))
+        assertTrue(text(true).contains("ns.appLanguage = \"de\""))
+        assertTrue(text(true).endsWith("\n"))
+    }
+
+    @Test
     fun languageFileIsWrittenAndVerifiedLikeTheOtherFiles() {
         File(root, "_forever_").mkdirs()
         val withLanguage = files + (AddonSetup.LANG_FILE to AddonSetup.addonLanguageFile("de"))

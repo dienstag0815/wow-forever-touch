@@ -45,6 +45,7 @@ import app.gamenative.ui.screen.wow.launcher.OverviewCard
 import app.gamenative.ui.screen.wow.launcher.PageDetail
 import app.gamenative.ui.screen.wow.launcher.PageTexts
 import app.gamenative.ui.screen.wow.launcher.UiText
+import app.gamenative.ui.screen.wow.launcher.ValueText
 import app.gamenative.ui.screen.wow.launcher.asString
 import app.gamenative.ui.screen.wow.launcher.card
 import app.gamenative.ui.screen.wow.launcher.controlPlan
@@ -52,8 +53,10 @@ import app.gamenative.ui.screen.wow.launcher.settingsPlan
 import app.gamenative.ui.screen.wow.voice.VoiceLanguageRow
 import app.gamenative.ui.screen.wow.voice.VoiceSettingsBlock
 import app.gamenative.update.UpdateManager
+import app.gamenative.update.UpdateSettings
 import app.gamenative.update.UpdateSettingsBlock
 import app.gamenative.update.UpdateState
+import app.gamenative.update.updateSourceValue
 import app.gamenative.wowicons.WowCooldownSettingsRows
 import app.gamenative.wowicons.WowIconsSettingsBlock
 
@@ -66,6 +69,8 @@ internal data class LauncherSettingsValues(
     val fpsLimit: FpsLimit,
     val graphicsPreset: GraphicsPreset,
     val inputMode: InputMode,
+    /** Der Modus als Text; bei einem gewählten eigenen Layout dessen Name ([TouchLayouts.customLabel]). */
+    val inputModeText: String,
     val walkGain: Float,
     val cameraGain: Float,
     val gamePath: String,
@@ -125,7 +130,7 @@ private fun SettingsOverview(v: LauncherSettingsValues, a: LauncherSettingsActio
     val plan = remember { settingsPlan() }
     val cards = listOf(
         plan.card("game", stringResource(R.string.launcher_group_game), onOpen = { detailId = "game" }) { GameCardRows(v, a) },
-        plan.card("start", stringResource(R.string.launcher_group_start), onOpen = { detailId = "start" }) { StartCardRows(v, a) },
+        plan.card("start", stringResource(R.string.launcher_group_start), onOpen = { detailId = "start" }) { StartCardRows(v, a) { detailId = "start" } },
         plan.card("control", stringResource(R.string.launcher_settings_control_in_game)) { ControlCardRows(v, a) { detailId = it } },
         plan.card("app", stringResource(R.string.launcher_group_app), onOpen = { detailId = "app" }) { AppCardRows(v) { detailId = "backup" } },
         plan.card("help", stringResource(R.string.launcher_group_help)) { HelpCardRows() },
@@ -190,7 +195,7 @@ private fun GameCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions) 
 }
 
 @Composable
-private fun StartCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions) {
+private fun StartCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions, onSource: () -> Unit) {
     val context = LocalContext.current
     val autoInstall by remember { UpdateManager.autoInstallState(context) }.collectAsState()
     val state by UpdateManager.state.collectAsState()
@@ -209,7 +214,15 @@ private fun StartCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions)
         title = stringResource(R.string.launcher_home_check_updates),
         actionText = stringResource(if (state is UpdateState.Checking) R.string.launcher_home_checking else R.string.launcher_action_check),
         enabled = v.enabled && !busy,
+        primary = true,
     ) { UpdateManager.checkManually(context) }
+    // Die Update-Quelle (Offiziell, eigene Quelle oder Tester) steht in der Übersicht; Tippen öffnet den Block in der Detailansicht.
+    CardValueRow(
+        title = stringResource(R.string.launcher_source_title),
+        value = updateSourceValue(UpdateSettings.sourceForm(context)),
+        enabled = v.enabled,
+        onClick = onSource,
+    )
     // Version und Client-Build nur leise als Fußzeile; ausführlich stehen sie in der Detailansicht.
     val client = PageTexts.clientBuildValue(v.clientLocal, v.clientRemote, v.clientOutdated).asString()
     CardText(stringResource(R.string.launcher_settings_footer, BuildConfig.VERSION_NAME, client), 2)
@@ -220,7 +233,7 @@ private fun StartCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions)
 private fun ControlCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions, onDetail: (String) -> Unit) {
     CardChoiceRow(
         title = stringResource(R.string.launcher_settings_control_mode),
-        value = v.inputMode.label,
+        value = v.inputModeText,
         options = InputMode.entries,
         selected = v.inputMode,
         optionLabel = { it.label },
@@ -261,6 +274,7 @@ private fun HelpCardRows() {
     CardActionRow(
         title = stringResource(R.string.game_report_row_title),
         actionText = stringResource(R.string.game_report_row_action),
+        primary = true,
     ) { ErrorReport.start(context) { note = it } }
     CardText(note ?: stringResource(R.string.launcher_settings_report_hint), 2)
 }
@@ -280,7 +294,7 @@ private fun ControlOverview(v: LauncherSettingsValues, a: LauncherSettingsAction
             plan.card("mode", stringResource(R.string.launcher_settings_control_mode), onOpen = { detailId = "mode" }) {
                 CardChoiceRow(
                     title = stringResource(R.string.launcher_settings_mode),
-                    value = v.inputMode.label,
+                    value = v.inputModeText,
                     options = InputMode.entries,
                     selected = v.inputMode,
                     optionLabel = { it.label },
@@ -390,7 +404,7 @@ private fun SettingItem(setting: LauncherSetting, v: LauncherSettingsValues, a: 
         )
         LauncherSetting.InputMode -> SettingChoiceRow(
             title = stringResource(R.string.launcher_settings_control_mode),
-            value = v.inputMode.label,
+            value = v.inputModeText,
             options = InputMode.entries,
             selected = v.inputMode,
             optionLabel = { it.label },
@@ -469,7 +483,7 @@ private fun SettingItem(setting: LauncherSetting, v: LauncherSettingsValues, a: 
         LauncherSetting.WowArt -> WowArtSettingRow(enabled = v.enabled, scope = scope)
         LauncherSetting.Updates -> UpdateSettingsBlock(enabled = v.enabled)
         LauncherSetting.AppVersion -> SettingRow(title = stringResource(R.string.launcher_about_app_version)) {
-            Text(text = BuildConfig.VERSION_NAME, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = LauncherColors.Gold)
+            ValueText(BuildConfig.VERSION_NAME)
         }
         LauncherSetting.ClientBuild -> SettingRow(
             title = stringResource(R.string.launcher_settings_client_build),
