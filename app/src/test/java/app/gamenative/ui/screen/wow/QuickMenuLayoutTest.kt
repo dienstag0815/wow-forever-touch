@@ -94,7 +94,10 @@ class QuickMenuLayoutTest {
         val sections = quickMenuSections(QuickMenuPage.SPIEL, everything)
         assertEquals("Anmeldung", TestTexts.de(sections.first().title))
         assertEquals(
-            listOf(QuickMenuAction.LOGIN_FULL, QuickMenuAction.LOGIN_PASSWORD, QuickMenuAction.LOGIN_EMAIL, QuickMenuAction.LOGIN_NOTE),
+            listOf(
+                QuickMenuAction.LOGIN_FULL, QuickMenuAction.LOGIN_FILL, QuickMenuAction.LOGIN_PASSWORD, QuickMenuAction.LOGIN_EMAIL,
+                QuickMenuAction.LOGIN_NOTE,
+            ),
             sections.first().ids,
         )
         // In der Spielwelt entfaellt der ganze Abschnitt, nicht nur seine Zeilen.
@@ -106,6 +109,7 @@ class QuickMenuLayoutTest {
     fun partialLoginIsOnlyOfferedWhenSaved() {
         val noSaved = idsOf(QuickMenuPage.SPIEL, everything.copy(hasSavedLogin = false, hasLoginNote = false))
         assertTrue(QuickMenuAction.LOGIN_FULL in noSaved)
+        assertFalse(QuickMenuAction.LOGIN_FILL in noSaved)
         assertFalse(QuickMenuAction.LOGIN_PASSWORD in noSaved)
         assertFalse(QuickMenuAction.LOGIN_EMAIL in noSaved)
         assertFalse(QuickMenuAction.LOGIN_NOTE in noSaved)

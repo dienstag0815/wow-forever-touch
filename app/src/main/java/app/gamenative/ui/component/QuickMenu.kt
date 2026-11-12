@@ -185,6 +185,7 @@ object QuickMenuAction {
     const val COOLDOWN_GCD = 43
     const val LAYOUT_CHOOSE = 44
     const val LAYOUT_SAVE_AS = 45
+    const val LOGIN_FILL = 46
 }
 
 private object QuickMenuTab {

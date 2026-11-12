@@ -9,7 +9,7 @@ import com.winlator.xserver.XKeycode
 import kotlin.random.Random
 
 /**
- * Tastenfolge für die Anmeldung im Spiel ("Anmelden", "Nur Passwort", "Nur E-Mail" im Seitenmenü). Das Eintippen nutzt den
+ * Tastenfolge für die Anmeldung im Spiel ("Anmelden", "Ausfüllen", "Nur Passwort", "Nur E-Mail" im Seitenmenü). Das Eintippen nutzt den
  * Weg der Spracheingabe: Tasten des US-Layouts (mit Umschalttaste), Zeichen ohne Taste (ä, ö, ü, ß, é ...) über die
  * Trägertaste mit umgebogenem Keysym ([VoiceKeys]).
  *
@@ -32,11 +32,14 @@ internal object LoginKeys {
     }
 }
 
-/** Welche Felder eine Anmeldeaktion eintippt. */
+/** Welche Felder eine Anmeldeaktion eintippt. [FULL] sendet mit Enter ab, [FILL] nie. */
 internal enum class LoginAction(@StringRes val doneRes: Int) {
     FULL(R.string.game_login_done_full),
     EMAIL_ONLY(R.string.game_login_done_email),
     PASSWORD_ONLY(R.string.game_login_done_password),
+
+    /** Stufe "Ausfüllen": E-Mail, Tab, Passwort, kein Enter. */
+    FILL(R.string.game_login_done_fill),
 }
 
 /** Ergebnis der Prüfung vor dem Tippen: nichts wird gesendet, wenn es kein [OK] ist. */
@@ -96,6 +99,23 @@ internal class LoginTypist(
         return true
     }
 
+    /**
+     * "Ausfüllen": E-Mail, Tab, Passwort, dann Schluss. Es wird nie Enter gesendet, auch nicht bei einem Abbruch; der Spieler drückt
+     * selbst auf "Login". Gibt false zurück, wenn abgebrochen wurde.
+     */
+    fun fill(email: CharArray, password: CharArray): Boolean {
+        if (isCancelled()) return false
+        clearField(email.size)
+        if (!typeText(email)) return false
+        sleep(between(FIELD_PAUSE_MIN_MS, FIELD_PAUSE_MAX_MS))
+        if (isCancelled()) return false
+        tap(XKeycode.KEY_TAB)
+        sleep(between(FIELD_PAUSE_MIN_MS, FIELD_PAUSE_MAX_MS))
+        if (isCancelled()) return false
+        clearField(password.size)
+        return typeText(password)
+    }
+
     /** "Nur E-Mail eintippen": in das gerade aktive Feld, ohne Tab und Enter. */
     fun typeEmailOnly(email: CharArray): Boolean {
         clearField(email.size)
@@ -110,19 +130,24 @@ internal class LoginTypist(
 
     fun run(action: LoginAction, email: CharArray, password: CharArray): Boolean = when (action) {
         LoginAction.FULL -> signIn(email, password)
+        LoginAction.FILL -> fill(email, password)
         LoginAction.EMAIL_ONLY -> typeEmailOnly(email)
         LoginAction.PASSWORD_ONLY -> typePasswordOnly(password)
     }
 
     private fun clearField(length: Int) {
+        // Ein Abbruch hält vor der nächsten Taste an (eine begonnene Tastenfolge wie Strg+A wird noch zu Ende losgelassen).
+        if (isCancelled()) return
         // Strg+A, Entf
         sink.press(XKeycode.KEY_CTRL_L, 0)
         tapKey(XKeycode.KEY_A, 'a'.code)
         sink.release(XKeycode.KEY_CTRL_L)
+        if (isCancelled()) return
         tap(XKeycode.KEY_DEL)
+        if (isCancelled()) return
         // Ende, dann Rücktasten über die Länge hinaus
         tap(XKeycode.KEY_END)
-        repeat(length + CLEAR_EXTRA) { tap(XKeycode.KEY_BKSP) }
+        repeat(length + CLEAR_EXTRA) { if (!isCancelled()) tap(XKeycode.KEY_BKSP) }
         sleep(between(GAP_MIN_MS, GAP_MAX_MS))
     }
 

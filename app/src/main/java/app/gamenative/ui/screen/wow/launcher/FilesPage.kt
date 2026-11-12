@@ -11,9 +11,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.gamenative.R
+import app.gamenative.ui.screen.wow.FillScope
 import app.gamenative.ui.screen.wow.GamePath
 import app.gamenative.ui.screen.wow.LauncherHomeActions
 import app.gamenative.ui.screen.wow.LauncherHomeState
+import app.gamenative.ui.screen.wow.LoginLevel
+import app.gamenative.ui.screen.wow.SettingChoiceRow
 import app.gamenative.ui.screen.wow.SettingActionRow
 import app.gamenative.ui.screen.wow.SettingGroupCard
 import app.gamenative.ui.screen.wow.SettingRow
@@ -38,6 +41,8 @@ internal fun FilesPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () 
     }
     val plan = remember(alert) { filesPlan(alert) }
     var detailId by remember { mutableStateOf<String?>(null) }
+    val levelLabels = LoginLevel.entries.associateWith { stringResource(it.labelRes) }
+    val scopeLabels = FillScope.entries.associateWith { stringResource(it.labelRes) }
 
     val cards = buildList<OverviewCard> {
         when (alert) {
@@ -98,10 +103,30 @@ internal fun FilesPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () 
         )
         add(
             plan.card("login", stringResource(R.string.launcher_files_login), onOpen = { detailId = "login" }) {
-                CardValueRow(title = stringResource(if (s.hasSavedLogin) R.string.launcher_ready_login_ok else R.string.launcher_files_no_login))
+                CardChoiceRow(
+                    title = stringResource(R.string.launcher_login_level_row),
+                    value = levelLabels.getValue(s.loginLevel),
+                    options = LoginLevel.entries,
+                    selected = s.loginLevel,
+                    optionLabel = { levelLabels.getValue(it) },
+                    enabled = enabled,
+                    onSelect = a.onLoginLevel,
+                )
+                CardText(stringResource(s.loginLevel.descriptionRes), 3)
+                if (s.loginLevel == LoginLevel.FILL) {
+                    CardChoiceRow(
+                        title = stringResource(R.string.launcher_fill_scope_row),
+                        value = scopeLabels.getValue(s.fillScope),
+                        options = FillScope.entries,
+                        selected = s.fillScope,
+                        optionLabel = { scopeLabels.getValue(it) },
+                        enabled = enabled,
+                        onSelect = a.onFillScope,
+                    )
+                }
                 CardActionRow(
-                    title = stringResource(if (s.hasSavedLogin) R.string.launcher_files_change_login else R.string.launcher_files_setup_login),
-                    actionText = stringResource(R.string.launcher_open),
+                    title = stringResource(if (s.hasSavedLogin) R.string.launcher_login_saved else R.string.launcher_files_no_login),
+                    actionText = stringResource(if (s.hasSavedLogin) R.string.launcher_files_change_login else R.string.launcher_files_setup_login),
                     enabled = enabled,
                     onClick = a.onLogin,
                 )
@@ -146,6 +171,29 @@ internal fun FilesPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () 
                     title = stringResource(if (s.hasSavedLogin) R.string.launcher_login_saved else R.string.launcher_files_no_login),
                     description = stringResource(R.string.launcher_files_login_desc),
                 )
+                SettingChoiceRow(
+                    title = stringResource(R.string.launcher_login_level_row),
+                    value = levelLabels.getValue(s.loginLevel),
+                    options = LoginLevel.entries,
+                    selected = s.loginLevel,
+                    optionLabel = { levelLabels.getValue(it) },
+                    description = stringResource(s.loginLevel.descriptionRes),
+                    enabled = enabled,
+                    onSelect = a.onLoginLevel,
+                )
+                if (s.loginLevel == LoginLevel.FILL) {
+                    SettingChoiceRow(
+                        title = stringResource(R.string.launcher_fill_scope_row),
+                        value = scopeLabels.getValue(s.fillScope),
+                        options = FillScope.entries,
+                        selected = s.fillScope,
+                        optionLabel = { scopeLabels.getValue(it) },
+                        description = stringResource(FillScope.EMAIL_AND_PASSWORD.descriptionRes) + "\n" +
+                            stringResource(FillScope.PASSWORD_ONLY.descriptionRes),
+                        enabled = enabled,
+                        onSelect = a.onFillScope,
+                    )
+                }
                 SettingActionRow(
                     title = stringResource(if (s.hasSavedLogin) R.string.launcher_files_change_login else R.string.launcher_files_setup_login),
                     actionText = stringResource(R.string.launcher_open),

@@ -302,7 +302,7 @@
     <string name="launcher_files_installed">Installed</string>
     <string name="launcher_files_installed_client">Installed · Client %1$s</string>
     <string name="launcher_files_login">Automatic login (optional)</string>
-    <string name="launcher_files_login_desc">Optional: store your login encrypted on this device only and have it typed into the game at start.</string>
+    <string name="launcher_files_login_desc">Optional: store your login encrypted on this device only. Below you choose what the app does with it.</string>
     <string name="launcher_files_login_title">Automatic login (optional)</string>
     <string name="launcher_files_no_login">No login saved</string>
     <string name="launcher_files_other_game">The folder contains a different game</string>
@@ -827,4 +827,23 @@
     <string name="launcher_browser_hint_apk">The APK lands in Downloads. Tap it to install; Android then asks by itself.</string>
     <string name="launcher_browser_hint_page">Sign-in in the browser needed. On the release page load the APK; it lands in Downloads. Tap it to install; Android then asks by itself.</string>
     <string name="launcher_browser_no_install_right">Installing from this app is not allowed. This way needs no extra right for the app.</string>
+    <string name="launcher_login_level_row">Mode</string>
+    <string name="launcher_login_level_off">Off</string>
+    <string name="launcher_login_level_off_desc">Nothing is stored; you sign in by hand. Switching here deletes a saved login.</string>
+    <string name="launcher_login_level_fill">Fill in (I submit myself)</string>
+    <string name="launcher_login_level_fill_desc">The app types email and password into the login window; you tap Login yourself.</string>
+    <string name="launcher_login_level_self">Sign in automatically</string>
+    <string name="launcher_login_level_self_desc">The game signs in by itself at start. With this, Battle.net may ask for the authenticator at every login.</string>
+    <string name="launcher_fill_scope_row">What to type</string>
+    <string name="launcher_fill_scope_all">Email and password</string>
+    <string name="launcher_fill_scope_all_desc">Email, Tab, password; nothing is submitted.</string>
+    <string name="launcher_fill_scope_password">Password only</string>
+    <string name="launcher_fill_scope_password_desc">For Remember Account in the login window (email already there). If the cursor is not in the password field, the password appears readable in the email field.</string>
+    <string name="launcher_login_off_confirm_title">Delete saved login?</string>
+    <string name="launcher_login_off_confirm_text">Switching to Off deletes the email and password from this device. You then sign in by hand.</string>
+    <string name="launcher_login_off_confirm_delete">Delete</string>
+    <string name="launcher_login_off_confirm_cancel">Cancel</string>
+    <string name="launcher_ready_login_off">Login: Off</string>
+    <string name="launcher_ready_login_fill">Login: Fill in</string>
+    <string name="launcher_ready_login_self">Login: Sign in automatically</string>
 </resources>

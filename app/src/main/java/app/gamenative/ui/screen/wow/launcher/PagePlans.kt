@@ -76,7 +76,7 @@ internal fun filesPlan(alert: FilesAlert): List<CardPlan> =
         listOf(
             plan("state", rows = 2, lines = 2),
             plan("folder", rows = 1, lines = 4),
-            plan("login", rows = 3),
+            plan("login", rows = 4, lines = 3),
         )
 
 // --- Neuigkeiten ---

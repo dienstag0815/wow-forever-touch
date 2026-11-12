@@ -164,6 +164,10 @@ class QuickMenuRowsTest {
     fun loginRowFollowsTheSavedLogin() {
         assertEquals("Anmelden", TestTexts.de(quickMenuRowView(QuickMenuAction.LOGIN_FULL, defaults.copy(hasLogin = true))!!.title))
         assertEquals("Anmeldedaten speichern", TestTexts.de(quickMenuRowView(QuickMenuAction.LOGIN_FULL, defaults)!!.title))
+        val fill = quickMenuRowView(QuickMenuAction.LOGIN_FILL, defaults.copy(hasLogin = true))!!
+        assertEquals("Ausfüllen, nicht senden", TestTexts.de(fill.title))
+        assertEquals("Fill in, do not submit", TestTexts.en(fill.title))
+        assertEquals(QuickMenuRowKind.VALUE, fill.kind)
         val note = quickMenuRowView(QuickMenuAction.LOGIN_NOTE, defaults.copy(loginNote = "Tippe ein ..."))!!
         assertEquals(QuickMenuRowKind.NOTE, note.kind)
         assertEquals("Tippe ein ...", TestTexts.de(note.value))

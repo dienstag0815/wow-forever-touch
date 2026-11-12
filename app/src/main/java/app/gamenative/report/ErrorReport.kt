@@ -11,6 +11,7 @@ import android.os.StatFs
 import androidx.core.content.FileProvider
 import app.gamenative.BuildConfig
 import app.gamenative.ui.screen.wow.BattleNetSignIn
+import app.gamenative.ui.screen.wow.LoginLevelStore
 import app.gamenative.ui.screen.wow.FpsLimit
 import app.gamenative.ui.screen.wow.GamePath
 import app.gamenative.ui.screen.wow.GameRegion
@@ -189,6 +190,16 @@ object ErrorReport {
 
     // --- Gerätedaten ---
 
+    /**
+     * Die Anmeldung im Bericht: ob Daten gespeichert sind, die Stufe (off / fill / self) und was "fill" eintippt. Nie E-Mail,
+     * Passwort, deren Länge oder ein Teil davon; die Daten werden hier nicht einmal entschlüsselt.
+     */
+    internal fun loginSection(context: Context): String = buildString {
+        appendLine("Login saved: ${if (BattleNetSignIn.hasSaved(context)) "yes" else "no"}")
+        appendLine("Login mode: ${LoginLevelStore.current(context).key}")
+        appendLine("Login fill scope: ${LoginLevelStore.scope(context).key}")
+    }
+
     private fun deviceText(context: Context, uiContext: Context, gameRoot: File, container: Container?, systemReg: File?): String = buildString {
         fun line(label: String, value: Any?) = appendLine("$label: ${value ?: "unknown"}")
         appendLine("WoW Forever error report")
@@ -230,7 +241,7 @@ object ErrorReport {
         line("Free space (game folder)", megabytes(GamePath.freeSpaceBytes(gameRoot.path)))
         line("Free space (app data)", megabytes(freeBytes(context.filesDir)))
         appendLine()
-        line("Login saved", if (BattleNetSignIn.hasSaved(context)) "yes" else "no")
+        append(loginSection(context))
         line("Machine ID set", if (systemReg != null && RegistryValues.hasMachineGuidInFile(systemReg)) "yes" else "no")
         // Windows-Kennung: nur die Kurzkennung (8 Hex-Zeichen eines SHA-256) und der Verlauf, nie ein Wert der Kennung.
         runCatching {

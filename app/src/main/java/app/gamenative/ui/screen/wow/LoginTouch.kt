@@ -91,11 +91,21 @@ object LoginTouchGate {
     @Volatile private var lastInWorld = false
     @Volatile private var loaded = false
 
+    // Die Stufe "Ausfüllen" braucht die Welt-Erkennung auch ohne das Ausblenden: der Knopf "Anmeldedaten ausfüllen" verschwindet
+    // in der Welt, und das Tippen bricht dort ab.
+    @Volatile private var fillWanted = false
+
     /**
-     * Das Spiel steht nach dem Streifen in der Welt (nur gültig, solange das Ausblenden an ist und damit mitgelesen wird).
-     * Die Anmelde-Einträge tippen dann nichts: Buchstaben und Tab wären dort Tastenbelegungen des Spiels.
+     * Das Spiel steht nach dem Streifen in der Welt (nur gültig, solange das Ausblenden an ist oder die Stufe "Ausfüllen" gilt
+     * und der Streifen damit mitgelesen wird). Die Anmelde-Einträge tippen dann nichts: Buchstaben und Tab wären dort
+     * Tastenbelegungen des Spiels.
      */
-    fun inWorld(): Boolean = hideInLogin && lastInWorld
+    fun inWorld(): Boolean = (hideInLogin || fillWanted) && lastInWorld
+
+    /** Die Stufe "Ausfüllen" gilt: der Streifen wird auch ohne das Ausblenden gelesen. */
+    fun setFillWanted(wanted: Boolean) {
+        fillWanted = wanted
+    }
 
     /** Gespeicherter Schalter, Standard: an. */
     internal fun hideEnabled(context: Context): Boolean = wowPrefs(context).getBoolean(KEY_HIDE, true)
@@ -111,8 +121,10 @@ object LoginTouchGate {
     @JvmStatic
     fun reset(context: Context) {
         val enabled = hideEnabled(context)
+        val fill = LoginLevels.needsWorldSignal(LoginLevelStore.current(context))
         synchronized(lock) {
             hideInLogin = enabled
+            fillWanted = fill
             forceShown = false
             lastInWorld = false
             presence.reset()
@@ -131,7 +143,7 @@ object LoginTouchGate {
 
     /** Ob der Lesedienst für dieses Signal arbeiten soll, auch wenn die Abklingzeit-Anzeige aus ist. */
     @JvmStatic
-    fun needsSignal(): Boolean = hideInLogin
+    fun needsSignal(): Boolean = hideInLogin || fillWanted
 
     /** Vom Lesedienst (Present-Thread): ein Durchgang. Gibt true zurück, wenn sich die Sichtbarkeit geändert hat. */
     @JvmStatic

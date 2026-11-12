@@ -15,19 +15,12 @@ import app.gamenative.ui.screen.wow.context.ContextSetting
 import app.gamenative.ui.screen.wow.klick.TouchOptionStore
 import app.gamenative.ui.screen.wow.klick.TouchOptions
 import app.gamenative.ui.screen.wow.klick.WheelDirection
-import app.gamenative.ui.screen.wow.voice.KeySink
 import app.gamenative.ui.screen.wow.voice.VoiceLanguage
 import app.gamenative.ui.screen.wow.voice.VoiceSettings
 import app.gamenative.ui.touchstyle.TouchStyle
 import app.gamenative.ui.touchstyle.TouchStyleSettings
 import com.winlator.container.Container
-import com.winlator.xserver.XKeycode
-import com.winlator.xserver.XServer
 import timber.log.Timber
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.concurrent.Executors
 
 /**
  * Einstellungen, die im Seitenmenü des laufenden Spiels sofort wirken: Stick-Empfindlichkeit (die Steuerelemente lesen den
@@ -219,7 +212,7 @@ internal class WowQuickSettings(context: Context) {
 
     /** Nach "Speichern" im Dialog: die Daten liegen verschlüsselt in der App, das Seitenmenü zeigt die Anmeldeeinträge. */
     fun onCredentialsSaved(login: BattleNetSignIn.Login) {
-        BattleNetSignIn.save(appContext, login)
+        LoginLevelStore.save(appContext, login)
         hasLogin = true
         showCredentialDialog = false
         loginNote = appContext.getString(R.string.game_note_login_saved)
@@ -267,6 +260,7 @@ internal class WowQuickSettings(context: Context) {
             }
             QuickMenuAction.ADDON_OPTIONS -> openAddonOptions()
             QuickMenuAction.LOGIN_FULL -> startLogin(LoginAction.FULL)
+            QuickMenuAction.LOGIN_FILL -> startLogin(LoginLevelStore.scope(appContext).action, R.string.game_login_done_fill, withClock = false)
             QuickMenuAction.LOGIN_PASSWORD -> startLogin(LoginAction.PASSWORD_ONLY)
             QuickMenuAction.LOGIN_EMAIL -> startLogin(LoginAction.EMAIL_ONLY)
             QuickMenuAction.LOGIN_NOTE -> Unit
@@ -535,63 +529,20 @@ internal class WowQuickSettings(context: Context) {
     }
 
     /**
-     * Tippt die gespeicherten Anmeldedaten in das Spiel. Erst wird geprüft, ob alles übertragbar ist (sonst geschieht nichts und
-     * die Zeile sagt warum), dann schließt das Seitenmenü, das Spiel läuft weiter, und ein Arbeitsthread tippt. Das Passwort
-     * existiert nur als CharArray und wird danach überschrieben; weder Zeichen noch Länge gehen ins Log.
+     * Tippt die gespeicherten Anmeldedaten in das Spiel ([LoginFill]). Das Seitenmenü schließt danach, das Spiel läuft weiter
+     * und ein Arbeitsthread tippt. Weder Zeichen noch Länge gehen ins Log.
      */
-    private fun startLogin(action: LoginAction) {
-        val secret = BattleNetSignIn.loadSecret(appContext)
-        if (secret == null) {
-            hasLogin = false
-            loginNote = appContext.getString(R.string.game_note_nologin)
-            showCredentialDialog = true
-            return
-        }
-        val check = checkLogin(action, secret.email, secret.password)
-        if (check != LoginCheck.OK) {
-            secret.wipe()
-            loginNote = check.messageRes?.let { appContext.getString(it) }
-            return
-        }
-        if (LoginTouchGate.inWorld()) {
-            secret.wipe()
-            loginNote = appContext.getString(R.string.game_note_inworld)
-            return
-        }
-        val server = PluviaApp.xServerView?.getxServer()
-        if (server == null) {
-            secret.wipe()
-            loginNote = appContext.getString(R.string.game_note_notready)
-            return
-        }
-        closeRequested = true
-        loginNote = appContext.getString(R.string.game_note_typing)
-        try {
-            typing.execute {
-                var done = false
-                try {
-                    Thread.sleep(RESUME_WAIT_MS)
-                    done = LoginTypist(sinkOf(server)).run(action, secret.email, secret.password)
-                } catch (e: Exception) {
-                    Timber.w("Anmeldung eintippen fehlgeschlagen: ${e.javaClass.simpleName}")
-                } finally {
-                    secret.wipe()
-                }
-                loginNote = if (done) "${appContext.getString(action.doneRes)} (${clock()})" else appContext.getString(R.string.game_note_typing_cancelled)
+    private fun startLogin(action: LoginAction, doneRes: Int = action.doneRes, withClock: Boolean = true) {
+        when (LoginFill.start(appContext, action, doneRes, withClock, RESUME_WAIT_MS) { loginNote = it }) {
+            LoginFill.Start.NO_SECRET -> {
+                hasLogin = false
+                loginNote = appContext.getString(R.string.game_note_nologin)
+                showCredentialDialog = true
             }
-        } catch (e: Exception) {
-            secret.wipe()
-            loginNote = appContext.getString(R.string.game_note_typing_failed)
+            LoginFill.Start.TYPING -> closeRequested = true
+            LoginFill.Start.REFUSED -> Unit
         }
     }
-
-    private fun sinkOf(server: XServer) = object : KeySink {
-        override fun press(key: XKeycode, keysym: Int) = server.injectKeyPress(key, keysym)
-
-        override fun release(key: XKeycode) = server.injectKeyRelease(key)
-    }
-
-    private fun clock(): String = SimpleDateFormat("HH:mm:ss", Locale.ROOT).format(Date())
 
     private companion object {
         /** Einstellung: Kennung der zuletzt offenen Gruppe im Reiter Steuerung ([QuickMenuAccordion]). */
@@ -601,9 +552,7 @@ internal class WowQuickSettings(context: Context) {
         const val RESUME_WAIT_MS = 700L
 
         // Ein Thread, damit nie zwei Anmeldeaktionen gleichzeitig Tasten senden.
-        val typing = Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "wow-login-typing").apply { isDaemon = true }
-        }
+        val typing = LoginFill.executor
 
         fun initTouchStyle(context: Context): TouchStyle {
             TouchStyleSettings.init(context)

@@ -4,6 +4,13 @@ Pro Version ein Abschnitt, neueste oben. Format: `## <Version> – <Datum>`, dar
 Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in `app/src/main/assets/CHANGELOG.de.md`) und zeigt sie als
 Änderungsliste; bei einem angebotenen Update kommt der Text der neuen Versionen aus dem Update-Feed.
 
+## 2.3.3-touch9.14 – 12.11.2026
+
+### Neu
+- Neue Anmeldestufe „Ausfüllen“ (Spieldateien › Automatische Anmeldung): Die App tippt E-Mail und Passwort ins Anmeldefenster, du drückst selbst auf Login. Dazu ein Knopf „Anmeldedaten ausfüllen“ im Anmeldebildschirm und die Zeile „Ausfüllen, nicht senden“ im Seitenmenü. Wahl „Was eintippen“: E-Mail und Passwort, oder nur das Passwort (für „Remember Account“).
+- Die Stufen sind jetzt Aus, Ausfüllen und Selbst anmelden (wie bisher über `login.txt`; dabei kann Battle.net bei jeder Anmeldung den Authenticator verlangen). Wer schon Daten gespeichert hat, bleibt bei „Selbst anmelden“; neu gespeicherte Daten starten in „Ausfüllen“.
+- Der Wechsel auf „Aus“ fragt nach, bevor die gespeicherte Anmeldung gelöscht wird.
+
 ## 2.3.3-touch9.13 – 12.11.2026
 
 ### Neu

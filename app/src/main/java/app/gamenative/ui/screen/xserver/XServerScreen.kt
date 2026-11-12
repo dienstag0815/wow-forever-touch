@@ -1715,6 +1715,8 @@ fun XServerScreen(
                     Lifecycle.Event.ON_PAUSE,
                     Lifecycle.Event.ON_RESUME -> {
                         Timber.d("Synchronizing XServerView renderer for lifecycle event: $event")
+                        // Die App geht in den Hintergrund: laufendes Eintippen der Anmeldedaten endet sofort.
+                        if (event == Lifecycle.Event.ON_PAUSE) app.gamenative.ui.screen.wow.LoginFill.cancel()
                         syncRendererToCurrentLifecycleState()
                         if (event == Lifecycle.Event.ON_RESUME) {
                             xServerView?.getxServer()?.winHandler?.reassertPrimaryController()
@@ -2780,6 +2782,9 @@ fun XServerScreen(
                 )
             }
         }
+
+        // Stufe "Ausfüllen": Knopf "Anmeldedaten ausfüllen" im Anmeldebildschirm (nicht in der Welt, nicht bei offenem Seitenmenü).
+        app.gamenative.ui.screen.wow.LoginFillButton(menuOpen = showQuickMenu)
 
         QuickMenu(
             isVisible = showQuickMenu,

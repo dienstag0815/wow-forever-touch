@@ -52,6 +52,8 @@ internal data class ReadinessInput(
     val clientLocal: String? = null,
     val clientRemote: String? = null,
     val clientOutdated: Boolean = false,
+    /** Stufe der Anmeldung; "Aus" ist kein Mangel. */
+    val loginLevel: LoginLevel = LoginLevel.SELF,
 )
 
 internal data class ReadinessSummary(
@@ -120,12 +122,12 @@ internal fun readinessSummary(input: ReadinessInput): ReadinessSummary {
             },
         )
         add(
-            ReadyItem(
-                ReadyKey.Login,
-                UiText.res(if (input.hasSavedLogin) R.string.launcher_ready_login_ok else R.string.launcher_ready_login_missing),
-                input.hasSavedLogin,
-                if (input.hasSavedLogin) ReadyFix.None else ReadyFix.Login,
-            ),
+            when {
+                // "Aus": nichts gespeichert, alles von Hand. Das ist gewählt und kein Mangel.
+                input.loginLevel == LoginLevel.OFF -> ReadyItem(ReadyKey.Login, UiText.res(LoginLevel.OFF.readyRes), true)
+                input.hasSavedLogin -> ReadyItem(ReadyKey.Login, UiText.res(input.loginLevel.readyRes), true)
+                else -> ReadyItem(ReadyKey.Login, UiText.res(R.string.launcher_ready_login_missing), false, ReadyFix.Login)
+            },
         )
         if (input.clientLocal != null) {
             val remote = input.clientRemote.orEmpty()

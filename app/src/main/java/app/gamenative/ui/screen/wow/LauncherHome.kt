@@ -48,6 +48,9 @@ internal data class LauncherHomeState(
     val filesChecked: Boolean,
     val gamePath: String,
     val hasSavedLogin: Boolean,
+    /** Stufe der Anmeldung und was "Ausfüllen" eintippt (Karte "Automatische Anmeldung"). */
+    val loginLevel: LoginLevel = LoginLevel.SELF,
+    val fillScope: FillScope = FillScope.EMAIL_AND_PASSWORD,
     val versionStatus: WowClientDownloader.VersionCheckResult?,
     val isLaunching: Boolean,
     val isUpdating: Boolean,
@@ -76,6 +79,8 @@ internal data class LauncherHomeActions(
     val onGrantStorage: () -> Unit,
     val onLogin: () -> Unit,
     val onForgetLogin: () -> Unit,
+    val onLoginLevel: (LoginLevel) -> Unit = {},
+    val onFillScope: (FillScope) -> Unit = {},
     val onRefresh: () -> Unit,
     /** Öffnet eine Vollbildseite (Kachel, Pille oder Fußzeile); der Launcher-Bildschirm hält den Zustand. */
     val onOpenPage: (LauncherPage) -> Unit,
@@ -125,6 +130,7 @@ internal fun LauncherHomeState.readiness(): ReadinessSummary = readinessSummary(
         isWrongGame = files.isWrongGame,
         hasStorageAccess = files.hasStorageAccess,
         hasSavedLogin = hasSavedLogin,
+        loginLevel = loginLevel,
         clientLocal = versionStatus?.localVersion,
         clientRemote = versionStatus?.remoteVersion,
         clientOutdated = versionStatus?.isOutdated == true,

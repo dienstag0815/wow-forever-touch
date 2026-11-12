@@ -302,7 +302,7 @@
     <string name="launcher_files_installed">Installiert</string>
     <string name="launcher_files_installed_client">Installiert · Client %1$s</string>
     <string name="launcher_files_login">Automatische Anmeldung (optional)</string>
-    <string name="launcher_files_login_desc">Freiwillig: Zugangsdaten verschlüsselt nur auf diesem Gerät speichern und beim Start ins Spiel tippen lassen.</string>
+    <string name="launcher_files_login_desc">Freiwillig: Zugangsdaten verschlüsselt nur auf diesem Gerät speichern. Unten wählst du, was die App damit tut.</string>
     <string name="launcher_files_login_title">Automatische Anmeldung (optional)</string>
     <string name="launcher_files_no_login">Keine Anmeldung gespeichert</string>
     <string name="launcher_files_other_game">Im Ordner liegt ein anderes Spiel</string>
@@ -827,4 +827,23 @@
     <string name="launcher_browser_hint_apk">Die APK landet in Downloads. Antippen zum Installieren, Android fragt dann selbst nach.</string>
     <string name="launcher_browser_hint_page">Anmeldung im Browser nötig. Auf der Release-Seite die APK laden; sie landet in Downloads. Antippen zum Installieren, Android fragt dann selbst nach.</string>
     <string name="launcher_browser_no_install_right">Installieren aus dieser App ist nicht erlaubt. Dieser Weg braucht kein zusätzliches Recht für die App.</string>
+    <string name="launcher_login_level_row">Stufe</string>
+    <string name="launcher_login_level_off">Aus</string>
+    <string name="launcher_login_level_off_desc">Nichts wird gespeichert, du meldest dich von Hand an. Beim Wechsel hierher wird eine gespeicherte Anmeldung gelöscht.</string>
+    <string name="launcher_login_level_fill">Ausfüllen (ich sende selbst ab)</string>
+    <string name="launcher_login_level_fill_desc">Die App tippt E-Mail und Passwort ins Anmeldefenster, du tippst selbst auf Login.</string>
+    <string name="launcher_login_level_self">Selbst anmelden</string>
+    <string name="launcher_login_level_self_desc">Das Spiel meldet sich beim Start selbst an. Hierbei kann Battle.net bei jeder Anmeldung den Authenticator verlangen.</string>
+    <string name="launcher_fill_scope_row">Was eintippen</string>
+    <string name="launcher_fill_scope_all">E-Mail und Passwort</string>
+    <string name="launcher_fill_scope_all_desc">E-Mail, Tab, Passwort; es wird nichts abgesendet.</string>
+    <string name="launcher_fill_scope_password">Nur Passwort</string>
+    <string name="launcher_fill_scope_password_desc">Für Remember Account im Anmeldefenster (die E-Mail steht schon da). Sitzt der Zeiger nicht im Passwortfeld, erscheint das Passwort lesbar im E-Mail-Feld.</string>
+    <string name="launcher_login_off_confirm_title">Gespeicherte Anmeldung löschen?</string>
+    <string name="launcher_login_off_confirm_text">Mit ‚Aus‘ werden E-Mail und Passwort von diesem Gerät gelöscht. Du meldest dich danach von Hand an.</string>
+    <string name="launcher_login_off_confirm_delete">Löschen</string>
+    <string name="launcher_login_off_confirm_cancel">Abbrechen</string>
+    <string name="launcher_ready_login_off">Anmeldung: Aus</string>
+    <string name="launcher_ready_login_fill">Anmeldung: Ausfüllen</string>
+    <string name="launcher_ready_login_self">Anmeldung: Selbst anmelden</string>
 </resources>

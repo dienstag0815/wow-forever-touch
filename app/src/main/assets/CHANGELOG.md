@@ -5,6 +5,13 @@ bullet points in plain language. The launcher reads this file (copy in `app/src/
 when an update is offered, the text for the new versions comes from the update feed. German readers get
 `CHANGELOG.de.md` when the app language is German.
 
+## 2.3.3-touch9.14 – 12.11.2026
+
+### New
+- New login level "Fill in" (Game files › Automatic login): the app types email and password into the login window and you tap Login yourself. Adds a "Fill in login" button on the login screen and a "Fill in, do not submit" row in the side menu. "What to type": email and password, or the password only (for "Remember Account").
+- The levels are now Off, Fill in and Sign in automatically (as before, through `login.txt`; Battle.net may ask for the authenticator at every login this way). If you already saved a login you stay on "Sign in automatically"; newly saved data starts on "Fill in".
+- Switching to "Off" asks before it deletes the saved login.
+
 ## 2.3.3-touch9.13 – 12.11.2026
 
 ### New

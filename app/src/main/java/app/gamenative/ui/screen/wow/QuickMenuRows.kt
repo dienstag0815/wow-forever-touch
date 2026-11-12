@@ -60,7 +60,7 @@ internal fun quickMenuRowKind(id: Int): QuickMenuRowKind? = when (id) {
     QuickMenuAction.LAYOUT_CHOOSE, QuickMenuAction.LAYOUT_SAVE_AS,
     QuickMenuAction.RADIAL_MENU, QuickMenuAction.TOUCH_SHOW_NOW, QuickMenuAction.WHEEL_CENTER, QuickMenuAction.WHEEL_UP,
     QuickMenuAction.WHEEL_RIGHT, QuickMenuAction.WHEEL_DOWN, QuickMenuAction.WHEEL_LEFT, QuickMenuAction.KEYBOARD,
-    QuickMenuAction.LOGIN_FULL, QuickMenuAction.LOGIN_PASSWORD, QuickMenuAction.LOGIN_EMAIL, QuickMenuAction.CHECK_ICONS,
+    QuickMenuAction.LOGIN_FULL, QuickMenuAction.LOGIN_FILL, QuickMenuAction.LOGIN_PASSWORD, QuickMenuAction.LOGIN_EMAIL, QuickMenuAction.CHECK_ICONS,
     QuickMenuAction.ADDON_OPTIONS, QuickMenuAction.VOICE_LANGUAGE,
     -> QuickMenuRowKind.VALUE
     else -> null
@@ -235,6 +235,7 @@ internal fun quickMenuRowView(id: Int, v: QuickMenuValues): QuickMenuRowView? {
         QuickMenuAction.RADIAL_MENU -> valueView(TextRef(R.string.game_qm_row_radial), TextRef(R.string.game_qm_row_open))
         QuickMenuAction.LOGIN_FULL ->
             if (v.hasLogin) valueView(TextRef(R.string.game_qm_row_login), TextRef(R.string.game_qm_row_type_in)) else valueView(TextRef(R.string.game_qm_row_login_save), TextRef(R.string.game_qm_row_save))
+        QuickMenuAction.LOGIN_FILL -> valueView(TextRef(R.string.game_qm_row_fill), TextRef(R.string.game_qm_row_type_in))
         QuickMenuAction.LOGIN_PASSWORD -> valueView(TextRef(R.string.game_qm_row_password_only), TextRef(R.string.game_qm_row_type_in))
         QuickMenuAction.LOGIN_EMAIL -> valueView(TextRef(R.string.game_qm_row_email_only), TextRef(R.string.game_qm_row_type_in))
         QuickMenuAction.LOGIN_NOTE ->

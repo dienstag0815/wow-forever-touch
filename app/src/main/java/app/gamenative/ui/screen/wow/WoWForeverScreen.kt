@@ -112,6 +112,9 @@ fun WoWForeverScreen(
     var isLaunching by remember { mutableStateOf(false) }
     var launchJob by remember { mutableStateOf<Job?>(null) }
     var hasSavedLogin by remember { mutableStateOf(BattleNetSignIn.load(context) != null) }
+    // Stufe der Anmeldung (Aus / Ausfüllen / Selbst anmelden) und was "Ausfüllen" eintippt; siehe LoginLevel.kt.
+    var loginLevel by remember { mutableStateOf(LoginLevelStore.current(context)) }
+    var fillScope by remember { mutableStateOf(LoginLevelStore.scope(context)) }
     var region by remember(gamePath, files) { mutableStateOf(GameRegion.current(context, gamePath)) }
     var resolution by remember { mutableStateOf(RenderResolution.current(context, gpu.screenSize)) }
     var fpsLimit by remember { mutableStateOf(FpsLimit.current(context)) }
@@ -119,6 +122,7 @@ fun WoWForeverScreen(
     var cameraGain by remember { mutableStateOf(StickSensitivity.camera(context)) }
     var inputMode by remember { mutableStateOf(InputMode.current(context)) }
     var showLayoutResetDialog by remember { mutableStateOf(false) }
+    var showLoginOffConfirm by remember { mutableStateOf(false) }
     // Die Einstellungen liegen auf einer eigenen Seite über der Hauptansicht (LauncherSettingsPage.kt).
     var showSettings by remember { mutableStateOf(false) }
     // Die Addon-Verwaltung liegt noch eine Seite darüber (AddonsPage.kt), Zurück führt in die Einstellungen.
@@ -502,7 +506,8 @@ fun WoWForeverScreen(
         // Every setup path reads or writes shared storage; the first-run effect below opens the access screen for it.
         Timber.i("WoWForeverScreen LaunchedEffect: gamePath=$gamePath, ready=$ready, hasSavedLogin=$hasSavedLogin, shouldAutoLaunch=${WoWLauncherState.shouldAutoLaunch}")
         when {
-            !ready || !hasSavedLogin -> {
+            // "Aus" ist kein Mangel: ohne gespeicherte Daten startet der Countdown trotzdem (der Spieler meldet sich von Hand an).
+            !ready || !LoginLevels.ready(loginLevel, hasSavedLogin) -> {
                 WoWLauncherState.shouldAutoLaunch = false
                 PluviaApp.events.emit(AndroidEvent.ClearBootingSplash)
                 if (files.isLegacyBeta) showUpgradeDialog = true
@@ -548,6 +553,8 @@ fun WoWForeverScreen(
         filesChecked = filesChecked,
         gamePath = gamePath,
         hasSavedLogin = hasSavedLogin,
+        loginLevel = loginLevel,
+        fillScope = fillScope,
         versionStatus = versionStatus,
         isLaunching = isLaunching,
         isUpdating = isUpdating,
@@ -576,9 +583,23 @@ fun WoWForeverScreen(
         onGrantStorage = { StorageUtils.requestManageExternalStoragePermission(context) },
         onLogin = { showLoginDialog = true },
         onForgetLogin = {
-            BattleNetSignIn.forget(context)
-            BattleNetSignIn.removeLoginFile(File(gamePath))
+            LoginLevelStore.forget(context, File(gamePath))
             hasSavedLogin = false
+            loginLevel = LoginLevel.OFF
+        },
+        onLoginLevel = { level ->
+            // "Aus" löscht die gespeicherten Daten: erst nachfragen (Dialog unten), dann wechseln.
+            if (LoginLevels.needsConfirm(level, hasSavedLogin)) {
+                showLoginOffConfirm = true
+            } else {
+                LoginLevelStore.change(context, File(gamePath), level)
+                loginLevel = level
+                hasSavedLogin = BattleNetSignIn.hasSaved(context)
+            }
+        },
+        onFillScope = { scopeChoice ->
+            LoginLevelStore.setScope(context, scopeChoice)
+            fillScope = scopeChoice
         },
         onRefresh = {
             checkFiles()
@@ -682,8 +703,35 @@ fun WoWForeverScreen(
             onDismiss = { showLoginDialog = false },
             onConfirm = { login ->
                 showLoginDialog = false
-                BattleNetSignIn.save(context, login)
+                LoginLevelStore.save(context, login)
+                loginLevel = LoginLevelStore.current(context)
                 hasSavedLogin = true
+            },
+        )
+    }
+
+    if (showLoginOffConfirm) {
+        // Rückfrage vor dem Löschen; "Abbrechen" und Wegtippen lassen Stufe und Daten unverändert (Muster wie IdentityConfirmDialog).
+        AlertDialog(
+            onDismissRequest = { showLoginOffConfirm = false },
+            title = { Text(text = stringResource(R.string.launcher_login_off_confirm_title), fontWeight = FontWeight.Bold, fontSize = 17.sp, color = WowGold) },
+            text = { Text(text = stringResource(R.string.launcher_login_off_confirm_text), fontSize = 14.sp, lineHeight = 20.sp, color = Color(0xFFE2E8F0)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLoginOffConfirm = false
+                        LoginLevelStore.change(context, File(gamePath), LoginLevel.OFF)
+                        loginLevel = LoginLevel.OFF
+                        hasSavedLogin = BattleNetSignIn.hasSaved(context)
+                    },
+                ) {
+                    Text(stringResource(R.string.launcher_login_off_confirm_delete), color = Color(0xFFF87171))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLoginOffConfirm = false }) {
+                    Text(stringResource(R.string.launcher_login_off_confirm_cancel), color = WowGold, fontWeight = FontWeight.Bold)
+                }
             },
         )
     }
@@ -1181,10 +1229,8 @@ private fun prepareLaunch(
     check(containerManager.hasContainer(CONTAINER_ID)) { "Container creation failed. Check system storage and logs." }
 
     // Keep the plaintext credentials on disk for as short a time as possible: write login.txt only when the exe starts next.
-    BattleNetSignIn.load(context)?.let { login ->
-        BattleNetSignIn.writeLoginFile(gameRoot, login)
-        BattleNetSignIn.startLoginWatcher(gameRoot)
-    }
+    // Only the level "Selbst anmelden" does this; in the other levels the app types (or the player does) and a leftover file is removed.
+    prepareLoginFile(LoginLevelStore.current(context), gameRoot, load = { BattleNetSignIn.load(context) })
     return CONTAINER_ID
 }
 

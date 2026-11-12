@@ -279,4 +279,91 @@ class LoginTypingTest {
         assertTrue(secret.email.all { it == '\u0000' })
         assertTrue(secret.password.all { it == '\u0000' })
     }
+
+    // --- Ausfüllen: E-Mail, Tab, Passwort, nie Enter ---
+
+    @Test
+    fun fillOrder_clearEmail_email_tab_clearPassword_password_noEnter() {
+        val recorder = Recorder()
+        assertTrue(LoginTypist(recorder, sleep = {}).fill("a@b".toCharArray(), "P1".toCharArray()))
+        val expected = ArrayList<String>()
+        expected += clearEvents(3)
+        expected += listOf(
+            "+KEY_A:97", "-KEY_A",
+            "+KEY_SHIFT_L:0", "+KEY_2:64", "-KEY_2", "-KEY_SHIFT_L",
+            "+KEY_B:98", "-KEY_B",
+            "+KEY_TAB:0", "-KEY_TAB",
+        )
+        expected += clearEvents(2)
+        expected += listOf("+KEY_SHIFT_L:0", "+KEY_P:80", "-KEY_P", "-KEY_SHIFT_L", "+KEY_1:49", "-KEY_1")
+        assertEquals(expected, recorder.events)
+        assertFalse(recorder.events.any { it.contains("ENTER") })
+    }
+
+    @Test
+    fun fillIsAnActionOfItsOwnAndRunDispatchesToIt() {
+        val recorder = Recorder()
+        assertTrue(LoginTypist(recorder, sleep = {}).run(LoginAction.FILL, "a".toCharArray(), "b".toCharArray()))
+        assertTrue(recorder.events.contains("+KEY_TAB:0"))
+        assertFalse(recorder.events.any { it.contains("ENTER") })
+        // FULL bleibt unverändert: dieselben Daten, aber mit Enter am Ende.
+        val full = Recorder()
+        LoginTypist(full, sleep = {}).run(LoginAction.FULL, "a".toCharArray(), "b".toCharArray())
+        assertEquals("+KEY_ENTER:0", full.events[full.events.size - 2])
+        assertEquals(LoginCheck.OK, checkLogin(LoginAction.FILL, "a".toCharArray(), "b".toCharArray()))
+        assertEquals(LoginCheck.PASSWORD_EMPTY, checkLogin(LoginAction.FILL, "a".toCharArray(), CharArray(0)))
+    }
+
+    @Test
+    fun fillNeverSendsEnterNoMatterWhereItIsCancelled() {
+        // Abbruch nach jeder möglichen Anzahl Tastenereignisse: nie Enter, und der Abbruch stoppt das Tippen vor der nächsten Taste.
+        val whole = Recorder()
+        LoginTypist(whole, sleep = {}).fill("a@b".toCharArray(), "Pw1".toCharArray())
+        for (cut in 0..whole.events.size) {
+            val recorder = Recorder()
+            var seen = 0
+            val sink = object : KeySink {
+                override fun press(key: XKeycode, keysym: Int) {
+                    recorder.press(key, keysym)
+                    seen++
+                }
+
+                override fun release(key: XKeycode) {
+                    recorder.release(key)
+                    seen++
+                }
+            }
+            val done = LoginTypist(sink, sleep = {}, isCancelled = { seen >= cut }).fill("a@b".toCharArray(), "Pw1".toCharArray())
+            assertFalse("Enter bei Abbruch nach $cut Ereignissen", recorder.events.any { it.contains("ENTER") })
+            // Nach dem Druck der letzten Taste ist alles getippt, ein Abbruch ändert dann nichts mehr.
+            if (cut < whole.events.size - 1) assertFalse("Abbruch nach $cut Ereignissen gilt als fertig", done)
+            // Nach dem Abbruch kommt höchstens noch das Loslassen der gerade gehaltenen Taste.
+            assertTrue("zu viele Ereignisse nach Abbruch bei $cut: ${recorder.events.size}", recorder.events.size <= cut + 3)
+        }
+    }
+
+    @Test
+    fun fillCancelledBeforeTheFirstKeyTypesNothing() {
+        val recorder = Recorder()
+        assertFalse(LoginTypist(recorder, sleep = {}, isCancelled = { true }).fill("a".toCharArray(), "b".toCharArray()))
+        assertTrue(recorder.events.isEmpty())
+    }
+
+    @Test
+    fun fillWithAnUntypeableCharacterStopsWithoutEnter() {
+        val recorder = Recorder()
+        assertFalse(LoginTypist(recorder, sleep = {}).fill("a".toCharArray(), "a\t".toCharArray()))
+        assertFalse(recorder.events.any { it.contains("ENTER") })
+    }
+
+    @Test
+    fun fillDoneMessageNamesNoDataAndSaysWhatToDoNext() {
+        for (language in listOf("de", "en")) {
+            val text = TestTexts.text(TextRef(LoginAction.FILL.doneRes), language)
+            assertTrue(text, text.contains("Login"))
+            assertFalse(text, text.any { it.isDigit() })
+            assertFalse(text, text.contains("@"))
+        }
+        assertEquals("Ausgefüllt. Jetzt auf Login tippen.", TestTexts.de(TextRef(LoginAction.FILL.doneRes)))
+    }
 }

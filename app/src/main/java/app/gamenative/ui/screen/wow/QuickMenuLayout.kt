@@ -86,7 +86,7 @@ internal object QuickMenuAccordion {
  * Lage, von der die Sichtbarkeit einzelner Zeilen abhängt.
  *
  * @property inLogin das Spiel steht im Login oder in der Charakterauswahl, nicht in der Spielwelt ([LoginTouchGate.inWorld] ist falsch)
- * @property hasSavedLogin Anmeldedaten sind gespeichert (dann auch "Nur Passwort" und "Nur E-Mail")
+ * @property hasSavedLogin Anmeldedaten sind gespeichert (dann auch "Ausfüllen, nicht absenden", "Nur Passwort" und "Nur E-Mail")
  * @property hasLoginNote die Zeile zur letzten Anmeldeaktion existiert
  * @property hasReportNote die Zeile zum Fehlerbericht existiert
  * @property hasPhysicalController ein physischer Controller ist verbunden
@@ -117,6 +117,7 @@ internal fun quickMenuSections(page: QuickMenuPage, ctx: QuickMenuContext): List
                     if (ctx.inLogin) {
                         add(QuickMenuAction.LOGIN_FULL)
                         if (ctx.hasSavedLogin) {
+                            add(QuickMenuAction.LOGIN_FILL)
                             add(QuickMenuAction.LOGIN_PASSWORD)
                             add(QuickMenuAction.LOGIN_EMAIL)
                         }
@@ -237,6 +238,7 @@ internal val QUICK_MENU_OUTSIDE_LAYOUT: Set<Int> = setOf(QuickMenuAction.EXIT_GA
 /** Die Anmelde-Zeilen: nur im Login-Kontext sichtbar. */
 internal val QUICK_MENU_LOGIN_IDS: Set<Int> = setOf(
     QuickMenuAction.LOGIN_FULL,
+    QuickMenuAction.LOGIN_FILL,
     QuickMenuAction.LOGIN_PASSWORD,
     QuickMenuAction.LOGIN_EMAIL,
     QuickMenuAction.LOGIN_NOTE,

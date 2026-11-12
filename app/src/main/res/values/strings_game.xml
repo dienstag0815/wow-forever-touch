@@ -545,4 +545,7 @@
     <string name="game_voice_language_missing">Language pack missing. Install it in Android settings: System > Languages > Voice input (offline speech)</string>
     <string name="game_voice_language_downloading">Language pack is being downloaded … press the voice button again in a moment</string>
     <string name="game_voice_client">Speech recognition stopped unexpectedly, press the voice button again</string>
+    <string name="game_login_done_fill">Filled in. Now tap Login.</string>
+    <string name="game_fill_button">Fill in login</string>
+    <string name="game_qm_row_fill">Fill in, do not submit</string>
 </resources>

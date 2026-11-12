@@ -71,8 +71,8 @@ android {
         manifestPlaceholders["screenOrientation"] = "unspecified"
         buildConfigField("boolean", "XR_BUILD", "false")
 
-        versionCode = 301
-        versionName = "2.3.3-touch9.13"
+        versionCode = 302
+        versionName = "2.3.3-touch9.14"
 
         buildConfigField("boolean", "GOLD", "false")
         // Feed of the self-update (latest.json + APK); can be overridden in the app under "Erweitert".

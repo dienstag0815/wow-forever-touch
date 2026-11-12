@@ -545,4 +545,7 @@
     <string name="game_voice_language_missing">Sprachpaket fehlt. In den Android-Einstellungen installieren: System > Sprachen > Spracheingabe (Offline-Sprache)</string>
     <string name="game_voice_language_downloading">Sprachpaket wird geladen … gleich nochmal die Sprachtaste drücken</string>
     <string name="game_voice_client">Spracherkennung wurde unerwartet beendet, Sprachtaste nochmal drücken</string>
+    <string name="game_login_done_fill">Ausgefüllt. Jetzt auf Login tippen.</string>
+    <string name="game_fill_button">Anmeldedaten ausfüllen</string>
+    <string name="game_qm_row_fill">Ausfüllen, nicht senden</string>
 </resources>
