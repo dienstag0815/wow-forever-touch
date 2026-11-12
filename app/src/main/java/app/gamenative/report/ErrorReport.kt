@@ -23,6 +23,7 @@ import app.gamenative.utils.BoundedProcess
 import app.gamenative.utils.LibredirectChoice
 import app.gamenative.utils.MachineIdentity
 import app.gamenative.utils.MachineIdentityApply
+import app.gamenative.utils.MachineIdentityLog
 import com.winlator.container.Container
 import com.winlator.container.ContainerManager
 import timber.log.Timber
@@ -231,6 +232,32 @@ object ErrorReport {
         appendLine()
         line("Login saved", if (BattleNetSignIn.hasSaved(context)) "yes" else "no")
         line("Machine ID set", if (systemReg != null && RegistryValues.hasMachineGuidInFile(systemReg)) "yes" else "no")
+        // Windows-Kennung: nur die Kurzkennung (8 Hex-Zeichen eines SHA-256) und der Verlauf, nie ein Wert der Kennung.
+        runCatching {
+            val summary = MachineIdentityApply.logSummary(context)
+            line("Machine ID fingerprint", summary.fingerprint)
+            line("Machine ID changes", summary.changes)
+            line("Machine ID last update", MachineIdentityLog.updateText(summary.update))
+            appendLine()
+            appendLine("Machine ID history (short ids only, no values):")
+            append(MachineIdentityLog.historyText(summary.trace))
+        }
+        // Systemsicht: Gesamt-Fingerabdruck und je Teil Fingerabdruck und grobe Merkmale; nie Hostname, MAC oder IP (siehe SystemView).
+        runCatching {
+            val system = MachineIdentityApply.systemSummary(context)
+            appendLine()
+            line("System view fingerprint", system.total)
+            line("System view changes", system.changes)
+            for (p in system.parts) line("System view " + p.part.id, p.fingerprint + " " + p.features.joinToString(" ; "))
+        }
+        // Prefix-Merkmale (vor dem Anwenden gemessen, nie geändert): Gesamt-Fingerabdruck und je Teil Fingerabdruck und grobe Merkmale; keine Werte.
+        runCatching {
+            val traits = MachineIdentityApply.prefixSummary(context)
+            appendLine()
+            line("Prefix traits fingerprint", traits.total)
+            line("Prefix traits changes", traits.changes)
+            for (p in traits.parts) line("Prefix traits " + p.part.id, p.fingerprint + " " + p.features.joinToString(" ; "))
+        }
     }
 
     private fun freeBytes(dir: File): Long = runCatching { StatFs(dir.path).availableBytes }.getOrDefault(-1L)

@@ -152,11 +152,16 @@ internal const val READY_HEAD_DP = 49f
 internal const val READY_ITEM_DP = 40f
 internal const val READY_ITEMS_MAX = 6
 
-/** Hilfe: Bereitschaft über zwei Spalten, die letzte Meldung (nur wenn es eine gibt), Fehlerbericht, "Im Spiel ändern" und Launcher. */
+/**
+ * Hilfe: Bereitschaft über zwei Spalten, die letzte Meldung (nur wenn es eine gibt), Fehlerbericht, "Im Spiel ändern" und Launcher. Die
+ * Karte Fehlerbericht hat unter dem Kurztext eine Zeile zur Windows-Kennung (Kurzkennung und Datum, bei einem misslungenen Speichern die
+ * Warnung); mehr als diese eine Zeile verträgt die Seite hochkant mit Meldung nicht (15 dp Luft, PageGridTest). Wechsel, Verlauf und
+ * "Verlauf kopieren" stehen in der Detailansicht der Karte.
+ */
 internal fun helpPlan(hasError: Boolean): List<CardPlan> = buildList {
     add(plan("ready", titled = false, extraDp = READY_HEAD_DP + READY_ITEMS_MAX * READY_ITEM_DP, span = 2))
     if (hasError) add(plan("error", lines = 6))
-    add(plan("report", rows = 1, lines = 3))
+    add(plan("report", rows = 1, lines = 4))
     add(plan("gameonly", lines = 3))
     add(plan("launcher", rows = 2, lines = 3))
 }

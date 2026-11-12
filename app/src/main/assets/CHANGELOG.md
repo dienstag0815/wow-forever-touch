@@ -5,6 +5,24 @@ bullet points in plain language. The launcher reads this file (copy in `app/src/
 when an update is offered, the text for the new versions comes from the update feed. German readers get
 `CHANGELOG.de.md` when the app language is German.
 
+## 2.3.3-touch9.13 – 12.11.2026
+
+### New
+- The Windows ID now also survives a reinstall of the app: it is kept as a copy in the game folder and taken over again at the first start (only from the same device model; a copy from another model is listed under "Earlier IDs"). The backup can be switched off in Help and Diagnostics, which deletes the copy.
+
+### Improved
+- The Windows ID is now protected across app updates: a damaged ID file is repaired field by field instead of replaced, a second copy restores it if it is lost, and saving is safe against interruptions. Help and Diagnostics shows "ID unchanged" or a warning for each update and also measures values Wine creates itself in the prefix (short IDs only, never the values).
+
+## 2.3.3-touch9.12 – 12.11.2026
+
+### New
+- Help & Diagnostics shows the Windows identity the game reports as a short fingerprint, with a history of every change (new install, save failed, values differ inside the Windows part).
+- You can view the identity values, create a new identity after a confirmation that explains the consequences (at most once per 24 hours), and go back to one of up to five earlier identities.
+- A "system view" is recorded at each game start (network type, network interfaces, private DNS mode, processor cores, game folder type) as fingerprints only, so you can see what changes between two starts.
+
+### Fixed
+- If the identity could not be saved, a new one was created at every start without any notice. It now stays the same while the app runs, and a warning is shown.
+
 ## 2.3.3-touch9.11 – 12.11.2026
 
 ### New

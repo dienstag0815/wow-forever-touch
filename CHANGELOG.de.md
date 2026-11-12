@@ -4,6 +4,24 @@ Pro Version ein Abschnitt, neueste oben. Format: `## <Version> – <Datum>`, dar
 Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in `app/src/main/assets/CHANGELOG.de.md`) und zeigt sie als
 Änderungsliste; bei einem angebotenen Update kommt der Text der neuen Versionen aus dem Update-Feed.
 
+## 2.3.3-touch9.13 – 12.11.2026
+
+### Neu
+- Die Windows-Kennung bleibt jetzt auch nach einer Neuinstallation der App erhalten: Sie wird als Kopie im Spielordner gesichert und beim ersten Start wieder übernommen (nur vom selben Gerätemodell; eine Kopie von einem anderen Modell steht unter „Frühere Kennungen“). In Hilfe und Diagnose lässt sich die Sicherung ausschalten; dann wird die Kopie gelöscht.
+
+### Verbessert
+- Die Windows-Kennung übersteht App-Updates abgesichert: Eine beschädigte Kennungsdatei wird feldweise repariert statt ersetzt, eine Zweitkopie stellt sie bei Verlust wieder her, und das Speichern ist gegen Abbrüche geschützt. Hilfe und Diagnose zeigt je Update „Kennung unverändert“ oder eine Warnung und misst zusätzlich Werte, die Wine selbst im Prefix erzeugt (nur Kurzkennungen, nie die Werte).
+
+## 2.3.3-touch9.12 – 12.11.2026
+
+### Neu
+- Hilfe & Diagnose zeigt die Windows-Kennung, die das Spiel meldet, als kurzen Fingerabdruck, mit einem Verlauf jeder Änderung (Neuinstallation, Speichern fehlgeschlagen, abweichende Werte im Windows-Teil).
+- Die Werte der Kennung lassen sich ansehen. Nach einer Rückfrage mit Erklärung der Folgen kann eine neue Kennung erzeugt werden (höchstens einmal in 24 Stunden), und bis zu fünf frühere Kennungen lassen sich wieder verwenden.
+- Bei jedem Spielstart wird eine „Systemsicht“ festgehalten (Netzart, Netzwerkschnittstellen, Modus des privaten DNS, Prozessorkerne, Art des Spielordners), nur als Fingerabdrücke. So ist sichtbar, was sich zwischen zwei Starts ändert.
+
+### Behoben
+- Konnte die Kennung nicht gespeichert werden, entstand bei jedem Start unbemerkt eine neue. Jetzt bleibt sie gleich, solange die App läuft, und eine Warnung erscheint.
+
 ## 2.3.3-touch9.11 – 12.11.2026
 
 ### Neu

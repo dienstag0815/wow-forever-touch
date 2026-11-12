@@ -28,6 +28,12 @@ object WineRegText {
 
     private fun valuePrefix(name: String): String = ("\"" + name.replace("\\", "\\\\").replace("\"", "\\\"") + "\"=").lowercase()
 
+    /** True when the section [key] exists in [text]. */
+    fun hasKey(text: String, key: String): Boolean {
+        val wantHeader = header(key)
+        return text.split('\n').any { it.startsWith("[") && it.lowercase().startsWith(wantHeader) }
+    }
+
     /** Raw value text (`"abc"`, `dword:0000002a`, ...) or null when key or value is missing. */
     fun getRaw(text: String, key: String, name: String): String? {
         val wantHeader = header(key)

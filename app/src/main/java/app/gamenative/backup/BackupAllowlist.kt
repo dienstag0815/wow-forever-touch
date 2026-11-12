@@ -126,8 +126,8 @@ internal object BackupAllowlist {
     val FORBIDDEN_NAME_PARTS: List<String> =
         listOf("password", "passwort", "token", "secret", "email", "login_", "identity", "uri", "base_url", "feed", "game_path", "hash")
 
-    /** Dateien, die nie gesichert werden (Anmeldung, Identität). */
-    val FORBIDDEN_FILES: List<String> = listOf("battle_net_login", "wow_identity")
+    /** Dateien, die nie gesichert werden (Anmeldung, Identität, Kennungsprotokoll und Verlaufsdatei). */
+    val FORBIDDEN_FILES: List<String> = listOf("battle_net_login", "wow_identity", "wow_identity_log", "wow_identity_archive", "wow_system_view", "wow_prefix_traits", "wow_identity_damaged", "wow_identity_used", "wow_identity_keep_off", "wowforever-kennung", "wowforever-kennung-kopie")
 
     /** Macht aus einem rohen Wert (so wie ihn JSON oder SharedPreferences liefert) den Wert des Typs von [spec], sonst null. */
     fun coerce(spec: SettingSpec, raw: Any?): Any? = when (spec.type) {

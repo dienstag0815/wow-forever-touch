@@ -1,6 +1,7 @@
 package app.gamenative.utils
 
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.AtomicMoveNotSupportedException
@@ -54,6 +55,13 @@ class MachineIdentity(
         append(KEY_SERIAL).append('=').append(volumeSerial).append('\n')
         append(KEY_PRODUCT).append('=').append(productId).append('\n')
         append(KEY_INSTALL).append('=').append(installDate).append('\n')
+    }
+
+    /** Result of [inspect]: a usable identity, no file at all, or a file that cannot be used ([reason] names it, never a value). */
+    sealed class Inspection {
+        class Valid(val identity: MachineIdentity) : Inspection()
+        object Missing : Inspection()
+        class Invalid(val reason: String) : Inspection()
     }
 
     companion object {
@@ -116,15 +124,21 @@ class MachineIdentity(
             )
         }
 
-        /** Parses the stored text; null when a field is missing or the result is not valid. */
-        fun parse(text: String?): MachineIdentity? {
-            if (text == null) return null
+        /** `key=value` lines of the stored text (whitespace around key and value is ignored, other lines and unknown keys are skipped). */
+        internal fun readValues(text: String): Map<String, String> {
             val values = HashMap<String, String>()
             for (line in text.lines()) {
                 val eq = line.indexOf('=')
                 if (eq <= 0) continue
                 values[line.substring(0, eq).trim()] = line.substring(eq + 1).trim()
             }
+            return values
+        }
+
+        /** Parses the stored text; null when a field is missing or the result is not valid. */
+        fun parse(text: String?): MachineIdentity? {
+            if (text == null) return null
+            val values = readValues(text)
             val install = values[KEY_INSTALL]?.toLongOrNull() ?: return null
             val identity = MachineIdentity(
                 machineGuid = values[KEY_GUID] ?: return null,
@@ -134,6 +148,89 @@ class MachineIdentity(
                 installDate = install,
             )
             return if (identity.isValid()) identity else null
+        }
+
+        /** Like [load], but tells apart "no file" from "file unusable" and names the reason (for the identity log). */
+        fun inspect(file: File): Inspection {
+            if (!file.isFile) return Inspection.Missing
+            val text = try {
+                String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8)
+            } catch (e: IOException) {
+                return Inspection.Invalid("lesefehler")
+            }
+            val values = readValues(text)
+            for (key in listOf(KEY_GUID, KEY_NAME, KEY_SERIAL, KEY_PRODUCT)) {
+                if (values[key] == null) return Inspection.Invalid("feld_fehlt:$key")
+            }
+            if (values[KEY_INSTALL]?.toLongOrNull() == null) return Inspection.Invalid("feld_fehlt:$KEY_INSTALL")
+            val identity = parse(text) ?: return Inspection.Invalid("feld_ungueltig:" + invalidField(values))
+            return Inspection.Valid(identity)
+        }
+
+        private fun invalidField(values: Map<String, String>): String {
+            val guid = values[KEY_GUID].orEmpty()
+            val serial = values[KEY_SERIAL].orEmpty()
+            val install = values[KEY_INSTALL]?.toLongOrNull() ?: 0L
+            return when {
+                !GUID.matches(guid) -> KEY_GUID
+                !COMPUTER_NAME.matches(values[KEY_NAME].orEmpty()) -> KEY_NAME
+                !SERIAL.matches(serial) || serial == "00000000" -> KEY_SERIAL
+                !PRODUCT_ID.matches(values[KEY_PRODUCT].orEmpty()) -> KEY_PRODUCT
+                install !in MIN_INSTALL_DATE..MAX_INSTALL_DATE -> KEY_INSTALL
+                else -> "unbekannt"
+            }
+        }
+
+        /** The text of an identity file; null when there is no file or it cannot be read. */
+        fun readText(file: File): String? {
+            if (!file.isFile) return null
+            return try {
+                String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8)
+            } catch (e: IOException) {
+                null
+            }
+        }
+
+        /** Names of the fields of a stored identity (as in the file and in the identity log). */
+        val FIELD_NAMES: List<String> = listOf(KEY_GUID, KEY_NAME, KEY_SERIAL, KEY_PRODUCT, KEY_INSTALL)
+
+        /** Result of [repair]: the identity with its valid fields kept, [fields] names the ones that were made new (never a value). */
+        class Repair(val identity: MachineIdentity, val fields: List<String>)
+
+        /**
+         * A file that no longer passes [isValid] as a whole (a field is missing, damaged, or a later version checks more strictly) is
+         * not thrown away: every field that is still valid stays, only the others are made new. Null when nothing in [text] is usable
+         * (then a complete new identity is the only way) or when nothing needs repair.
+         */
+        fun repair(text: String?, random: Random = secureRandom(), nowSeconds: Long = System.currentTimeMillis() / 1000): Repair? {
+            if (text == null) return null
+            val values = readValues(text)
+            val fresh = generate(random, nowSeconds)
+            val kept = LinkedHashMap<String, String>()
+            val renewed = ArrayList<String>()
+            fun pick(key: String, ok: (String) -> Boolean, new: String) {
+                val old = values[key]
+                if (old != null && ok(old)) {
+                    kept[key] = old
+                } else {
+                    kept[key] = new
+                    renewed += key
+                }
+            }
+            pick(KEY_GUID, { GUID.matches(it) }, fresh.machineGuid)
+            pick(KEY_NAME, { COMPUTER_NAME.matches(it) }, fresh.computerName)
+            pick(KEY_SERIAL, { SERIAL.matches(it) && it != "00000000" }, fresh.volumeSerial)
+            pick(KEY_PRODUCT, { PRODUCT_ID.matches(it) }, fresh.productId)
+            pick(KEY_INSTALL, { it.toLongOrNull()?.let { v -> v in MIN_INSTALL_DATE..MAX_INSTALL_DATE } == true }, fresh.installDate.toString())
+            if (renewed.isEmpty() || renewed.size == FIELD_NAMES.size) return null
+            val identity = MachineIdentity(
+                machineGuid = kept.getValue(KEY_GUID),
+                computerName = kept.getValue(KEY_NAME),
+                volumeSerial = kept.getValue(KEY_SERIAL),
+                productId = kept.getValue(KEY_PRODUCT),
+                installDate = kept.getValue(KEY_INSTALL).toLong(),
+            )
+            return Repair(identity, renewed)
         }
 
         /** Reads the identity file; null when missing, unreadable or invalid. */
@@ -146,27 +243,59 @@ class MachineIdentity(
             }
         }
 
-        /** Writes via temp file + rename so a crash never leaves a half written identity. */
-        fun save(file: File, identity: MachineIdentity): Boolean {
-            val dir = file.absoluteFile.parentFile ?: return false
-            return try {
-                Files.createDirectories(dir.toPath())
-                val temp = File(dir, file.name + ".tmp")
-                Files.write(temp.toPath(), identity.serialize().toByteArray(StandardCharsets.UTF_8))
+        /**
+         * Writes via temp file + sync + rename so a crash or a stop of the app (an update, a kill) never leaves a half written file:
+         * the old file stays until the new one is complete on disk. [afterTempWritten] runs between the two steps (tests simulate the
+         * abort there). A leftover temp file is overwritten by the next write and never read.
+         */
+        internal fun writeAtomic(file: File, bytes: ByteArray, afterTempWritten: () -> Unit = {}) {
+            val dir = file.absoluteFile.parentFile ?: throw IOException("no parent folder")
+            Files.createDirectories(dir.toPath())
+            val temp = File(dir, file.name + ".tmp")
+            try {
+                FileOutputStream(temp).use { out ->
+                    out.write(bytes)
+                    out.flush()
+                    out.fd.sync()
+                }
+                afterTempWritten()
                 try {
                     Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
                 } catch (e: AtomicMoveNotSupportedException) {
                     Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
                 }
-                true
             } catch (e: IOException) {
-                false
+                temp.delete()
+                throw e
+            } catch (e: RuntimeException) {
+                temp.delete()
+                throw e
             }
+            syncFolder(dir)
+        }
+
+        /** Best effort: makes the rename itself durable. Not every file system lets a folder be opened; that is no error. */
+        private fun syncFolder(dir: File) {
+            try {
+                java.nio.channels.FileChannel.open(dir.toPath(), java.nio.file.StandardOpenOption.READ).use { it.force(true) }
+            } catch (e: Exception) {
+                // Not supported here.
+            }
+        }
+
+        fun save(file: File, identity: MachineIdentity): Boolean = try {
+            writeAtomic(file, identity.serialize().toByteArray(StandardCharsets.UTF_8))
+            true
+        } catch (e: IOException) {
+            false
         }
 
         /**
          * Valid file stays untouched. Missing or invalid: generate a new identity and store it.
          * If storing fails the generated identity is still returned for this run.
+         *
+         * Not used by the app anymore: [MachineIdentityStore] does the same, but writes the identity log, notices a failed
+         * save and tries to store the same identity again at the next start (a new one at every start went unnoticed here).
          */
         fun loadOrCreate(
             file: File,

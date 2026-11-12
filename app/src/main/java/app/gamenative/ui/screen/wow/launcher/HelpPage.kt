@@ -62,6 +62,9 @@ internal fun HelpPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () -
     val plan = remember(errorMessage != null) { helpPlan(errorMessage != null) }
     var detailId by remember { mutableStateOf<String?>(null) }
     var reportNote by remember { mutableStateOf<String?>(null) }
+    var identityReload by remember { mutableStateOf(0) }
+    val identityPanel by produceIdentityPanel(identityReload)
+    val identity = identityPanel?.summary
     val updateBusy = updateState is UpdateState.Checking || updateState is UpdateState.Downloading || updateState is UpdateState.Installing
 
     val cards = buildList<OverviewCard> {
@@ -96,6 +99,7 @@ internal fun HelpPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () -
                     ErrorReport.start(context) { reportNote = it }
                 }
                 CardText(reportNote ?: PageTexts.REPORT_SHORT.asString(), 3)
+                IdentityShortLine(identity)
             },
         )
         add(
@@ -127,6 +131,7 @@ internal fun HelpPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () -
             SettingGroupCard(stringResource(R.string.launcher_help_error_report)) {
                 ErrorReportSettingRow()
             }
+            IdentityDetailBody(identityPanel, gameBusy = busy || s.isLaunching, onChanged = { identityReload++ })
         }
         detailId == "gameonly" -> PageDetail(stringResource(R.string.launcher_help_in_game), close) {
             SettingGroupCard(GAME_ONLY_TITLE.asString()) {
