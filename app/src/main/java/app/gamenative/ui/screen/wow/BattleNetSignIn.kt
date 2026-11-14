@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.gamenative.Crypto
 import app.gamenative.R
+import app.gamenative.report.LoginJournalRecorder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -117,6 +118,7 @@ object BattleNetSignIn {
                 if (file.exists()) {
                     file.writeBytes(ByteArray(file.length().coerceAtMost(4096).toInt()))
                     file.delete()
+                    LoginJournalRecorder.loginFileRemoved()
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to remove login.txt")

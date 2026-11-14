@@ -1,0 +1,58 @@
+name: Bug report
+description: Something does not work (install, game download, start, login, in game)
+title: "Problem with WoW Forever"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The quickest way: in the app open **Help > Report a problem**. It saves a zip with device data and logs to your Downloads folder
+        (e-mail and password are blacked out), copies a short summary and opens this form with the fields filled in.
+        Nothing is sent automatically. **This page is public**, so look at the zip before you attach it.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: Manufacturer and model, for example the name on the box.
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version
+    validations:
+      required: true
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      description: Shown in the app under About.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: What happens?
+      options:
+        - Installation
+        - Game download
+        - Start
+        - Login
+        - In the game
+    validations:
+      required: true
+  - type: textarea
+    id: error_text
+    attributes:
+      label: Error text
+      description: The message on screen, for example BLZ51914400, and what you did just before.
+  - type: textarea
+    id: report
+    attributes:
+      label: Short summary from the app
+      description: Filled in by Help > Report a problem. If it is empty, paste the copied summary here.
+  - type: textarea
+    id: zip
+    attributes:
+      label: Report file
+      description: Drag the zip from your Downloads folder (Help > Report a problem) into this field.

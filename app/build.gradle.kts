@@ -71,14 +71,16 @@ android {
         manifestPlaceholders["screenOrientation"] = "unspecified"
         buildConfigField("boolean", "XR_BUILD", "false")
 
-        versionCode = 302
-        versionName = "2.3.3-touch9.14"
+        versionCode = 307
+        versionName = "2.3.3-touch9.19"
 
         buildConfigField("boolean", "GOLD", "false")
         // Feed of the self-update (latest.json + APK); can be overridden in the app under "Erweitert".
         buildConfigField("String", "UPDATE_FEED_URL", "\"$updateFeedUrl\"")
         // Link to the source code (launcher "About" page and footer).
         buildConfigField("String", "SOURCE_URL", "\"$sourceCodeUrl\"")
+        // Repo für "Problem melden" (Meldung im öffentlichen Repo der App), wenn die Update-Quelle nicht auf GitHub-Releases zeigt.
+        buildConfigField("String", "REPORT_REPO_URL", "\"$githubRepoUrl\"")
         val iconValue = "@mipmap/ic_launcher"
         val iconRoundValue = "@mipmap/ic_launcher_round"
         manifestPlaceholders.putAll(

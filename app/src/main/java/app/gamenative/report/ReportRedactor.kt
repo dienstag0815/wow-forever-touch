@@ -41,10 +41,12 @@ class ReportRedactor(
         out = WTF_ACCOUNT_PATH.replace(out) { it.groupValues[1] + ACCOUNT }
         out = ANY_EMAIL.replace(out, EMAIL)
         if (kind == LogKind.CONNECTION) {
+            out = CONNECTION_FIELD.replace(out) { connectionField(it) }
             out = LONG_HEX.replace(out, SECRET)
             out = LONG_BASE64.replace(out, SECRET)
         }
-        return out
+        // Zuletzt, in jeder Datei: Netzwerkadressen (IPv4 -> [IP], IPv6 -> [IP6]); Hostnamen bleiben.
+        return AddressRedactor.redact(out)
     }
 
     companion object {
@@ -82,6 +84,31 @@ class ReportRedactor(
                 """((?:(?=[$VALUE_CHARS]*\d)[$VALUE_CHARS]{12,}|[$VALUE_CHARS]{32,}))""",
             RegexOption.IGNORE_CASE,
         )
+
+        /** `key="value"` in der Connection.log. */
+        private val CONNECTION_FIELD = Regex("""\b([A-Za-z_]\w{0,40})="([^"\r\n]{0,400})"""")
+
+        /** Werte, die nie ein Name oder Geheimnis sind: Wahrheitswerte, `nullopt` und kurze Zahlen (`usedToken="false"`, `numGameAccounts="1"`). */
+        private val HARMLESS_VALUE = Regex("""true|false|nullopt|\d{1,3}""")
+
+        private val ACCOUNT_KEY = Regex("""account|battletag|displayname|email|username|owner|profile""", RegexOption.IGNORE_CASE)
+        private val SECRET_KEY = Regex("""token|ticket|session|secret|cookie""", RegexOption.IGNORE_CASE)
+
+        /**
+         * Felder der `Connection.log` mit Kontobezug (`accountList`, `gameAccount...`, `battleTag`, `displayName`, `email`, `name`, `...Name`)
+         * oder Geheimnis (`joinToken`, `...ticket`, `session...`) verlieren ihren Wert, auch wenn er kurz ist; die langen Werte erwischt
+         * schon [KEYED_VALUE]. Ausgenommen sind Wahrheitswerte, `nullopt` und kurze Zahlen. Alle anderen Felder bleiben lesbar.
+         */
+        private fun connectionField(m: MatchResult): CharSequence {
+            val key = m.groupValues[1]
+            val value = m.groupValues[2]
+            if (value.isEmpty() || HARMLESS_VALUE.matches(value)) return m.value
+            return when {
+                SECRET_KEY.containsMatchIn(key) -> "$key=\"$SECRET\""
+                ACCOUNT_KEY.containsMatchIn(key) || key.equals("name", ignoreCase = true) || key.endsWith("name", ignoreCase = true) -> "$key=\"$ACCOUNT\""
+                else -> m.value
+            }
+        }
 
         private val LONG_HEX = Regex("""\b[0-9a-fA-F]{32,}\b""")
         private val LONG_BASE64 = Regex("""(?<![A-Za-z0-9+/_\-])(?=[A-Za-z0-9+/_\-]*\d)[A-Za-z0-9+/_\-]{40,}={0,2}""")

@@ -34,6 +34,20 @@ class ReportBuilderTest {
     private fun src(name: String, f: File, priority: Int, kind: LogKind = LogKind.GENERAL, max: Long = ReportBuilder.PER_FILE_MAX_BYTES) =
         ReportSource(name, f, kind, priority, max)
 
+    @Test
+    fun extraTextsGoIntoTheZipRedactedAfterTheDeviceFile() {
+        val out = ByteArrayOutputStream()
+        val redactor = ReportRedactor(listOf("player@example.com"), emptyList(), emptyList())
+        val names = ReportBuilder.write(
+            out, "device", "logcat", emptyList(), redactor,
+            extras = listOf("kurz.txt" to "mail player@example.com", "anmeldung.txt" to "attempts 0", "anmeldejournal.txt" to "none"),
+        )
+        assertEquals(listOf("geraet.txt", "kurz.txt", "anmeldung.txt", "anmeldejournal.txt", "logcat.txt"), names)
+        val entries = unzip(out.toByteArray())
+        assertEquals("mail ${ReportRedactor.EMAIL}", entries["kurz.txt"])
+        assertEquals("attempts 0", entries["anmeldung.txt"])
+    }
+
     private fun unzip(bytes: ByteArray): Map<String, String> {
         val out = linkedMapOf<String, String>()
         ZipInputStream(ByteArrayInputStream(bytes)).use { zin ->

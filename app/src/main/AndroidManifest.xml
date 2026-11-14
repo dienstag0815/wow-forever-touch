@@ -37,6 +37,19 @@
     <!-- Startcheck: Battle.net-App erkennen; Sprache: Spracherkennungsdienst ab Android 11 sichtbar machen -->
     <queries>
         <package android:name="com.blizzard.messenger" />
+        <!-- Feste Liste anderer Start-Apps für das Spiel (Fehlerbericht: nur installiert ja/nein), siehe report/OtherLaunchers.kt. Bewusst ohne die Berechtigung für alle Pakete. -->
+        <package android:name="com.winlator" />
+        <package android:name="app.gamenative" />
+        <package android:name="app.gamenative.gold" />
+        <package android:name="app.wowforeverywhere" />
+        <package android:name="com.wehavephones" />
+        <package android:name="app.aynthorwow" />
+        <!-- "Im Browser öffnen" im Fehlerbericht (report/BrowserChoice.kt): die Apps, die einen allgemeinen https-Link öffnen, und der Standard-Handler dafür. Ohne diesen Eintrag sieht die App ab Android 11 keinen Browser; die Berechtigung für alle Pakete braucht es nicht. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.annotation.StringRes
 import app.gamenative.PluviaApp
 import app.gamenative.R
+import app.gamenative.report.LoginJournalRecorder
 import app.gamenative.ui.screen.wow.voice.KeySink
 import com.winlator.xserver.XKeycode
 import com.winlator.xserver.XServer
@@ -89,6 +90,7 @@ internal object LoginFill {
             return Start.REFUSED
         }
         cancelled = false
+        val tappedMs = System.currentTimeMillis()
         note(context.getString(R.string.game_note_typing))
         try {
             executor.execute {
@@ -103,6 +105,7 @@ internal object LoginFill {
                     secret.wipe()
                     busy.set(false)
                 }
+                LoginJournalRecorder.fill(tappedMs, done)
                 note(
                     if (done) {
                         val text = context.getString(doneRes)

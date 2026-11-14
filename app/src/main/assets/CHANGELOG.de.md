@@ -4,6 +4,44 @@ Pro Version ein Abschnitt, neueste oben. Format: `## <Version> – <Datum>`, dar
 Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in `app/src/main/assets/CHANGELOG.de.md`) und zeigt sie als
 Änderungsliste; bei einem angebotenen Update kommt der Text der neuen Versionen aus dem Update-Feed.
 
+## 2.3.3-touch9.19 – 14.11.2026
+
+### Behoben
+- Meldungen von „Problem melden“ bleiben nach dem Auf-, Zuklappen und Drehen des Geräts in der App-Sprache.
+
+## 2.3.3-touch9.18 – 14.11.2026
+
+### Neu
+- Hilfe › Problem melden: zwei weitere Knöpfe für die Zip, „In Downloads zeigen“ und „Speichern unter …“.
+
+### Verbessert
+- Problem melden: Die Meldungen folgen der in der App gewählten Sprache, und die Dialoge haben die Farben der App.
+
+## 2.3.3-touch9.17 – 14.11.2026
+
+### Verbessert
+- Hilfe › Problem melden: Die App springt nicht mehr von selbst weg. Nach „Bericht erstellen“ zeigt ein Dialog „Bericht bereit“ die drei Schritte (Zip in Downloads, Meldeseite öffnen, Kurzfassung einfügen und Zip anhängen) mit den Knöpfen Im Browser öffnen, In der App öffnen und Zip teilen. Die Karte auf der Hilfeseite bleibt.
+- Der Titel einer Meldung ist immer englisch.
+
+## 2.3.3-touch9.16 – 14.11.2026
+
+### Neu
+- Hilfe › Problem melden: Eine Karte „Bericht bereit“ bleibt auf der Hilfeseite stehen (Dateiname, „liegt in Downloads“, Uhrzeit), bis du sie schließt oder einen neuen Bericht machst. Knöpfe: Meldeseite öffnen, Im Browser öffnen, Zip teilen, Kurzfassung kopieren.
+- Der Dialog sagt jetzt, was zu tun ist: Kurzfassung aus der Zwischenablage einfügen, falls das Textfeld leer ist, und die Zip aus Downloads anhängen, oder „Im Browser öffnen“ nehmen, wenn die App keine Datei anhängen kann.
+- Bericht: `anmeldung.txt` zeigt mehr unkritische Anmeldefelder (Plattform, Sprache, Region, SSO), den Schritt, an dem eine Anmeldung scheiterte, und das Realm-Ergebnis.
+
+### Verbessert
+- Bericht: Netzwerkadressen (IPv4 und IPv6) sind in jeder Datei des Berichts geschwärzt.
+- Bericht: Ein älterer Spielordner nach einer Neuinstallation zählt nicht mehr als „Spuren“; der Bericht nennt beide Daten und den Unterschied.
+
+## 2.3.3-touch9.15 – 14.11.2026
+
+### Neu
+- Hilfe › Problem melden: Ein Tipp erstellt den Bericht, legt die Zip in Downloads, kopiert eine Kurzfassung und öffnet im Browser eine neue Meldung (es wird nichts automatisch gesendet; die Seite ist öffentlich, die Zip hängst du selbst an).
+- Vier freiwillige Fragen in diesem Dialog (ging die Anmeldung schon einmal, andere App vorher genutzt, Authenticator, woanders angemeldet); die Antworten stehen in der Kurzfassung des Berichts.
+- Der Fehlerbericht enthält jetzt eine Kurzfassung (`kurz.txt`), die letzten Anmeldeversuche aus der `Connection.log` des Spiels (`anmeldung.txt`) und ein kleines Journal der letzten Spielstarts (`anmeldejournal.txt`: Anmeldestufe, Netzart, Art des Endes, Versuche je Start; nie E-Mail, Passwort oder Adressen).
+- Der Fehlerbericht zeigt außerdem eine Zeitleiste der Installation und ob andere Start-Apps für dieses Spiel installiert sind (nur ja/nein).
+
 ## 2.3.3-touch9.14 – 12.11.2026
 
 ### Neu

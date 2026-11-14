@@ -1,6 +1,7 @@
 package app.gamenative.ui.screen.wow
 
 import android.content.Context
+import app.gamenative.report.LoginJournalRecorder
 import com.winlator.inputcontrols.Binding
 import com.winlator.inputcontrols.ControlElement
 
@@ -150,6 +151,7 @@ object LoginTouchGate {
     fun onPass(nowMs: Long, stripRead: Boolean): Boolean {
         synchronized(lock) {
             val inWorld = presence.update(nowMs, stripRead)
+            if (inWorld && !lastInWorld) LoginJournalRecorder.worldReached()
             // In der Welt ist der Notausgang nicht mehr nötig; nach dem Ausloggen gilt wieder das Ausblenden.
             if (inWorld) forceShown = false
             return apply(inWorld)

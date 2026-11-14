@@ -3889,6 +3889,7 @@ private fun exit(
         Timber.i("Exit already in progress, ignoring duplicate request")
         return
     }
+    app.gamenative.report.LoginJournalRecorder.gameEnded(reason)
 
     // Store session data in container metadata
     frameRating?.let { rating ->

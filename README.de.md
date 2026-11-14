@@ -52,6 +52,8 @@ Voraussetzungen:
 
 Download `WoW-Forever.apk` from the [latest release](https://github.com/jaredgei/wow-forever-android/releases/latest) and install it on your device. The app's package name is `app.wowforever`, so it can sit alongside GameNative or Winlator.
 
+Diese App und die ursprüngliche WoW-Forever-App haben dieselbe App-Kennung `app.wowforever`, sind aber unterschiedlich signiert; Android installiert die eine nicht, solange die andere installiert ist. Deinstalliere vorher die andere App, die Spieldateien bleiben auf dem Gerät.
+
 ### 2. Install the game
 
 Open **WoW Forever** and grant **All files access** when asked; the app needs it to read and write the game folder. The launcher then shows **Install World of Warcraft** with the install location, which defaults to `/storage/emulated/0/WoW Forever/`. Tap **Change Install Location** to use another folder, such as one on an SD card (picking a folder that isn't empty, like the card's root, installs into a new `WoW Forever` folder inside it), then tap **Download & Install**.

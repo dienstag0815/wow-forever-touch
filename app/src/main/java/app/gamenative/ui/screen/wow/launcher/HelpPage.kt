@@ -30,6 +30,11 @@ import app.gamenative.BuildConfig
 import app.gamenative.R
 import app.gamenative.report.ErrorReport
 import app.gamenative.ui.screen.wow.ErrorReportSettingRow
+import app.gamenative.ui.screen.wow.ProblemReportDialog
+import app.gamenative.ui.screen.wow.ProblemReportSettingRow
+import app.gamenative.ui.screen.wow.ReportReadyCard
+import app.gamenative.ui.screen.wow.ReportReadyDialogHost
+import app.gamenative.ui.screen.wow.rememberAppVisible
 import app.gamenative.ui.screen.wow.GAME_ONLY_INTRO
 import app.gamenative.ui.screen.wow.GAME_ONLY_TITLE
 import app.gamenative.ui.screen.wow.LauncherHomeActions
@@ -62,6 +67,8 @@ internal fun HelpPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () -
     val plan = remember(errorMessage != null) { helpPlan(errorMessage != null) }
     var detailId by remember { mutableStateOf<String?>(null) }
     var reportNote by remember { mutableStateOf<String?>(null) }
+    var askProblem by remember { mutableStateOf(false) }
+    val appVisible = rememberAppVisible()
     var identityReload by remember { mutableStateOf(0) }
     val identityPanel by produceIdentityPanel(identityReload)
     val identity = identityPanel?.summary
@@ -95,9 +102,11 @@ internal fun HelpPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () -
         }
         add(
             plan.card("report", stringResource(R.string.launcher_help_error_report), onOpen = { detailId = "report" }) {
+                ReportReadyCard { reportNote = it }
                 CardActionRow(stringResource(R.string.launcher_help_create_report), stringResource(R.string.launcher_action_create)) {
                     ErrorReport.start(context) { reportNote = it }
                 }
+                CardActionRow(stringResource(R.string.game_pm_row_title), stringResource(R.string.game_pm_action)) { askProblem = true }
                 CardText(reportNote ?: PageTexts.REPORT_SHORT.asString(), 3)
                 IdentityShortLine(identity)
             },
@@ -129,7 +138,9 @@ internal fun HelpPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () -
         }
         detailId == "report" -> PageDetail(stringResource(R.string.launcher_help_error_report), close) {
             SettingGroupCard(stringResource(R.string.launcher_help_error_report)) {
+                ReportReadyCard { reportNote = it }
                 ErrorReportSettingRow()
+                ProblemReportSettingRow()
             }
             IdentityDetailBody(identityPanel, gameBusy = busy || s.isLaunching, onChanged = { identityReload++ })
         }
@@ -145,6 +156,10 @@ internal fun HelpPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () -
     }
 
     LauncherOverviewPage(title = LauncherTexts.pageTitle(LauncherPage.Help).asString(), onBack = onBack, cards = cards, detail = detail)
+    if (askProblem) {
+        ProblemReportDialog(onConfirm = { answers -> askProblem = false; ErrorReport.startProblem(context, answers, appVisible) { reportNote = it } }, onDismiss = { askProblem = false })
+    }
+    ReportReadyDialogHost { reportNote = it }
 }
 
 /** Die Bereitschaftsliste: Kopfzeile ("Alles bereit" oder "Offen: ...") mit Neu prüfen und darunter jeder Punkt, offene mit Knopf. */

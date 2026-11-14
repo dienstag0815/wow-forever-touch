@@ -14,6 +14,7 @@ import app.gamenative.service.GameKeepAlive
 import app.gamenative.ui.screen.wow.launcher.AppLanguage
 import app.gamenative.ui.screen.xserver.RadialMenuCoordinator
 import android.app.Application
+import android.content.res.Configuration
 import app.gamenative.utils.LocaleHelper
 import com.winlator.container.Container
 import com.winlator.inputcontrols.InputControlsManager
@@ -50,7 +51,16 @@ class PluviaApp : Application() {
 
         CrashHandler.initialize(this)
         PrefManager.init(this)
+        // The texts of AppText follow the saved app language (not Locale.getDefault, which Android resets on fold/rotation).
+        // Set after PrefManager.init, because the provider reads the stored preference.
+        app.gamenative.ui.components.AppText.languageTag = { AppLanguage.tagFor(PrefManager.appLanguage) }
         // The application context (snackbars, notifications, UpdateManager) speaks the chosen language too, not the system's.
+        LocaleHelper.applyToApplication(this, AppLanguage.tagFor(PrefManager.appLanguage))
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Android resets the application resources and the default locale to the system language on fold, unfold and rotation.
         LocaleHelper.applyToApplication(this, AppLanguage.tagFor(PrefManager.appLanguage))
     }
 

@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import app.gamenative.BuildConfig
 import app.gamenative.PluviaApp
 import app.gamenative.events.AndroidEvent
+import app.gamenative.report.LoginJournalRecorder
 import app.gamenative.ui.screen.wow.launcher.AboutPage
 import app.gamenative.ui.screen.wow.launcher.FilesPage
 import app.gamenative.ui.screen.wow.launcher.HelpPage
@@ -1230,7 +1231,15 @@ private fun prepareLaunch(
 
     // Keep the plaintext credentials on disk for as short a time as possible: write login.txt only when the exe starts next.
     // Only the level "Selbst anmelden" does this; in the other levels the app types (or the player does) and a leftover file is removed.
-    prepareLoginFile(LoginLevelStore.current(context), gameRoot, load = { BattleNetSignIn.load(context) })
+    val level = LoginLevelStore.current(context)
+    prepareLoginFile(level, gameRoot, load = { BattleNetSignIn.load(context) })
+    // Anmeldejournal: ein Eintrag je Spielstart (Stufe, ob eine login.txt liegt, Netz, Kurzkennungen).
+    LoginJournalRecorder.gameStarted(
+        context, level, LoginLevelStore.scope(context),
+        loginFileWritten = File(File(gameRoot, WowClientDownloader.FLAVOR_DIR), "login.txt").isFile,
+        worldSignal = LoginTouchGate.hideEnabled(context) || LoginLevels.needsWorldSignal(level),
+        gameRoot = gameRoot,
+    )
     return CONTAINER_ID
 }
 

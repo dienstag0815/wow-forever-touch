@@ -5,6 +5,44 @@ bullet points in plain language. The launcher reads this file (copy in `app/src/
 when an update is offered, the text for the new versions comes from the update feed. German readers get
 `CHANGELOG.de.md` when the app language is German.
 
+## 2.3.3-touch9.19 – 14.11.2026
+
+### Fixed
+- Messages from “Report a problem” now stay in the app language after folding, unfolding or rotating the device.
+
+## 2.3.3-touch9.18 – 14.11.2026
+
+### New
+- Help › Report a problem: two more buttons for the zip, “Show in Downloads” and “Save as…”.
+
+### Improved
+- Report a problem: the messages follow the language chosen in the app, and the dialogs use the app's colours.
+
+## 2.3.3-touch9.17 – 14.11.2026
+
+### Improved
+- Help › Report a problem: the app no longer jumps away on its own. After “Create report” a dialog “Report ready” shows the three steps (zip in Downloads, open the report page, paste the summary and attach the zip) with the buttons Open in browser, Open in app and Share zip. The card on the Help page stays.
+- The title of a report is always in English.
+
+## 2.3.3-touch9.16 – 14.11.2026
+
+### New
+- Help › Report a problem: a card “Report ready” stays on the Help page (file name, “in Downloads”, time) until you close it or make a new report. Buttons: Open report page, Open in browser, Share zip, Copy summary.
+- The report dialog now says what to do: paste the short summary from the clipboard if the text field is empty and attach the zip from Downloads, or use “Open in browser” if the app cannot attach a file.
+- Report: `anmeldung.txt` shows more harmless login fields (platform, language, region, SSO), the step at which a login failed and the realm result.
+
+### Improved
+- Report: network addresses (IPv4 and IPv6) are blacked out in every file of the report.
+- Report: an older game folder after a reinstall is no longer counted as “traces”; the report shows both dates and the difference.
+
+## 2.3.3-touch9.15 – 14.11.2026
+
+### New
+- Help › Report a problem: one tap builds the report, saves the zip to Downloads, copies a short summary and opens a new report page in your browser (nothing is sent automatically; the page is public, you attach the zip yourself).
+- Four optional questions in that dialog (did the login ever work, another app used before, authenticator, logged in elsewhere); the answers go into the short summary of the report.
+- The error report now has a short summary (`kurz.txt`), the recent login attempts read from the game's `Connection.log` (`anmeldung.txt`) and a small journal of the last game starts (`anmeldejournal.txt`: login level, network type, how the game ended, attempts per start; never e-mail, password or addresses).
+- The error report also shows a timeline of the installation and whether other launcher apps for this game are installed (yes/no only).
+
 ## 2.3.3-touch9.14 – 12.11.2026
 
 ### New

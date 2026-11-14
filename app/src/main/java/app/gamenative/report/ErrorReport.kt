@@ -1,18 +1,27 @@
 package app.gamenative.report
 
 import app.gamenative.R
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.os.StatFs
+import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import app.gamenative.BuildConfig
 import app.gamenative.ui.screen.wow.BattleNetSignIn
 import app.gamenative.ui.screen.wow.LoginLevelStore
 import app.gamenative.ui.screen.wow.FpsLimit
+import app.gamenative.ui.components.AppText
 import app.gamenative.ui.screen.wow.GamePath
 import app.gamenative.ui.screen.wow.GameRegion
 import app.gamenative.ui.screen.wow.GraphicsPreset
@@ -60,16 +69,16 @@ object ErrorReport {
      */
     fun start(context: Context, onNote: (String) -> Unit = {}) {
         if (!running.compareAndSet(false, true)) {
-            SnackbarManager.show(context.getString(R.string.game_er_running))
+            SnackbarManager.show(AppText.get(R.string.game_er_running))
             return
         }
         val appContext = context.applicationContext
-        say(appContext.getString(R.string.game_er_creating), onNote)
+        say(AppText.get(R.string.game_er_creating), onNote)
         worker.execute {
             try {
                 val zip = create(appContext, context)
                 mainHandler.post { runCatching { share(appContext, zip) }.onFailure { fail(appContext, it, onNote) } }
-                onNote(appContext.getString(R.string.game_er_done))
+                onNote(AppText.get(R.string.game_er_done))
             } catch (e: Throwable) {
                 fail(appContext, e, onNote)
             } finally {
@@ -85,11 +94,19 @@ object ErrorReport {
 
     private fun fail(context: Context, error: Throwable, onNote: (String) -> Unit) {
         Timber.w(error, "Fehlerbericht fehlgeschlagen")
-        say(context.getString(R.string.game_er_failed), onNote)
+        say(AppText.get(R.string.game_er_failed), onNote)
     }
 
-    /** Baut die Zip im Cache und löscht ältere Berichte. [uiContext] liefert die Fenstergröße (Activity, sonst App). */
-    internal fun create(context: Context, uiContext: Context): File {
+    /** Der fertige Bericht: die Zip im Cache und die Kurzfassung (`kurz.txt`, geschwärzt, höchstens [ReportSummary.MAX_CHARS] Zeichen). */
+    internal class Built(val zip: File, val summary: String, val device: String, val android: String)
+
+    internal fun create(context: Context, uiContext: Context): File = build(context, uiContext).zip
+
+    /**
+     * Baut die Zip im Cache und löscht ältere Berichte. [uiContext] liefert die Fenstergröße (Activity, sonst App). [answers] sind die
+     * Antworten auf die Fragen von "Problem melden" (null beim Fehlerbericht ohne Fragen: dann stehen keine Antwortzeilen in `kurz.txt`).
+     */
+    internal fun build(context: Context, uiContext: Context, answers: ProblemAnswers? = null): Built {
         val dir = File(context.cacheDir, "fehlerbericht").apply { mkdirs() }
         val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
         val zip = File(dir, "${ReportBuilder.REPORT_PREFIX}$stamp.zip")
@@ -101,13 +118,211 @@ object ErrorReport {
         val systemReg = container?.rootDir?.let { File(it, ".wine/system.reg") }
 
         val redactor = buildRedactor(context, gameRoot, flavorDirs, systemReg)
-        val deviceText = deviceText(context, uiContext, gameRoot, container, systemReg)
+
+        // Anmeldeverlauf und Zeitleiste: das Journal (für den jüngsten Eintrag mit den Versuchen aus der Connection.log von jetzt),
+        // Installationsdaten, andere Start-Apps und Spuren im Spielordner.
+        val logText = ConnectionLogFile.latestText(gameRoot, flavorDirs)
+        val journal = LoginHistory.withLatestCapture(LoginJournalRecorder.load(context), logText)
+        val packageInfo = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
+        val timeline = timelineInput(context, packageInfo, gameRoot, flavorDirs, journal)
+        val installed = { name: String -> isInstalled(context, name) }
+        val traces = runCatching { OtherLaunchers.scan(gameRoot, flavorDirs) }.getOrDefault(emptyList())
+        val oldFiles = OtherLaunchers.summarizeOld(runCatching { OtherLaunchers.oldFileTraces(gameRoot, flavorDirs, packageInfo?.firstInstallTime) }.getOrDefault(emptyList()))
+        val originLine = FolderOrigin.line(timeline.gameFolder?.oldestMs, packageInfo?.firstInstallTime, ownHistoryFirstMs(gameRoot))
+
+        val deviceText = deviceText(context, uiContext, gameRoot, container, systemReg, InstallTimeline.lines(timeline))
         val sources = sources(context, gameRoot, flavorDirs)
         val logcat = logcat()
 
-        zip.outputStream().buffered().use { ReportBuilder.write(it, deviceText, logcat, sources, redactor) }
+        // Anmeldung: Versuche aus der Connection.log, Journal der App, Kurzfassung (ReportBuilder.write schwärzt alles nochmals).
+        val attemptsText = LoginAttempts.report(logText)
+        val journalText = LoginJournal.report(journal)
+        val launcherText = OtherLaunchers.report(OtherLaunchers.installedLines(installed), traces, originLine, oldFiles)
+        val input = summaryInput(context, gameRoot, systemReg, journal, logText, timeline, OtherLaunchers.compact(OtherLaunchers.installedLabels(installed), traces, originLine), answers)
+        val summary = ReportSummary.build(input, redactor)
+        val extras = listOf("kurz.txt" to summary, "anmeldung.txt" to attemptsText, "anmeldejournal.txt" to journalText, "spuren.txt" to launcherText)
+
+        zip.outputStream().buffered().use { ReportBuilder.write(it, deviceText, logcat, sources, redactor, extras) }
         ReportBuilder.pruneOldReports(dir, KEEP_REPORTS)
-        return zip
+        return Built(zip, summary, "${Build.MANUFACTURER} ${Build.MODEL}", "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+    }
+
+    /** Der älteste Eintrag der eigenen Verlaufsdatei der Windows-Kennung im Spielordner (in Millisekunden); null, wenn es sie nicht gibt oder sie leer ist. */
+    private fun ownHistoryFirstMs(gameRoot: File): Long? = runCatching {
+        val file = File(gameRoot, MachineIdentityLog.HISTORY_FILE_NAME)
+        if (file.isFile && file.length() < 1_000_000) MachineIdentityLog.parse(file.readText(Charsets.UTF_8)).minOfOrNull { it.time }?.times(1000) else null
+    }.getOrNull()
+
+    /** Ob das Paket installiert ist (nur für die feste Liste in [OtherLaunchers], die in `<queries>` des Manifests steht). */
+    private fun isInstalled(context: Context, packageName: String): Boolean =
+        try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
+
+    /** Die Installationsquelle der App als Paketname (null, wenn Android keine meldet). */
+    @Suppress("DEPRECATION")
+    private fun installerOf(context: Context): String? = runCatching {
+        InstallTimeline.installerName(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) context.packageManager.getInstallSourceInfo(context.packageName).installingPackageName
+            else context.packageManager.getInstallerPackageName(context.packageName),
+        )
+    }.getOrNull()
+
+    private fun timelineInput(context: Context, info: PackageInfo?, gameRoot: File, flavorDirs: List<String>, journal: List<JournalEntry>): TimelineInput {
+        val identity = runCatching { MachineIdentityApply.logSummary(context) }.getOrNull()
+        val (versions, firstVersion, lastVersion) = InstallTimeline.versionsIn(journal)
+        return TimelineInput(
+            firstInstallMs = info?.firstInstallTime,
+            lastUpdateMs = info?.lastUpdateTime,
+            installer = installerOf(context),
+            gameFolder = runCatching { InstallTimeline.scan(gameRoot) }.getOrNull(),
+            wtfFolder = runCatching { flavorDirs.mapNotNull { InstallTimeline.scan(File(File(gameRoot, it), "WTF")) }.minByOrNull { it.oldestMs ?: Long.MAX_VALUE } }.getOrNull(),
+            identityTrace = identity?.trace.orEmpty(),
+            identitySinceSec = identity?.since,
+            journalVersions = versions,
+            journalFirstVersion = firstVersion,
+            journalLastVersion = lastVersion,
+        )
+    }
+
+    private fun summaryInput(
+        context: Context,
+        gameRoot: File,
+        systemReg: File?,
+        journal: List<JournalEntry>,
+        logText: String?,
+        timeline: TimelineInput,
+        otherLaunchers: String,
+        answers: ProblemAnswers?,
+    ): SummaryInput {
+        val attempts = LoginAttempts.parse(logText.orEmpty())
+        val identity = runCatching { MachineIdentityApply.logSummary(context) }.getOrNull()
+        val system = runCatching { MachineIdentityApply.systemSummary(context) }.getOrNull()
+        return SummaryInput(
+            device = "${Build.MANUFACTURER} ${Build.MODEL}",
+            android = "${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+            chip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "${Build.SOC_MANUFACTURER} ${Build.SOC_MODEL}" else Build.HARDWARE,
+            appVersion = "${BuildConfig.VERSION_NAME} (code ${BuildConfig.VERSION_CODE})",
+            clientBuild = WowClientDownloader.readBuildInfo(File(gameRoot, WowClientDownloader.BUILD_INFO))?.get("Version") ?: "unknown",
+            region = runCatching { GameRegion.current(context, gameRoot.path).label }.getOrDefault("unknown"),
+            loginLevel = "${LoginLevelStore.current(context).key} (scope ${LoginLevelStore.scope(context).key})",
+            machineIdSet = if (systemReg != null && RegistryValues.hasMachineGuidInFile(systemReg)) "yes" else "no",
+            machineIdFingerprint = identity?.fingerprint ?: "unknown",
+            machineIdChanges = identity?.changes?.toString() ?: "unknown",
+            systemViewChanges = system?.changes?.toString() ?: "unknown",
+            attemptsHeader = LoginAttempts.headerLine(LoginAttempts.stats(attempts)),
+            lastAttempts = attempts.takeLast(5).map { LoginAttempts.attemptShort(it) },
+            lastJournal = journal.takeLast(3).map { LoginJournal.shortLine(it) },
+            answers = answers?.lines(),
+            history = if (journal.isEmpty()) "" else LoginHistory.overviewCompact(LoginHistory.overview(journal)),
+            timeline = InstallTimeline.compact(timeline),
+            otherLaunchers = otherLaunchers,
+        )
+    }
+
+    // --- Problem melden ---
+
+    /**
+     * "Problem melden": baut den Bericht, legt die Zip im Ordner Downloads ab, kopiert die Kurzfassung in die Zwischenablage und
+     * speichert die Karte "Bericht bereit". Es öffnet sich nichts: ist der Bericht fertig und steht die App im Vordergrund
+     * ([appVisible]), wird der Dialog "Bericht bereit" fällig ([ReportDialog]); sonst bleibt die Karte. Abgeschickt wird die Meldung
+     * vom Spieler; die Zip hängt er selbst an. Lässt sich die Zip nicht in Downloads ablegen, öffnet sich wie beim Fehlerbericht das Teilen-Menü.
+     */
+    fun startProblem(context: Context, answers: ProblemAnswers = ProblemAnswers(), appVisible: () -> Boolean = { true }, onNote: (String) -> Unit = {}) {
+        if (!running.compareAndSet(false, true)) {
+            SnackbarManager.show(AppText.get(R.string.game_er_running))
+            return
+        }
+        val appContext = context.applicationContext
+        say(AppText.get(R.string.game_er_creating), onNote)
+        worker.execute {
+            try {
+                val built = build(appContext, context, answers.normalized())
+                val savedName = runCatching { saveToDownloads(appContext, built.zip) }.onFailure { Timber.w(it, "Zip nicht in Downloads abgelegt") }.getOrNull()
+                val repo = ReportIssueLink.repoUrl(BuildConfig.UPDATE_FEED_URL, BuildConfig.REPORT_REPO_URL)
+                val url = repo?.let {
+                    ReportIssueLink.build(
+                        repoUrl = it,
+                        title = ReportIssueLink.issueTitle(BuildConfig.VERSION_NAME),
+                        summary = built.summary,
+                        zipName = savedName ?: built.zip.name,
+                        device = built.device,
+                        android = built.android,
+                        appVersion = BuildConfig.VERSION_NAME,
+                    )
+                }
+                // Die Karte "Bericht bereit" bleibt stehen, auch nach einem Wechsel in eine andere App; ein neuer Bericht ersetzt sie.
+                val card = ReportCard(savedName ?: built.zip.name, System.currentTimeMillis(), built.zip.path, savedName != null, url)
+                ReportCardStore.set(appContext, card)
+                mainHandler.post {
+                    runCatching {
+                        copyToClipboard(appContext, built.summary)
+                        if (savedName == null) {
+                            share(appContext, built.zip)
+                            say(AppText.get(R.string.game_pm_not_saved), onNote)
+                        } else {
+                            say(AppText.get(if (url == null) R.string.game_pm_no_repo else R.string.game_pm_saved, savedName), onNote)
+                        }
+                        ReportDialog.state.reportReady(card, appVisible())
+                    }.onFailure { fail(appContext, it, onNote) }
+                }
+            } catch (e: Throwable) {
+                fail(appContext, e, onNote)
+            } finally {
+                running.set(false)
+            }
+        }
+    }
+
+    /**
+     * Baut den Bericht neu, weil die Zip der Karte nicht mehr im Cache liegt (Android räumt den Cache auf, spätere Berichte verdrängen
+     * sie). Die Karte zeigt danach auf die neue Zip; Name und Datei in Downloads bleiben, wie sie waren. [then] läuft im Hauptthread.
+     */
+    internal fun rebuild(context: Context, card: ReportCard, onNote: (String) -> Unit, then: (Context, ReportCard, File) -> Unit) {
+        if (!running.compareAndSet(false, true)) {
+            SnackbarManager.show(AppText.get(R.string.game_er_running))
+            return
+        }
+        val appContext = context.applicationContext
+        say(AppText.get(R.string.game_er_creating), onNote)
+        worker.execute {
+            try {
+                val built = build(appContext, context)
+                val renewed = card.copy(zipPath = built.zip.path)
+                ReportCardStore.set(appContext, renewed)
+                mainHandler.post { runCatching { then(appContext, renewed, built.zip) }.onFailure { fail(appContext, it, onNote) } }
+            } catch (e: Throwable) {
+                fail(appContext, e, onNote)
+            } finally {
+                running.set(false)
+            }
+        }
+    }
+
+    private fun copyToClipboard(context: Context, text: String) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("WoW Forever report", text))
+    }
+
+    /** Legt die Zip im öffentlichen Ordner Downloads ab (MediaStore ab Android 10, sonst direkt). Gibt den Dateinamen dort zurück (bei gleichem Namen hängt Android eine Zahl an) oder wirft. */
+    private fun saveToDownloads(context: Context, zip: File): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, zip.name)
+                put(MediaStore.Downloads.MIME_TYPE, "application/zip")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("MediaStore refused")
+            context.contentResolver.openOutputStream(uri)!!.use { out -> zip.inputStream().use { it.copyTo(out) } }
+            return context.contentResolver.query(uri, arrayOf(MediaStore.Downloads.DISPLAY_NAME), null, null, null)
+                ?.use { if (it.moveToFirst()) it.getString(0) else null } ?: zip.name
+        }
+        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).apply { mkdirs() }
+        zip.copyTo(File(dir, zip.name), overwrite = true)
+        return zip.name
     }
 
     /** Öffnet das Teilen-Menü für die Zip (ACTION_SEND über den FileProvider der App). */
@@ -116,9 +331,9 @@ object ErrorReport {
         val send = Intent(Intent.ACTION_SEND)
             .setType("application/zip")
             .putExtra(Intent.EXTRA_STREAM, uri)
-            .putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.game_er_subject, BuildConfig.VERSION_NAME))
+            .putExtra(Intent.EXTRA_SUBJECT, AppText.get(R.string.game_er_subject, BuildConfig.VERSION_NAME))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        context.startActivity(Intent.createChooser(send, context.getString(R.string.game_er_share)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(Intent.createChooser(send, AppText.get(R.string.game_er_share)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     // --- Quellen ---
@@ -200,7 +415,7 @@ object ErrorReport {
         appendLine("Login fill scope: ${LoginLevelStore.scope(context).key}")
     }
 
-    private fun deviceText(context: Context, uiContext: Context, gameRoot: File, container: Container?, systemReg: File?): String = buildString {
+    private fun deviceText(context: Context, uiContext: Context, gameRoot: File, container: Container?, systemReg: File?, timelineLines: List<String>): String = buildString {
         fun line(label: String, value: Any?) = appendLine("$label: ${value ?: "unknown"}")
         appendLine("WoW Forever error report")
         line("Created", SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.US).format(Date()))
@@ -242,6 +457,10 @@ object ErrorReport {
         line("Free space (app data)", megabytes(freeBytes(context.filesDir)))
         appendLine()
         append(loginSection(context))
+        appendLine()
+        appendLine("Timeline of the installation (dates in UTC):")
+        timelineLines.forEach { appendLine(it) }
+        appendLine()
         line("Machine ID set", if (systemReg != null && RegistryValues.hasMachineGuidInFile(systemReg)) "yes" else "no")
         // Windows-Kennung: nur die Kurzkennung (8 Hex-Zeichen eines SHA-256) und der Verlauf, nie ein Wert der Kennung.
         runCatching {

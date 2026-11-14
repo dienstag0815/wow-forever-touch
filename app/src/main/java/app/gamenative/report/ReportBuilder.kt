@@ -88,8 +88,8 @@ object ReportBuilder {
     }
 
     /**
-     * Schreibt die Zip: `geraet.txt`, `logcat.txt` (die letzten [LOGCAT_MAX_CHARS] Zeichen) und die geplanten Dateien, alles
-     * geschwärzt. Gibt die Namen der geschriebenen Einträge zurück.
+     * Schreibt die Zip: `geraet.txt`, die [extras] (fertige Texte wie `kurz.txt`, `anmeldung.txt`, `anmeldejournal.txt`), `logcat.txt`
+     * (die letzten [LOGCAT_MAX_CHARS] Zeichen) und die geplanten Dateien, alles geschwärzt. Gibt die Namen der geschriebenen Einträge zurück.
      */
     fun write(
         out: OutputStream,
@@ -97,6 +97,7 @@ object ReportBuilder {
         logcat: String,
         sources: List<ReportSource>,
         redactor: ReportRedactor,
+        extras: List<Pair<String, String>> = emptyList(),
     ): List<String> {
         val names = mutableListOf<String>()
         ZipOutputStream(out).use { zip ->
@@ -110,6 +111,7 @@ object ReportBuilder {
                 names += safe
             }
             put("geraet.txt", redactor.redact(deviceText))
+            for ((name, text) in extras) put(name, redactor.redact(text))
             put("logcat.txt", redactor.redact(logcat.takeLast(LOGCAT_MAX_CHARS)))
             for (planned in plan(sources)) {
                 val text = runCatching { readTail(planned.source.file, planned.bytes) }.getOrNull() ?: continue
