@@ -102,4 +102,16 @@ class LoginJournalAttemptsTest {
         assertNotNull(LoginJournal.shortLine(entry(null)))
         assertTrue(LoginJournal.shortLine(entry(null)).endsWith("attempts ?"))
     }
+
+    @Test
+    fun oldEntryWithFormSubmissionStillReadsAndTheAuthenticatorStepRoundTrips() {
+        // Eintrag wie von Version 9.19 geschrieben (Schritt form_submission, ohne die neuen Felder), muss weiter lesbar bleiben.
+        val old = AttemptSummary(1, null, listOf(AttemptNote("e14400", false, true, 0, step = LoginStep.FORM_SUBMISSION, stepFailed = true, platform = "WinA", launcherPortalSet = false, usedSso = false)))
+        val oldLine = LoginJournal.serialize(listOf(entry(old))).trim()
+        assertTrue(oldLine, oldLine.contains(":form_submission:WinA:"))
+        for (a in listOf(old, AttemptSummary(1, null, listOf(AttemptNote("e14400", false, true, 0, step = LoginStep.AUTHENTICATOR, stepFailed = true, platform = "WinA", launcherPortalSet = false, usedSso = false))))) {
+            val back = LoginJournal.parse(LoginJournal.serialize(listOf(entry(a)))).single()
+            assertEquals(a, back.attempts)
+        }
+    }
 }

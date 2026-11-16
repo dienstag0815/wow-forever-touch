@@ -61,6 +61,7 @@ import app.gamenative.ui.component.dialog.LoadingDialog
 import app.gamenative.ui.component.dialog.MessageDialog
 import app.gamenative.ui.component.dialog.state.MessageDialogState
 import app.gamenative.ui.components.BootingSplash
+import app.gamenative.ui.components.BootingSplashContainer
 import app.gamenative.ui.enums.DialogType
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.ui.model.MainViewModel
@@ -295,8 +296,9 @@ fun PluviaMain(
 
             Box(modifier = Modifier.zIndex(10f)) {
                 BootingSplash(
-                    visible = state.showBootingSplash || initialSplash,
+                    visible = BootingSplashContainer.isVisible(state.launchedAppId, state.showBootingSplash, state.bootingSplashText) || initialSplash,
                     text = if (state.showBootingSplash) state.bootingSplashText else BootingSplashLogic.TEXT_START,
+                    containerId = state.launchedAppId,
                     onAbort = {
                         initialSplash = false
                         preLaunchJob?.cancel()

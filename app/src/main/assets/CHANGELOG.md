@@ -5,6 +5,172 @@ bullet points in plain language. The launcher reads this file (copy in `app/src/
 when an update is offered, the text for the new versions comes from the update feed. German readers get
 `CHANGELOG.de.md` when the app language is German.
 
+## 2.3.3-touch9.40 – 16.11.2026
+
+### Improved
+- Battle.net page: the download list now links each package to the place where its publisher offers it, in a fixed version; the short notes beside each package are shorter and clearer
+- Project page: the README and the license notes now describe the experimental Battle.net way and the packages it downloads on request
+
+## 2.3.3-touch9.39 – 15.11.2026
+
+### Improved
+- Battle.net page, "Simple" view, step "Sign in": new order in five steps for the case that the sign-in in the game is refused (Battle.net app on Android, browser, Battle.net program with e-mail code, then "Install" once if needed, then start the game directly once)
+
+## 2.3.3-touch9.38 – 15.11.2026
+
+### Improved
+- Start: the game now starts directly by default; sign in once in the Battle.net program and the game starts directly afterwards (as before, quick, with autostart)
+- Start: the choice under "Play" reads "Start directly" and "Start via Battle.net" (small note "fallback"); the mark "recommended" and the warning when switching to "Start directly" are gone
+- Start: "Start via Battle.net" can only be picked once part B of the guide is set up; otherwise the guide opens at part B and says what is missing
+- Home screen: while the one-time sign-in is not marked as done, a quiet tip says to sign in to Battle.net once if the sign-in in the game is refused
+- Battle.net page, "Simple" view: the guide now has two parts – "Part A: Sign in once" (steps 1 to 4, afterwards "Start the game directly") and, folded away, "Part B: If the direct start is refused" (steps 5 to 7: game copy, game installed in Battle.net, play via Battle.net; needs about 50 GB extra)
+- Home screen: the button next to "Play" is now called "Set up Battle.net"
+
+## 2.3.3-touch9.37 – 15.11.2026
+
+### Improved
+- Settings: the page now starts with "Simple" – game (region, resolution, frame rate, graphics, game folder) and start and updates (autostart, updates) are always in view
+- Settings: everything else sits behind a new row "Advanced" (controls, voice control, icons, app, help, game settings in the game); it is closed every time you open the page
+- Voice control: "Umlauts as real characters" and "Recognition log" are now switches instead of a button; your saved choice stays as it was
+
+## 2.3.3-touch9.36 – 15.11.2026
+
+### Fixed
+- Crash "The app has crashed" fixed that could happen while a Windows program closed a window (simultaneous access to shared image memory)
+
+## 2.3.3-touch9.35 – 15.11.2026
+
+### New
+- Home screen: a small button "Battle.net launcher" right next to "Play" opens the Battle.net page, where you set up and start the launcher; it replaces the "Set up" entry under the start choice
+- Battle.net page: a new "Simple" view with one sentence on what to do next, one "Continue" button, the seven steps with check marks (tap a step to see its button) and "Help, it does not work"
+- Battle.net page: a new row "Advanced" with five groups (Troubleshooting, Sign-in, Game folder and space, Technical, Development); it is closed every time the page opens, and a switch "Always open Advanced" keeps it open
+
+### Improved
+- Battle.net page: everything that used to be a long list of cards now sits in the five groups of "Advanced"; every action is still there, only buttons that did the same thing twice were merged (installer, setting for signing in, copy of the game, status line)
+- Battle.net page: all yes/no choices are switches; "Reset all settings" now asks first
+- Battle.net page: plain wording in the "Simple" view; technical terms only appear under "Advanced", each with a short explanation
+
+## 2.3.3-touch9.34 – 15.11.2026
+
+### New
+- Home screen: under "Play" you choose whether the game starts "via Battle.net" (recommended) or "directly"; the button shows the chosen way in a small second line
+- If you have already set up the Battle.net way it is preselected; everyone else keeps starting directly until they choose themselves
+- If something is still missing for the start via Battle.net, "Play" opens the guide and says in one sentence what is missing instead of starting
+- Switching to "Start directly" asks first: the provider rejects the direct sign-in on some devices (error BLZ51914400); use it only after starting via Battle.net has worked at least once
+- With "Start via Battle.net" chosen, nothing starts by itself when the app opens; the countdown applies to the direct start only
+- Guide, step "Sign in": a tip from experience about the authenticator and signing in with the e-mail code in the first runs
+- The lab report notes the start mode and where the start came from
+- Home screen: next to the start choice there is a "Set up" entry that opens the Battle.net page
+- Help page: a new row "Battle.net: guide and settings" opens the Battle.net page directly, without seven taps on the version line
+
+## 2.3.3-touch9.33 – 15.11.2026
+
+### New
+- Test area: new switch "Sign-in buttons" (off by default; turning it on asks first) adds the buttons "E-mail" and "Password" to the key bar when Battle.net is started
+- Test area: one tap on such a button types exactly one value of the login saved in the game area into the field you tapped before; nothing is sent with Enter or Tab, and nothing is repeated
+- Test area: the buttons are greyed out if no login is saved, and a value with characters that cannot be typed is not sent at all
+- Test area: the lab report notes whether the buttons were on and each tap with the number of characters, never the value itself
+
+## 2.3.3-touch9.32 – 15.11.2026
+
+### New
+- Test area: step-by-step guide at the top of the page, with the state of each step and what that state is based on
+- Test area: one "Continue" button runs the next step
+- Test area: "Check setup" tests the installation without starting anything; the result goes into the next lab report
+- Test area: a line about the last run (duration, how it ended, whether the launcher or the game window was seen)
+
+## 2.3.3-touch9.31 – 15.11.2026
+
+### New
+- Test area: a new "Sign-in setup" button at the top of the test page sets bundled Wine, FEX, stage 4 and "game copy off" in one step; it needs the FEX package and loads nothing by itself
+- Test area: short hints on signing in: do not retry again and again, the app never types your credentials, and what to do if the first sign-in window is drawn wrongly (marked as experience)
+- Test area: if the launcher shows no window for over a minute or shows an error window, the key bar shows a notice with "Restart launcher"; it ends the run cleanly and the test page then offers "Start again" (nothing restarts by itself)
+- Test area: the lab report names the sign-in setup and lists the launcher state changes and a restart you asked for
+
+### Improved
+- Test area: clearer texts when a package is rejected, a download fails or a start cannot be prepared
+
+## 2.3.3-touch9.30 – 15.11.2026
+
+### New
+- Test area: a new "Game" button in the key bar switches on the game controls (touch gestures and on-screen buttons as in the game area); it is off by default, so the launcher is operated as before
+- Test area: the game controls switch on by themselves when the game window has the focus and off again when it is gone
+- Test area: before a start with the game copy, the game settings and the addon are set up in the copy (never in the original game folder)
+- Test area: the lab report says whether the game controls were on and what was set up in the copy
+
+## 2.3.3-touch9.29 – 15.11.2026
+
+### Improved
+- Test area: the game copy now sits in a folder named World of Warcraft on drive K:, so the launcher can install over it; an existing copy is moved, not copied again
+- Test area: refreshing the copy keeps files the launcher added
+- Test area: the lab report lists the files in the copy and what changed during a run
+
+## 2.3.3-touch9.28 – 15.11.2026
+
+### New
+- Test area: make a copy of the game folder for the test area; the original folder is never attached
+- Test area: switch "Use game copy" attaches the finished copy as drive K:
+- Test area: the original game folder is checked before and after every run; the lab report states whether it is unchanged
+
+### Improved
+- Test area: a start is refused if any drive of the test area would contain the original game folder
+
+## 2.3.3-touch9.27 – 15.11.2026
+
+### Improved
+- Test area: the lab report now records the state of the launcher's update helper during a run
+- Test area: the lab report includes more of the helper's own log files
+- Test area: error windows are listed in the window section of the lab report
+
+## 2.3.3-touch9.26 – 15.11.2026
+
+### New
+- Test area: "Windows" button lists the open windows and brings one to the front
+- Test area: the page shows which Wine package and translator the next start uses
+- Test area: stability stages for the translator; FEX is the recommended choice once its package is installed
+- Test area: crash counter and a list of the last runs
+
+### Improved
+- Test area: an already installed package is reported as installed instead of failing
+- Test area: hint for signing in when the first sign-in window is drawn incompletely
+
+## 2.3.3-touch9.25 – 15.11.2026
+
+### New
+- Test area: key bar with Esc, Tab, Enter, Backspace and arrow keys
+- Test area: "Text" button sends typed text to the window as key presses; nothing is stored
+- Test area: the lab report shows whether key presses reached the window
+- Test area: optional window settings for keyboard focus
+
+## 2.3.3-touch9.24 – 15.11.2026
+
+### Fixed
+- Test area: "Start Battle.net" works after the installation (programs in folders with spaces)
+
+## 2.3.3-touch9.23 – 15.11.2026
+
+### Improved
+- Test area: programs now start directly, the same way the game starts
+- Test area: new step test that checks drive, translator and installer in one run and adds the result to the lab report
+- Test area: Wine messages for errors, program starts and library loading are recorded by default
+- Test area: saved sign-in details are never typed into a test-area window
+- Test area: after a run the app returns to the test-area page
+
+## 2.3.3-touch9.22 – 15.11.2026
+
+### Fixed
+- Test area: the installer now starts
+
+## 2.3.3-touch9.21 – 15.11.2026
+
+### New
+- Experimental test area for a new login route (hidden, for testers)
+
+## 2.3.3-touch9.20 – 15.11.2026
+
+### Fixed
+- The error report now shows when a login is rejected after the authenticator code
+
 ## 2.3.3-touch9.19 – 14.11.2026
 
 ### Fixed

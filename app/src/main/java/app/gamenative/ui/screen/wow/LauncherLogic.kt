@@ -232,6 +232,30 @@ internal fun hiddenGameSettings(): List<LauncherSetting> = listOf(
     LauncherSetting.Cooldowns,
 )
 
+/** Wo eine Einstellung auf der Seite steht: sofort sichtbar, hinter der Zeile "Erweitert" oder hinter der Rückfrage. */
+internal enum class SettingTier { SIMPLE, ADVANCED, CONFIRMED }
+
+/** Die sieben Einstellungen im Abschnitt "Einfach" (immer sichtbar), in der Reihenfolge der Karten. */
+internal fun simpleSettings(): List<LauncherSetting> = listOf(
+    LauncherSetting.Region, LauncherSetting.Resolution, LauncherSetting.Fps, LauncherSetting.Graphics, LauncherSetting.GameFolder,
+    LauncherSetting.AutoStart, LauncherSetting.Updates,
+)
+
+/** Die zehn Einstellungen hinter der Zeile "Erweitert" (bei jedem Öffnen der Seite zu), in der Reihenfolge der Karten. */
+internal fun advancedSettings(): List<LauncherSetting> = listOf(
+    LauncherSetting.StartCheck, LauncherSetting.AppVersion, LauncherSetting.ClientBuild,
+    LauncherSetting.InputMode, LauncherSetting.ControlHint, LauncherSetting.Voice, LauncherSetting.Icons,
+    LauncherSetting.Screenshots, LauncherSetting.WowArt, LauncherSetting.ErrorReport,
+)
+
+/** Der Platz von [setting]: "Einfach", "Erweitert" oder hinter der Rückfrage ([hiddenGameSettings]). Jede steht in genau einem. */
+internal fun tierOf(setting: LauncherSetting): SettingTier = when (setting) {
+    in simpleSettings() -> SettingTier.SIMPLE
+    in advancedSettings() -> SettingTier.ADVANCED
+    in hiddenGameSettings() -> SettingTier.CONFIRMED
+    else -> error("Einstellung ohne Platz: $setting")
+}
+
 /**
  * Zustand des zugeklappten Bereichs "Spiel-Einstellungen hier ändern": Antippen der Zeile fragt erst nach, erst "Öffnen" klappt
  * ihn auf, ein weiterer Tipp klappt ihn zu. Wird nie gespeichert: bei jedem Öffnen der Seite ist er wieder zu.

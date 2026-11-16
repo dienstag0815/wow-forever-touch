@@ -1,0 +1,50 @@
+[
+  {
+    "id": "wine-ge-proton-10.0-34-arm64ec",
+    "art": "wine",
+    "name": "GE-Proton 10.0-34 arm64ec (bionic, Wine 10)",
+    "version": "10.0-34-arm64ec",
+    "url": "https://github.com/The412Banner/proton-wine/releases/download/build-bionic-layers-20260911-xp/GE-proton-10.0-34-arm64ec.wcp",
+    "sha256": "50344ec9fa1f37ae22f5b1a5d509cb50cac818fe15f0ecc4fd187e8f97969110",
+    "bytes": 93619971,
+    "lizenz": "Wine LGPL-2.1+ (Proton- und GE-Zusaetze mit eigenen Lizenzen; Lizenztexte liegen im Paket und im Quell-Repo)",
+    "format": "wcp",
+    "hinweis": "Unveraenderter Build von GE-Proton 10 fuer ARM64EC, veroeffentlicht vom Build-Projekt The412Banner/proton-wine (Release build-bionic-layers-20260911-xp, Fork von GameNative/proton-wine). Enthaelt keine FEX-DLLs. Laut der Quelle zeigt das Battle.net-Programm damit seine Oberflaeche; das Spiel selbst haengt ohne die zusaetzlichen Patches der Quelle. Fuer den reinen Battle.net-Test ausreichend. Format: wcp (tar mit zstd; profile.json, bin/, lib/, share/, prefixPack.txz)"
+  },
+  {
+    "id": "fex-2508",
+    "art": "fex",
+    "name": "FEXCore DLLs (libarm64ecfex.dll, libwow64fex.dll), FEX-2601-116-g1268a39",
+    "version": "2508 (Paket-ID); intern FEX-2601-116-g1268a39",
+    "url": "https://raw.githubusercontent.com/ashmerra/wehavephones/a7ab99be8b2255722fa062b21b51300bacdec94e/app/src/main/assets/fexcore/fexcore-2508.tzst",
+    "sha256": "0afc4ded5830c2038237498ffe34c830533c6152ca7197349c06de4f44aee4a3",
+    "bytes": 1563080,
+    "lizenz": "FEX MIT (FEX-Emu/FEX, Revision 1268a391); Build-Projekt wehavephones MIT",
+    "format": "tzst",
+    "hinweis": "FEX-Stand, mit dem Battle.net laut dem Build-Projekt (ashmerra/wehavephones) laeuft. Erste Wahl. libarm64ecfex.dll = Maschinentyp AMD64 mit CHPE-Metadaten (ARM64EC), libwow64fex.dll = ARM64. Format: tzst (tar mit zstd), 2 Dateien im Wurzelordner, kein profile.json (kein .wcp)"
+  },
+  {
+    "id": "fex-2605",
+    "art": "fex",
+    "name": "FEXCore DLLs (libarm64ecfex.dll, libwow64fex.dll), fexcore-2605",
+    "version": "2605",
+    "url": "https://raw.githubusercontent.com/utkarshdalal/GameNative/75326dc80884b6e6761ca7a4246f351ecb80a3e3/app/src/main/assets/fexcore/fexcore-2605.tzst",
+    "sha256": "2de0a0502190bfc96e62f1f9a252dec9cd81b59c3fbda763dfc5bea812afd437",
+    "bytes": 1544380,
+    "lizenz": "FEX MIT; Repo utkarshdalal/GameNative GPL-3.0; Quellrevision dieses Binaers nicht belegt",
+    "format": "tzst",
+    "hinweis": "Neuer als 2508, aber mit Battle.net nicht getestet; die Versionskennung ist in der DLL nicht lesbar. Zweite Wahl. Format: tzst (tar mit zstd), 2 Dateien, kein profile.json (kein .wcp)"
+  },
+  {
+    "id": "installer-battlenet-setup",
+    "art": "installer",
+    "name": "Battle.net-Setup.exe (Bootstrapper, Blizzard, signiert)",
+    "version": "2.0.0.4232 (Dateiversion), Pfad installer/win/1.0.69",
+    "url": "https://us.battle.net/download/getInstallerForGame?os=win&version=LIVE&gameProgram=BATTLENET_APP",
+    "sha256": "f4643a2086c0cecb1ab68cc601bf38c1a0a6f7ef5914ad03375cc9449385bec6",
+    "bytes": 4700880,
+    "lizenz": "proprietaer (Blizzard Entertainment); wird nur von der Blizzard-Adresse geladen und nicht weitergegeben",
+    "format": "exe",
+    "hinweis": "Der Hash gilt fuer den Stand vom 15.11.2026 und kann sich aendern: bei Abweichung nicht abbrechen, sondern die Signatur pruefen (Authenticode gueltig, Signer Blizzard Entertainment, Inc., Aussteller DigiCert, Fingerabdruck A5D44A482C16A2EFA3F025E43C5693E9F47B9E12). Wird nur geladen, nie auf dem Android-Geraet direkt gestartet, sondern unter Wine. Format: exe, PE32 (x86, 32 Bit)"
+  }
+]

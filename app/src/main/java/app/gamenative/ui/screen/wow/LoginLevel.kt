@@ -134,7 +134,10 @@ internal fun prepareLoginFile(
     gameRoot: File,
     load: () -> BattleNetSignIn.Login?,
     watch: (File) -> Unit = BattleNetSignIn::startLoginWatcher,
+    mayWrite: () -> Boolean = LoginGuard::mayWriteFile,
 ) {
+    // Battle.net-Labor: während eines Versuchs entsteht nie eine Anmeldedatei.
+    if (!mayWrite()) return
     if (!LoginLevels.writesLoginFile(level)) {
         BattleNetSignIn.removeLoginFile(gameRoot)
         return

@@ -34,6 +34,8 @@
     <string name="launcher_action_hide">Hide</string>
     <string name="launcher_action_show">Show</string>
     <string name="launcher_action_verify">Check</string>
+    <string name="launcher_advanced_hint">Controls, voice, app and help</string>
+    <string name="launcher_advanced_title">Advanced</string>
     <string name="launcher_addon_assess_bad_name">Invalid folder name %1$s</string>
     <string name="launcher_addon_assess_bak_reserved">Folder names with %1$s are reserved for backups</string>
     <string name="launcher_addon_assess_not_folder">%1$s is not a folder</string>
@@ -342,6 +344,7 @@
     <string name="launcher_group_help">Help</string>
     <string name="launcher_group_icons">Icons and cooldowns</string>
     <string name="launcher_group_start">Start and updates</string>
+    <string name="launcher_group_start_advanced">Start and version</string>
     <string name="launcher_group_voice">Voice control</string>
     <string name="launcher_help">Help</string>
     <string name="launcher_help_about_app">About this app</string>
@@ -846,4 +849,22 @@
     <string name="launcher_ready_login_off">Login: Off</string>
     <string name="launcher_ready_login_fill">Login: Fill in</string>
     <string name="launcher_ready_login_self">Login: Sign in automatically</string>
+
+    <!-- Start choice under the Play button (start via Battle.net / start directly) -->
+    <string name="launcher_start_battlenet">Start via Battle.net</string>
+    <string name="launcher_start_direct">Start directly</string>
+    <string name="launcher_play_sub_battlenet">via Battle.net</string>
+    <string name="launcher_play_sub_direct">directly</string>
+    <string name="launcher_start_fallback">fallback</string>
+    <string name="launcher_start_tip">Tip: sign in to Battle.net once if the in-game sign-in is refused</string>
+    <string name="launcher_start_ok">OK</string>
+    <string name="launcher_start_missing_packages">Start via Battle.net is not set up yet: a package is missing. The guide shows what to load.</string>
+    <string name="launcher_start_missing_launcher">Start via Battle.net is not set up yet: the Battle.net launcher is not installed. The guide shows how.</string>
+    <string name="launcher_start_missing_setting">Start via Battle.net is not set up yet: the sign-in setup is not applied. The guide shows how.</string>
+    <string name="launcher_start_missing_copy">Starting via Battle.net only works after part B of the guide: the game copy is missing (about 50 GB extra). The guide shows how.</string>
+    <string name="launcher_start_missing_game">Starting via Battle.net only works after part B of the guide: the game is not yet installed in the Battle.net program. The guide shows how.</string>
+    <string name="launcher_start_blocked_game">The game is running. Close it first, then start via Battle.net.</string>
+    <string name="launcher_start_blocked_run">A start via Battle.net is already running. End it first.</string>
+    <string name="launcher_start_no_base">Start the game once directly first: the Battle.net way uses its prepared files. The guide shows the steps.</string>
+    <string name="launcher_start_failed">The start via Battle.net could not begin. The guide shows what is missing.</string>
 </resources>

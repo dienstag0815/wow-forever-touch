@@ -4,6 +4,172 @@ Pro Version ein Abschnitt, neueste oben. Format: `## <Version> – <Datum>`, dar
 Aufzählungspunkten in Alltagssprache. Der Launcher liest diese Datei (Kopie in `app/src/main/assets/CHANGELOG.de.md`) und zeigt sie als
 Änderungsliste; bei einem angebotenen Update kommt der Text der neuen Versionen aus dem Update-Feed.
 
+## 2.3.3-touch9.40 – 16.11.2026
+
+### Verbessert
+- Battle.net-Seite: Die Downloadliste verweist jetzt bei jedem Paket auf die Stelle, an der der Urheber es anbietet, in einer festen Version; die kurzen Hinweise neben den Paketen sind kürzer und verständlicher
+- Projektseite: README und Lizenzhinweise beschreiben jetzt den experimentellen Battle.net-Weg und die Pakete, die er auf Wunsch lädt
+
+## 2.3.3-touch9.39 – 15.11.2026
+
+### Verbessert
+- Battle.net-Seite, Ansicht „Einfach“, Schritt „Anmelden“: neue Reihenfolge in fünf Schritten für den Fall, dass die Anmeldung im Spiel abgelehnt wird (Battle.net-App auf Android, Browser, Battle.net-Programm mit E-Mail-Code, danach einmal „Installieren“ falls nötig, dann das Spiel einmal direkt starten)
+
+## 2.3.3-touch9.38 – 15.11.2026
+
+### Verbessert
+- Start: Das Spiel startet jetzt standardmäßig direkt; melde dich einmal im Battle.net-Programm an, danach startet das Spiel direkt (wie früher, schnell, mit Autostart)
+- Start: Die Wahl unter „Spielen“ heißt jetzt „Direkt starten“ und „Über Battle.net starten“ (kleiner Hinweis „Ausweichweg“); die Marke „empfohlen“ und die Warnung beim Wechsel auf „Direkt starten“ entfallen
+- Start: „Über Battle.net starten“ lässt sich erst wählen, wenn Teil B der Anleitung eingerichtet ist; sonst öffnet sich die Anleitung bei Teil B und sagt, was fehlt
+- Startseite: Solange die einmalige Anmeldung nicht als erledigt vermerkt ist, steht eine ruhige Tipp-Zeile: einmal bei Battle.net anmelden, falls die Anmeldung im Spiel abgelehnt wird
+- Battle.net-Seite, Ansicht „Einfach“: Die Anleitung hat jetzt zwei Teile – „Teil A: Einmal anmelden“ (Schritte 1 bis 4, danach „Spiel direkt starten“) und, eingeklappt, „Teil B: Wenn der direkte Start abgelehnt wird“ (Schritte 5 bis 7: Kopie des Spiels, Spiel in Battle.net installieren, über Battle.net spielen; braucht rund 50 GB zusätzlich)
+- Startseite: Der Knopf neben „Spielen“ heißt jetzt „Battle.net einrichten“
+
+## 2.3.3-touch9.37 – 15.11.2026
+
+### Verbessert
+- Einstellungen: Die Seite beginnt jetzt mit „Einfach“ – Spiel (Region, Auflösung, Bildrate, Grafik, Spielordner) sowie Start und Updates (Autostart, Updates) sind immer sofort zu sehen
+- Einstellungen: Alles Übrige steht hinter der neuen Zeile „Erweitert“ (Steuerung, Sprachsteuerung, Symbole, App, Hilfe, Spiel-Einstellungen im Spiel); sie ist bei jedem Öffnen der Seite zu
+- Sprachsteuerung: „Umlaute als echte Zeichen“ und „Erkennungsprotokoll“ sind jetzt Kippschalter statt Knopf; deine gespeicherte Wahl bleibt, wie sie war
+
+## 2.3.3-touch9.36 – 15.11.2026
+
+### Behoben
+- Absturz „The app has crashed“ behoben, der auftreten konnte, während ein Windows-Programm ein Fenster schloss (gleichzeitiger Zugriff auf gemeinsamen Bildspeicher)
+
+## 2.3.3-touch9.35 – 15.11.2026
+
+### Neu
+- Startseite: Ein kleiner Knopf „Battle.net-Launcher“ direkt neben „Spielen“ öffnet die Battle.net-Seite, auf der du den Launcher einrichtest und startest; er ersetzt den Eintrag „Einrichten“ unter der Startwahl
+- Battle.net-Seite: Neue Ansicht „Einfach“ mit einem Satz, was als Nächstes zu tun ist, einem Knopf „Weiter“, den sieben Schritten mit Haken (auf einen Schritt tippen zeigt seinen Knopf) und „Hilfe, es klappt nicht“
+- Battle.net-Seite: Neue Zeile „Erweitert“ mit fünf Gruppen (Fehlersuche, Anmeldung, Spielordner und Platz, Technik, Entwicklung); sie ist bei jedem Öffnen der Seite zu, und ein Schalter „Erweitert immer geöffnet“ hält sie offen
+
+### Verbessert
+- Battle.net-Seite: Was vorher eine lange Reihe von Karten war, steht jetzt in den fünf Gruppen von „Erweitert“; jede Aktion gibt es weiterhin, nur Knöpfe, die dasselbe doppelt taten, wurden zusammengelegt (Installationsprogramm, Einstellung für die Anmeldung, Kopie des Spiels, Statuszeile)
+- Battle.net-Seite: Alle Ja/Nein-Entscheidungen sind Schalter; „Alle Einstellungen zurücksetzen“ fragt jetzt vorher nach
+- Battle.net-Seite: Alltagssprache in der Ansicht „Einfach“; Fachwörter stehen nur unter „Erweitert“, jeweils mit einer kurzen Erklärung
+
+## 2.3.3-touch9.34 – 15.11.2026
+
+### Neu
+- Startseite: Unter „Spielen“ kannst du wählen, ob das Spiel „Über Battle.net“ (empfohlen) oder „Direkt“ startet; der Knopf zeigt in einer Unterzeile die gewählte Startart
+- Wer den Weg über Battle.net schon eingerichtet hat, bekommt ihn vorgewählt; alle anderen starten wie bisher direkt, bis sie selbst wählen
+- Fehlt für den Start über Battle.net noch etwas, öffnet „Spielen“ die Anleitung und nennt in einem Satz, was fehlt, statt zu starten
+- Beim Wechsel auf „Direkt starten“ kommt eine Rückfrage: Der Anbieter lehnt die direkte Anmeldung auf manchen Geräten ab (Fehler BLZ51914400); erst nutzen, wenn der Start über Battle.net mindestens einmal geklappt hat
+- Ist „Über Battle.net“ gewählt, startet beim Öffnen der App nichts von selbst; der Countdown gilt nur für den Direktstart
+- Anleitung, Schritt „Anmelden“: Erfahrungswert zu Authenticator und Anmeldung mit dem E-Mail-Code in den ersten Läufen
+- Der Laborbericht nennt die Startart und von wo der Start kam
+- Startseite: Neben der Startwahl gibt es den Eintrag „Einrichten“, der die Battle.net-Seite öffnet
+- Hilfe-Seite: Eine neue Zeile „Battle.net: Anleitung und Einstellungen“ öffnet die Battle.net-Seite direkt, ohne siebenmal auf die Versionszeile zu tippen
+
+## 2.3.3-touch9.33 – 15.11.2026
+
+### Neu
+- Versuchsbereich: Neuer Schalter „Anmelde-Knöpfe“ (Vorgabe aus, beim Einschalten kommt eine Rückfrage) zeigt beim Start von Battle.net die Knöpfe „E-Mail“ und „Passwort“ in der Tastenleiste
+- Versuchsbereich: Ein Tipp auf einen dieser Knöpfe tippt genau einen Wert der im Spielbereich gespeicherten Anmeldung in das Feld, das du vorher angetippt hast; es wird nichts mit Enter oder Tab abgeschickt und nichts wiederholt
+- Versuchsbereich: Die Knöpfe sind ausgegraut, wenn keine Anmeldung gespeichert ist; ein Wert mit Zeichen, die sich nicht tippen lassen, wird gar nicht gesendet
+- Versuchsbereich: Der Laborbericht vermerkt, ob die Knöpfe an waren, und jeden Tipp mit der Zahl der Zeichen, nie den Wert selbst
+
+## 2.3.3-touch9.32 – 15.11.2026
+
+### Neu
+- Versuchsbereich: Schritt-für-Schritt-Anleitung oben auf der Seite, mit dem Zustand jedes Schritts und woran er abgelesen wird
+- Versuchsbereich: Ein Knopf „Weiter“ führt den nächsten Schritt aus
+- Versuchsbereich: „Einrichtung prüfen“ testet die Installation, ohne etwas zu starten; das Ergebnis steht im nächsten Laborbericht
+- Versuchsbereich: Eine Zeile zum letzten Lauf (Dauer, wie er endete, ob Launcher- oder Spielfenster gesehen wurden)
+
+## 2.3.3-touch9.31 – 15.11.2026
+
+### Neu
+- Versuchsbereich: Neuer Knopf „Anmeldeweg einrichten“ oben auf der Versuchsseite stellt gebündeltes Wine, FEX, Stufe 4 und „Spielkopie aus“ in einem Schritt ein; er braucht das FEX-Paket und lädt nichts von selbst
+- Versuchsbereich: Kurze Hinweise zum Anmelden: nicht immer wieder versuchen, die App tippt nie deine Zugangsdaten, und was zu tun ist, wenn das erste Anmeldefenster falsch gezeichnet wird (als Erfahrungswert gekennzeichnet)
+- Versuchsbereich: Zeigt der Launcher über eine Minute lang kein Fenster oder ein Fehlerfenster, erscheint in der Tastenleiste ein Hinweis mit „Launcher neu starten“; der Knopf beendet den Lauf sauber, danach bietet die Versuchsseite „Erneut starten“ an (nichts startet von selbst neu)
+- Versuchsbereich: Der Laborbericht nennt den Anmeldeweg und listet die Zustandswechsel des Launchers und einen von dir gewünschten Neustart
+
+### Verbessert
+- Versuchsbereich: Klarere Texte, wenn ein Paket abgewiesen wird, ein Download scheitert oder ein Start nicht vorbereitet werden kann
+
+## 2.3.3-touch9.30 – 15.11.2026
+
+### Neu
+- Versuchsbereich: Neuer Knopf „Spiel“ in der Tastenleiste schaltet die Spielsteuerung ein (Touch-Gesten und Bildschirmtasten wie im Spielbereich); sie ist anfangs aus, der Launcher wird also wie bisher bedient
+- Versuchsbereich: Die Spielsteuerung schaltet sich von selbst ein, wenn das Spielfenster den Fokus hat, und wieder aus, wenn es weg ist
+- Versuchsbereich: Vor einem Start mit der Spielkopie werden die Spieleinstellungen und das Addon in der Kopie eingerichtet (nie im Original-Spielordner)
+- Versuchsbereich: Der Laborbericht nennt, ob die Spielsteuerung an war und was in der Kopie eingerichtet wurde
+
+## 2.3.3-touch9.29 – 15.11.2026
+
+### Verbessert
+- Versuchsbereich: Die Spielkopie liegt jetzt in einem Ordner „World of Warcraft“ auf Laufwerk K:, damit der Launcher darüber installieren kann; eine vorhandene Kopie wird verschoben, nicht neu kopiert
+- Versuchsbereich: Beim Auffrischen der Kopie bleiben Dateien erhalten, die der Launcher angelegt hat
+- Versuchsbereich: Der Laborbericht listet die Dateien der Kopie und was sich in einem Lauf geändert hat
+
+## 2.3.3-touch9.28 – 15.11.2026
+
+### Neu
+- Versuchsbereich: Kopie des Spielordners für den Versuchsbereich anlegen; der Originalordner wird nie eingebunden
+- Versuchsbereich: Schalter „Spielkopie verwenden“ bindet die fertige Kopie als Laufwerk K: ein
+- Versuchsbereich: Der Original-Spielordner wird vor und nach jedem Lauf geprüft; der Laborbericht weist aus, ob er unverändert ist
+
+### Verbessert
+- Versuchsbereich: Ein Start wird verweigert, wenn ein Laufwerk des Versuchsbereichs den Original-Spielordner enthalten würde
+
+## 2.3.3-touch9.27 – 15.11.2026
+
+### Verbessert
+- Versuchsbereich: Der Labor-Bericht hält jetzt den Zustand des Update-Helfers des Launchers während eines Laufs fest
+- Versuchsbereich: Der Labor-Bericht enthält mehr der eigenen Protokolle des Helfers
+- Versuchsbereich: Fehlerfenster stehen im Fenster-Abschnitt des Labor-Berichts
+
+## 2.3.3-touch9.26 – 15.11.2026
+
+### Neu
+- Versuchsbereich: Knopf „Fenster“ zeigt die offenen Fenster und holt eines nach vorn
+- Versuchsbereich: Die Seite zeigt, mit welchem Wine-Paket und Übersetzer der nächste Start läuft
+- Versuchsbereich: Stabilitätsstufen für den Übersetzer; FEX ist die empfohlene Wahl, sobald das Paket installiert ist
+- Versuchsbereich: Absturzzähler und Liste der letzten Läufe
+
+### Verbessert
+- Versuchsbereich: Ein schon installiertes Paket wird als installiert gemeldet statt als Fehler
+- Versuchsbereich: Hinweis zum Anmelden, wenn das erste Anmeldefenster unvollständig gezeichnet wird
+
+## 2.3.3-touch9.25 – 15.11.2026
+
+### Neu
+- Versuchsbereich: Tastenleiste mit Esc, Tab, Enter, Rücktaste und Pfeiltasten
+- Versuchsbereich: Knopf „Text“ schickt getippten Text als Tastendrücke an das Fenster; gespeichert wird nichts
+- Versuchsbereich: Der Labor-Bericht zeigt, ob Tastendrücke im Fenster angekommen sind
+- Versuchsbereich: wählbare Fenster-Einstellungen für den Tastaturfokus
+
+## 2.3.3-touch9.24 – 15.11.2026
+
+### Behoben
+- Versuchsbereich: „Start Battle.net“ funktioniert nach der Installation (Programme in Ordnern mit Leerzeichen)
+
+## 2.3.3-touch9.23 – 15.11.2026
+
+### Verbessert
+- Versuchsbereich: Programme starten jetzt direkt, auf demselben Weg wie das Spiel
+- Versuchsbereich: neuer Stufentest prüft Laufwerk, Übersetzer und Installer in einem Lauf und legt das Ergebnis in den Labor-Bericht
+- Versuchsbereich: Wine-Meldungen zu Fehlern, Programmstarts und geladenen Bibliotheken werden standardmäßig aufgezeichnet
+- Versuchsbereich: gespeicherte Anmeldedaten werden nie in ein Fenster des Versuchsbereichs getippt
+- Versuchsbereich: Nach einem Lauf kehrt die App zur Seite des Versuchsbereichs zurück
+
+## 2.3.3-touch9.22 – 15.11.2026
+
+### Behoben
+- Versuchsbereich: Der Installer startet jetzt
+
+## 2.3.3-touch9.21 – 15.11.2026
+
+### Neu
+- Versuchsbereich für einen neuen Anmeldeweg (versteckt, für Tester)
+
+## 2.3.3-touch9.20 – 15.11.2026
+
+### Behoben
+- Der Fehlerbericht zeigt jetzt, wenn die Anmeldung nach dem Authenticator-Code abgelehnt wird
+
 ## 2.3.3-touch9.19 – 14.11.2026
 
 ### Behoben

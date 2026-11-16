@@ -29,19 +29,26 @@ private fun plan(
 // --- Einstellungen ---
 
 /**
- * Einstellungen nach Bedeutung: Spiel (Region, Auflösung, Bildrate, Grafik, Spielordner), Start und Updates (Autostart, Countdown,
- * Startcheck, Updates automatisch, Nach Updates suchen, dazu die Fußzeile mit Version und Client-Build), Steuerung im Spiel (Modus,
- * zwei Zeilen "Öffnen" für Sprachsteuerung sowie Symbole und Abklingzeiten, ein Hinweis auf das Seitenmenü), App (Sprache, zwei
- * Bildschalter) und Hilfe (Fehlerbericht mit kurzem Text). Die zwei höchsten Karten (Spiel, Start) stehen nebeneinander, die
- * niedrigste (Hilfe) steht allein in der letzten Reihe, damit die Seite hochkant ohne Scrollen passt.
+ * Einstellungen in zwei Teilen. "Einfach" (immer sichtbar): die Karte Spiel (Region, Auflösung, Bildrate, Grafik, Spielordner) und
+ * die Karte "easystart" (Autostart, Countdown, Updates automatisch, Nach Updates suchen, Update-Quelle). Darunter die Zeile
+ * "Erweitert" über die ganze Breite. Nur wenn sie offen ist ([advancedOpen], bei jedem Öffnen der Seite zu), kommen dazu: Start
+ * (Startprüfung, Fußzeile mit Version und Client-Build), Steuerung im Spiel (Modus, zwei Zeilen "Öffnen" für Sprachsteuerung sowie
+ * Symbole und Abklingzeiten, ein Hinweis auf das Seitenmenü), App (Sprache, zwei Bildschalter), Hilfe (Fehlerbericht mit kurzem
+ * Text) und die Karte "gamefold" (Spiel-Einstellungen hinter der Rückfrage). Nur der geschlossene Teil muss ohne Scrollen auf den
+ * aufgeklappten Fold passen; der offene darf scrollen.
  */
-internal fun settingsPlan(): List<CardPlan> = listOf(
-    plan("game", rows = 5),
-    plan("start", rows = 5, lines = 2),
-    plan("control", rows = 3, lines = 2),
-    plan("app", rows = 4),
-    plan("help", rows = 1, lines = 2),
-)
+internal fun settingsPlan(advancedOpen: Boolean = false): List<CardPlan> = buildList {
+    add(plan("game", rows = 5))
+    add(plan("easystart", rows = 5))
+    add(plan("advanced", titled = false, rows = 1, lines = 1, span = SPAN_ALL))
+    if (advancedOpen) {
+        add(plan("start", rows = 1, lines = 2))
+        add(plan("control", rows = 3, lines = 2))
+        add(plan("app", rows = 4))
+        add(plan("help", rows = 1, lines = 2))
+        add(plan("gamefold", lines = 4))
+    }
+}
 
 // --- Steuerung ---
 
@@ -158,12 +165,13 @@ internal const val READY_ITEMS_MAX = 6
  * Warnung); mehr als diese eine Zeile verträgt die Seite hochkant mit Meldung nicht (15 dp Luft, PageGridTest). Wechsel, Verlauf und
  * "Verlauf kopieren" stehen in der Detailansicht der Karte.
  */
-internal fun helpPlan(hasError: Boolean): List<CardPlan> = buildList {
+/** [labEntry]: der freigeschaltete Eintrag "Labor" steht als dritte Zeile in der Karte Launcher; die Prüfzeile darunter hat dann eine Textzeile statt drei (sonst passt die Seite innen nicht mehr ohne Scrollen). */
+internal fun helpPlan(hasError: Boolean, labEntry: Boolean = false): List<CardPlan> = buildList {
     add(plan("ready", titled = false, extraDp = READY_HEAD_DP + READY_ITEMS_MAX * READY_ITEM_DP, span = 2))
     if (hasError) add(plan("error", lines = 6))
     add(plan("report", rows = 1, lines = 4))
     add(plan("gameonly", lines = 3))
-    add(plan("launcher", rows = 2, lines = 3))
+    add(plan("launcher", rows = if (labEntry) 3 else 2, lines = if (labEntry) 1 else 3))
 }
 
 // --- Über ---

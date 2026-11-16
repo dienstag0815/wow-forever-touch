@@ -36,7 +36,9 @@ import kotlinx.coroutines.delay
  * ([LoginLevels.fillButtonVisible]). Stufe und Daten werden beim Öffnen des Seitenmenüs neu gelesen (Speichern dort kann die Stufe ändern).
  */
 @Composable
-internal fun LoginFillButton(menuOpen: Boolean) {
+internal fun LoginFillButton(menuOpen: Boolean, containerId: String? = null) {
+    // Battle.net-Labor: dort gibt es den Knopf nicht (und LoginFill.start lehnt ohnehin ab).
+    if (!LoginGuard.mayType(containerId)) return
     val context = LocalContext.current
     var level by remember(menuOpen) { mutableStateOf(LoginLevelStore.current(context)) }
     var hasSaved by remember(menuOpen) { mutableStateOf(BattleNetSignIn.hasSaved(context)) }

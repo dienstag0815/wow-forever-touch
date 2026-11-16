@@ -1,6 +1,8 @@
 package app.gamenative.ui.screen.wow.launcher
 
 import app.gamenative.R
+import app.gamenative.lab.EffectiveStart
+import app.gamenative.lab.StartMode
 import app.gamenative.ui.screen.wow.TWO_COLUMN_MIN_WIDTH_DP
 import app.gamenative.update.CheckPhase
 import app.gamenative.update.UpdateInfo
@@ -70,6 +72,10 @@ internal data class HomeInput(
     val whatsNewPending: Boolean = false,
     /** Offene Punkte der Bereitschaftsliste (siehe readinessSummary). */
     val readinessOpen: Int = 0,
+    /** Wirksame Startart der Startseite (Wahl „Über Battle.net“ / „Direkt“); null = noch nicht ermittelt, dann zeigt der Hero nichts davon. */
+    val startMode: EffectiveStart? = null,
+    /** Schritt 4 der Anleitung („Anmelden“) ist nicht als erledigt gemerkt: der Hero zeigt die Tipp-Zeile. */
+    val startSignInTip: Boolean = false,
 ) {
     val busy: Boolean get() = busyText != null
 
@@ -113,7 +119,35 @@ internal enum class HeroKind { NeedAccess, Install, Upgrade, Update, Play, Wrong
 
 internal enum class HeroAction { GrantStorage, Install, Update, Play, CancelInstall, PickFolder }
 
-internal data class HeroButton(val text: UiText, val action: HeroAction, val enabled: Boolean = true, val danger: Boolean = false)
+/** [subtitle]: kleine zweite Zeile im Knopf (bei „Spielen“ die gewählte Startart); sie macht den Knopf nicht höher. */
+internal data class HeroButton(
+    val text: UiText,
+    val action: HeroAction,
+    val enabled: Boolean = true,
+    val danger: Boolean = false,
+    val subtitle: UiText? = null,
+)
+
+/** Ein Eintrag der Startwahl unter dem Knopf „Spielen“; [note] ist die kleine Unterzeile („Ausweichweg“ bei Battle.net). */
+internal data class StartOptionUi(val mode: StartMode, val label: UiText, val selected: Boolean, val note: UiText? = null)
+
+/**
+ * Die kleine, ruhige Wahl der Startart (zwei Einträge, einer gewählt) und die Unterzeile des Knopfes. [tip]: die ruhige Zeile „Tipp: einmal bei
+ * Battle.net anmelden …“ im Bildbereich des Hero, solange Schritt 4 der Anleitung nicht als erledigt gemerkt ist; null = keine.
+ */
+internal data class StartChoiceUi(val options: List<StartOptionUi>, val subtitle: UiText, val tip: UiText? = null)
+
+/** Die Startwahl für den Hero: „Direkt starten“ ist der Normalweg, „Über Battle.net starten“ der Ausweichweg. Null, solange die Startart unbekannt ist. */
+internal fun startChoiceUi(effective: EffectiveStart?, signInTip: Boolean = false): StartChoiceUi? = effective?.let { e ->
+    StartChoiceUi(
+        options = listOf(
+            StartOptionUi(StartMode.DIRECT, UiText.res(R.string.launcher_start_direct), e.mode == StartMode.DIRECT),
+            StartOptionUi(StartMode.BATTLENET, UiText.res(R.string.launcher_start_battlenet), e.mode == StartMode.BATTLENET, UiText.res(R.string.launcher_start_fallback)),
+        ),
+        subtitle = UiText.res(if (e.mode == StartMode.BATTLENET) R.string.launcher_play_sub_battlenet else R.string.launcher_play_sub_direct),
+        tip = if (signInTip) UiText.res(R.string.launcher_start_tip) else null,
+    )
+}
 
 internal data class HeroUi(
     val kind: HeroKind,
@@ -129,6 +163,8 @@ internal data class HeroUi(
     val showSpinner: Boolean,
     /** Countdown/Autostart-Zeile unter dem Knopf (nur beim Spielen). */
     val showCountdown: Boolean,
+    /** Die Wahl der Startart unter dem Knopf (nur beim Spielen, wenn die Startart bekannt ist). */
+    val startChoice: StartChoiceUi? = null,
 )
 
 /** " · 112,0 GB frei" (bzw. " · 112.0 GB free"); leer, wenn der freie Platz nicht bekannt ist. */
@@ -194,12 +230,16 @@ internal fun heroUi(i: HomeInput): HeroUi {
             val wrong = i.isWrongGame
             val line = listOfNotNull("WoW Forever", i.clientLocal?.takeIf { it.isNotBlank() }, i.regionLabel, i.resolutionLabel)
                 .joinToString(" · ")
+            val choice = if (wrong) null else startChoiceUi(i.startMode, i.startSignInTip)
             HeroUi(
                 if (wrong) HeroKind.WrongGame else HeroKind.Play,
                 if (wrong) UiText.res(R.string.launcher_pill_wrong_game) else LauncherTexts.PLAY_TITLE,
                 if (wrong) UiText.res(R.string.launcher_hero_wrong_game_line) else UiText.raw(line),
-                primary = HeroButton(if (wrong) LauncherTexts.WRONG_GAME_BUTTON else LauncherTexts.PLAY_BUTTON, HeroAction.Play, enabled = i.canPlay),
-                secondary = null, showSpinner = false, showCountdown = true,
+                primary = HeroButton(
+                    if (wrong) LauncherTexts.WRONG_GAME_BUTTON else LauncherTexts.PLAY_BUTTON, HeroAction.Play, enabled = i.canPlay,
+                    subtitle = choice?.subtitle,
+                ),
+                secondary = null, showSpinner = false, showCountdown = true, startChoice = choice,
             )
         }
     }

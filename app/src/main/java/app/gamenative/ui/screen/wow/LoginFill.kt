@@ -66,6 +66,11 @@ internal object LoginFill {
         settleMs: Long,
         note: (String) -> Unit,
     ): Start {
+        // Battle.net-Labor: dort tippt die App nie gespeicherte Zugangsdaten (vor dem Laden, damit sie nicht einmal im Speicher liegen).
+        if (!LoginGuard.mayType()) {
+            note(context.getString(R.string.lab_login_refused))
+            return Start.REFUSED
+        }
         val secret = BattleNetSignIn.loadSecret(context) ?: return Start.NO_SECRET
         val check = checkLogin(action, secret.email, secret.password)
         if (check != LoginCheck.OK) {

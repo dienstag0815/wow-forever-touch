@@ -122,6 +122,37 @@ class LauncherLogicTest {
     }
 
     @Test
+    fun everySettingHasExactlyOneTierWithTheAgreedCounts() {
+        val simple = simpleSettings()
+        val advanced = advancedSettings()
+        val confirmed = hiddenGameSettings()
+        assertEquals(7, simple.size)
+        assertEquals(10, advanced.size)
+        assertEquals(9, confirmed.size)
+        val all = simple + advanced + confirmed
+        assertEquals("keine Einstellung doppelt", all.size, all.toSet().size)
+        assertEquals("alle 26 Einstellungen", LauncherSetting.entries.toSet(), all.toSet())
+        assertEquals(26, LauncherSetting.entries.size)
+        for (s in simple) assertEquals(s.name, SettingTier.SIMPLE, tierOf(s))
+        for (s in advanced) assertEquals(s.name, SettingTier.ADVANCED, tierOf(s))
+        for (s in confirmed) assertEquals(s.name, SettingTier.CONFIRMED, tierOf(s))
+        // Die Gruppen der Seite enthalten genau die Einfach- und Erweitert-Einstellungen, nie eine hinter der Rückfrage.
+        assertEquals(simple.toSet() + advanced.toSet(), settingsGroups().flatMap { it.settings }.toSet())
+    }
+
+    @Test
+    fun theStartGroupIsSplitBetweenSimpleAndAdvanced() {
+        val start = settingsGroups().first { it.key == "start" }.settings
+        assertEquals(listOf(LauncherSetting.AutoStart, LauncherSetting.Updates), start.filter { tierOf(it) == SettingTier.SIMPLE })
+        assertEquals(
+            listOf(LauncherSetting.StartCheck, LauncherSetting.AppVersion, LauncherSetting.ClientBuild),
+            start.filter { tierOf(it) == SettingTier.ADVANCED },
+        )
+        // Der Eingabemodus steht in Erweitert (Annahme des Entwurfs).
+        assertEquals(SettingTier.ADVANCED, tierOf(LauncherSetting.InputMode))
+    }
+
+    @Test
     fun groupsHaveStableKeysAndTheirOwnTitles() {
         val groups = settingsGroups()
         assertEquals(listOf("game", "start", "controls", "voice", "icons", "app", "help"), groups.map { it.key })

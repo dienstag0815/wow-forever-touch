@@ -20,6 +20,7 @@ Die App nutzt den **Windows-ARM64**-Client von Blizzard, das Spiel selbst läuft
 - **Die Touch-Edition ergänzt Touch-Steuerung:** Sticks, Ringe und Knöpfe auf dem Bildschirm senden normale Tastatur- und Mauseingaben. Dazu kommt ein kleines Addon im Spiel, das die Spieloberfläche (Aktionsleisten, Minimap, Questtracker, Zielrahmen) für den Touchscreen in Größe und Position anpasst. Solche Addons nutzen die offizielle Addon-Schnittstelle des Spiels.
 - Der Spielclient wird nicht verändert. Es wird nichts eingeschleust und kein Speicher ausgelesen. Es gibt keinen Bot und keine Automatik: Jede Aktion kommt von deinem eigenen Tippen.
 - Die freiwillig gespeicherte Anmeldung bleibt verschlüsselt nur auf deinem Gerät. Je nach gewählter Stufe tippt der Launcher sie in den Anmeldebildschirm des Spiels und du drückst selbst auf Login, oder er übergibt sie dem Spiel über eine kurzlebige lokale Datei, damit es sich selbst anmeldet. Sie wird nirgendwohin gesendet.
+- **Experimenteller Battle.net-Weg:** Wird die Anmeldung im Spiel auf deinem Gerät abgelehnt, richtet eine zusätzliche Seite das echte Battle.net-Programm ein, damit du dich dort einmal anmelden kannst, mit einem Ausweichweg, der das Spiel darüber startet. Siehe [Battle.net-Seite (experimentell)](#battlenet-seite-experimentell).
 - Inoffizielles Fanprojekt, nicht mit Blizzard Entertainment verbunden oder von Blizzard unterstützt. Nutzung auf eigenes Risiko; für deinen Account gelten Blizzards Nutzungsbedingungen.
 
 ---
@@ -50,7 +51,7 @@ Voraussetzungen:
 
 ### 1. Install the app
 
-Download `WoW-Forever.apk` from the [latest release](https://github.com/jaredgei/wow-forever-android/releases/latest) and install it on your device. The app's package name is `app.wowforever`, so it can sit alongside GameNative or Winlator.
+Download `WoW-Forever-Touch-<version>.apk` from the [latest release](https://github.com/dienstag0815/wow-forever-touch/releases/latest) and install it on your device. The app's package name is `app.wowforever`, so it can sit alongside GameNative or Winlator.
 
 Diese App und die ursprüngliche WoW-Forever-App haben dieselbe App-Kennung `app.wowforever`, sind aber unterschiedlich signiert; Android installiert die eine nicht, solange die andere installiert ist. Deinstalliere vorher die andere App, die Spieldateien bleiben auf dem Gerät.
 
@@ -121,6 +122,28 @@ Once your game files and Battle.net credentials are configured, the app automati
 
 ---
 
+## Battle.net-Seite (experimentell)
+
+**Wofür.** Auf manchen Geräten lehnt der Anbieter die Anmeldung im Spiel ab (Abfrage „Are you a robot?“, Fehler `BLZ51914400`, oft gleich nach dem Eingeben des Authenticator-Codes). Für diesen Fall hat die App eine zusätzliche Seite, die das echte **Battle.net-Programm** unter Wine auf dem Gerät einrichtet, damit du dich dort anmelden kannst. Das ist ein **inoffizieller Umweg**, in dieser Version als experimentell gekennzeichnet, und der Anbieter unterstützt ihn nicht: Nutzung auf eigene Verantwortung. Auf einem Testgerät hat es geholfen; das ist eine einzelne Rückmeldung, keine Zusage, und auf deinem Gerät kann es ohne Wirkung bleiben.
+
+**Wo.** Auf dem Startbildschirm neben **Spielen** auf **Battle.net einrichten** tippen. Die Seite öffnet sich in der Ansicht *Einfach*: ein Satz, was als Nächstes zu tun ist, ein Knopf **Weiter**, die Schritte mit Häkchen und **Hilfe, es klappt nicht**. Alles andere liegt hinter **Erweitert** (bei jedem Öffnen der Seite zugeklappt). Auf Wunsch lädt die Seite einen Wine-Build, den Übersetzer (FEX) und das Battle.net-Setup, jedes von seinem ursprünglichen Herausgeber (zusammen etwa 100 MB, siehe `THIRD_PARTY_NOTICES`).
+
+**Teil A: einmal anmelden (zuerst probieren).** Schritte 1 bis 4 der Seite: Übersetzer laden, Battle.net installieren, Einstellung vornehmen, anmelden. Danach bietet der Startbildschirm **Direkt starten** an: Das Spiel startet wie bisher direkt, das Battle.net-Programm brauchst du dafür nicht mehr. Wird die Anmeldung im Battle.net-Programm ebenfalls abgelehnt, schlägt die App diese Reihenfolge vor:
+
+1. In der Battle.net-App für Android anmelden (dort ist auch dein Authenticator).
+2. Im Browser auf diesem Gerät bei battle.net anmelden.
+3. Im Battle.net-Programm in der App anmelden, am besten mit dem Code per E-Mail. Läuft Battle.net am PC, dort vorher abmelden.
+4. Hilft das nicht: im Battle.net-Programm beim Spiel einmal auf **Installieren** tippen und nach den ersten paar hundert MB abbrechen. Dieser Schritt ist nur eine Vermutung; ob er hilft, ist nicht geprüft, und er belegt Speicher.
+5. Danach das Spiel auf dem Startbildschirm direkt starten. Ein Versuch, nicht wiederholen.
+
+Die Schritte 1 bis 3 haben auf dem Testgerät geholfen, Schritt 4 ist eine Vermutung.
+
+**Teil B: wenn der Direktstart weiter abgelehnt wird (Ausweichweg).** Schritte 5 bis 7: eine Kopie des Spiels, das Spiel im Battle.net-Programm installieren, spielen. Das braucht etwa 50 GB zusätzlichen Speicher, und der Start dauert länger. Danach kannst du unter **Spielen** die Auswahl **Über Battle.net starten** nutzen; sie ist erst möglich, wenn Teil B eingerichtet ist.
+
+**Bitte nicht immer wieder anmelden.** Nach einer Ablehnung warten. Wiederholte Versuche können es verschlimmern.
+
+---
+
 ## Updating the game
 
 WoW Forever v2.0 features a native in-app game updater connected directly to Blizzard's public edge CDNs. **You no longer need a computer or USB cables to keep your game updated.**
@@ -144,6 +167,7 @@ Whenever Blizzard patches the game:
 | *No realms available* / no servers listed | The device client is out of date. Tap **Update** on the launcher setup screen, or restart the app with Wi-Fi enabled. |
 | Keyboard doesn't appear | Force-stop Gboard (Settings → Apps → Gboard → Force stop) and open **Keyboard** again. It can get stuck on the second screen. |
 | Returns to the launcher after "Launching Game…" | Check the files under `_forever_/Errors/` on the device. |
+| Anmeldung scheitert mit `BLZ51914400` („Are you a robot?“) | Der Anbieter lehnt die Anmeldung von diesem Gerät ab. Probiere Teil A der [Battle.net-Seite](#battlenet-seite-experimentell): einmal im Battle.net-Programm anmelden, danach das Spiel direkt starten. Das hilft nicht auf jedem Gerät; die Anmeldung nicht immer wieder wiederholen. |
 | Handheld frontend (e.g. Cocoon) shows the wrong icon | The frontend cached an old icon. Set it with the frontend's "Edit App Artwork", or reinstall the app. |
 
 ---

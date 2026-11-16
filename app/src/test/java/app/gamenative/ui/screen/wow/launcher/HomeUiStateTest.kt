@@ -344,4 +344,66 @@ class HomeUiStateTest {
         assertEquals(UiText.raw(""), freeSpaceSuffix(null))
         assertEquals(UiText.res(R.string.launcher_free_suffix, UiText.res(R.string.launcher_gb, 1.0)), freeSpaceSuffix(1_000_000_000L))
     }
+
+    // --- Startwahl unter "Spielen" (Auftrag startwahl) ---
+
+    @Test
+    fun unknownStartModeLeavesTheHeroAsBefore() {
+        val ui = homeUiState(ready)
+        assertNull(ui.hero.startChoice)
+        assertNull(ui.hero.primary?.subtitle)
+    }
+
+    @Test
+    fun battleNetChoiceMarksTheSelectedEntryAndTheSubtitle() {
+        val e = app.gamenative.lab.EffectiveStart(app.gamenative.lab.StartMode.BATTLENET, app.gamenative.lab.StartSource.CHOSEN)
+        val ui = homeUiState(ready.copy(startMode = e))
+        val choice = ui.hero.startChoice!!
+        // Direkt steht zuerst (Normalweg), Battle.net ist der Ausweichweg.
+        assertEquals(listOf(app.gamenative.lab.StartMode.DIRECT, app.gamenative.lab.StartMode.BATTLENET), choice.options.map { it.mode })
+        assertEquals(listOf(false, true), choice.options.map { it.selected })
+        assertEquals(listOf(UiText.res(R.string.launcher_start_direct), UiText.res(R.string.launcher_start_battlenet)), choice.options.map { it.label })
+        assertEquals(UiText.res(R.string.launcher_play_sub_battlenet), ui.hero.primary?.subtitle)
+        // Der Knopf selbst bleibt "Spielen", dieselbe Aktion, ein einziger Hauptknopf, kein zweiter Textlink.
+        assertEquals(UiText.res(R.string.launcher_play), ui.hero.primary?.text)
+        assertEquals(HeroAction.Play, ui.hero.primary?.action)
+        assertNull(ui.hero.secondary)
+    }
+
+    @Test
+    fun directChoiceMarksBattleNetAsFallbackNotAsRecommended() {
+        for (source in app.gamenative.lab.StartSource.entries) {
+            val e = app.gamenative.lab.EffectiveStart(app.gamenative.lab.StartMode.DIRECT, source)
+            val choice = homeUiState(ready.copy(startMode = e)).hero.startChoice!!
+            assertEquals(listOf(true, false), choice.options.map { it.selected })
+            // Keine Marke "empfohlen" mehr: nur Battle.net trägt die Unterzeile "Ausweichweg".
+            assertEquals(listOf(null, UiText.res(R.string.launcher_start_fallback)), choice.options.map { it.note })
+            assertEquals(UiText.res(R.string.launcher_play_sub_direct), homeUiState(ready.copy(startMode = e)).hero.primary?.subtitle)
+        }
+    }
+
+    @Test
+    fun theSignInTipShowsOnlyWhileStepFourIsNotNoted() {
+        val e = app.gamenative.lab.EffectiveStart(app.gamenative.lab.StartMode.DIRECT, app.gamenative.lab.StartSource.DEFAULT)
+        assertEquals(UiText.res(R.string.launcher_start_tip), homeUiState(ready.copy(startMode = e, startSignInTip = true)).hero.startChoice?.tip)
+        assertNull(homeUiState(ready.copy(startMode = e, startSignInTip = false)).hero.startChoice?.tip)
+        // Das Tipp-Feld macht den Knopf nicht anders: gleiche Aktion, gleiche Unterzeile.
+        assertEquals(
+            homeUiState(ready.copy(startMode = e, startSignInTip = false)).hero.primary,
+            homeUiState(ready.copy(startMode = e, startSignInTip = true)).hero.primary,
+        )
+    }
+
+    @Test
+    fun startChoiceShowsOnlyWhenTheGameCanBePlayed() {
+        val e = app.gamenative.lab.EffectiveStart(app.gamenative.lab.StartMode.DIRECT, app.gamenative.lab.StartSource.DEFAULT)
+        val blocked = listOf(
+            ready.copy(isWrongGame = true, startMode = e),
+            ready.copy(needsInstall = true, startMode = e),
+            ready.copy(hasStorageAccess = false, startMode = e),
+            ready.copy(isLaunching = true, busyText = "x", startMode = e),
+            ready.copy(clientOutdated = true, startMode = e),
+        )
+        for (input in blocked) assertNull(input.toString(), homeUiState(input).hero.startChoice)
+    }
 }

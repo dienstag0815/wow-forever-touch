@@ -22,6 +22,7 @@ This uses Blizzard's own **Windows ARM64** WoW client, so the game itself runs n
 - **This Touch edition adds touch controls:** on-screen sticks, rings and buttons that send normal keyboard and mouse input, plus a small in-game addon that resizes and repositions the game's own interface (action bars, minimap, quest tracker, target frame) for a touch screen. Addons like this use the game's official addon interface.
 - The game client is not modified, and nothing is injected into it or read from its memory. There is no bot or automation: every action comes from your own tap.
 - Your optional saved login stays encrypted on your device only. Depending on the level you choose, the launcher either types it into the game's login screen and you tap Login yourself, or hands it to the game through a short-lived local file so the game signs in by itself. It is never sent anywhere else.
+- **Experimental Battle.net way:** if the sign-in inside the game is refused on your device, an extra page sets up the real Battle.net program so you can sign in there once, with a fallback that starts the game through it. See [Battle.net page (experimental)](#battlenet-page-experimental).
 - Unofficial fan project, not affiliated with or endorsed by Blizzard Entertainment. Use at your own risk; Blizzard's terms of use apply to your account.
 
 ---
@@ -52,7 +53,7 @@ Requirements:
 
 ### 1. Install the app
 
-Download `WoW-Forever.apk` from the [latest release](https://github.com/jaredgei/wow-forever-android/releases/latest) and install it on your device. The app's package name is `app.wowforever`, so it can sit alongside GameNative or Winlator.
+Download `WoW-Forever-Touch-<version>.apk` from the [latest release](https://github.com/dienstag0815/wow-forever-touch/releases/latest) and install it on your device. The app's package name is `app.wowforever`, so it can sit alongside GameNative or Winlator.
 
 This app and the original WoW Forever app share the package name `app.wowforever` but are signed differently, so Android will not install one while the other is installed. Uninstall the other one first; your game files stay on the device.
 
@@ -123,6 +124,28 @@ Once your game files and Battle.net credentials are configured, the app automati
 
 ---
 
+## Battle.net page (experimental)
+
+**What it is for.** On some devices the sign-in inside the game is refused by the provider's servers (an "Are you a robot?" check, error `BLZ51914400`, often right after entering the authenticator code). For this case the app has an extra page that sets up the real **Battle.net program** under Wine on your device, so you can sign in there. It is an **unofficial workaround**, it is marked experimental in this version, and the provider does not support it: you use it at your own risk. On one test device it helped; that is a single report, not a guarantee, and it may not help on yours.
+
+**Where.** Tap **Set up Battle.net** next to **Play** on the home screen. The page opens in a *Simple* view: one sentence on what to do next, one **Continue** button, the steps with check marks and **Help, it does not work**. Everything else sits behind **Advanced** (closed every time the page opens). On request the page downloads a Wine build, the translator (FEX) and the Battle.net setup program, each from its original publisher (about 100 MB in total, see `THIRD_PARTY_NOTICES`).
+
+**Part A: Sign in once (try this first).** Steps 1 to 4 of the page: load the translator, install Battle.net, set up the setting, sign in. Afterwards the home screen offers **Start directly**: the game starts directly, as before, and you do not need the Battle.net program again. If the sign-in in the Battle.net program is refused too, the app suggests this order:
+
+1. Sign in to the Battle.net app for Android (it also holds your authenticator).
+2. Sign in to battle.net in the browser on the same device.
+3. Sign in in the Battle.net program inside the app, preferably with the e-mail code. If Battle.net is running on your PC, sign out there first.
+4. If that does not help: tap **Install** for the game once in the Battle.net program and cancel after the first few hundred MB. This step is only a guess; nobody has checked that it helps, and it uses storage.
+5. Then start the game directly from the home screen. One attempt, do not repeat it.
+
+Steps 1 to 3 helped on the test device; step 4 is a guess.
+
+**Part B: If the direct start is still refused (fallback).** Steps 5 to 7: a copy of the game, the game installed in the Battle.net program, play. This needs about 50 GB of extra storage and starting takes longer. Afterwards you can choose **Start via Battle.net** under **Play**; the choice is only available once part B is set up.
+
+**Please do not sign in again and again.** After a rejection, wait. Repeating the attempt may make it worse.
+
+---
+
 ## Updating the game
 
 WoW Forever v2.0 features a native in-app game updater connected directly to Blizzard's public edge CDNs. **You no longer need a computer or USB cables to keep your game updated.**
@@ -146,6 +169,7 @@ Whenever Blizzard patches the game:
 | *No realms available* / no servers listed | The device client is out of date. Tap **Update** on the launcher setup screen, or restart the app with Wi-Fi enabled. |
 | Keyboard doesn't appear | Force-stop Gboard (Settings → Apps → Gboard → Force stop) and open **Keyboard** again. It can get stuck on the second screen. |
 | Returns to the launcher after "Launching Game…" | Check the files under `_forever_/Errors/` on the device. |
+| Sign-in fails with `BLZ51914400` ("Are you a robot?") | The provider refuses the sign-in from this device. Try part A of the [Battle.net page](#battlenet-page-experimental): sign in once in the Battle.net program, then start the game directly. This may not help on every device; do not repeat the sign-in again and again. |
 | Handheld frontend (e.g. Cocoon) shows the wrong icon | The frontend cached an old icon. Set it with the frontend's "Edit App Artwork", or reinstall the app. |
 
 ---

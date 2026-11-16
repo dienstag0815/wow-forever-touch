@@ -1,5 +1,6 @@
 package app.gamenative.ui.screen.wow.launcher
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -28,6 +29,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.gamenative.BuildConfig
 import app.gamenative.R
+import app.gamenative.lab.LabEntryLogic
+import app.gamenative.lab.LabStore
+import app.gamenative.lab.LabTapState
+import app.gamenative.ui.components.AppText
+import app.gamenative.ui.util.SnackbarManager
 import app.gamenative.report.ErrorReport
 import app.gamenative.ui.screen.wow.ErrorReportSettingRow
 import app.gamenative.ui.screen.wow.ProblemReportDialog
@@ -64,7 +70,10 @@ internal fun HelpPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () -
     val context = LocalContext.current
     val summary = s.readiness()
     val errorMessage = s.errorMessage
-    val plan = remember(errorMessage != null) { helpPlan(errorMessage != null) }
+    // Battle.net-Labor: siebenmal auf die Versionszeile tippen schaltet den Eintrag frei (gemerkt, im Labor abschaltbar).
+    var labOn by remember { mutableStateOf(LabStore.entryEnabled(context)) }
+    var labTaps by remember { mutableStateOf(LabTapState()) }
+    val plan = remember(errorMessage != null, labOn) { helpPlan(errorMessage != null, labOn) }
     var detailId by remember { mutableStateOf<String?>(null) }
     var reportNote by remember { mutableStateOf<String?>(null) }
     var askProblem by remember { mutableStateOf(false) }
@@ -124,7 +133,23 @@ internal fun HelpPage(s: LauncherHomeState, a: LauncherHomeActions, onBack: () -
                     enabled = !updateBusy,
                 ) { UpdateManager.checkManually(context) }
                 CardActionRow(stringResource(R.string.launcher_help_about_app), stringResource(R.string.launcher_open)) { a.onOpenPage(LauncherPage.About) }
-                CardText(UiText.res(R.string.launcher_help_check_line, UpdateLogic.checkLine(phase, BuildConfig.VERSION_NAME)).asString(), 3)
+                CardActionRow(stringResource(R.string.lab_help_open_row), stringResource(R.string.launcher_open)) { a.onOpenLab() }
+                if (labOn) CardActionRow(stringResource(R.string.lab_entry_title), stringResource(R.string.launcher_open)) { a.onOpenLab() }
+                CardText(
+                    UiText.res(R.string.launcher_help_check_line, UpdateLogic.checkLine(phase, BuildConfig.VERSION_NAME)).asString(),
+                    if (labOn) 1 else 3,
+                    modifier = Modifier.clickable(interactionSource = null, indication = null) {
+                        if (!labOn) {
+                            val step = LabEntryLogic.tap(labTaps, System.currentTimeMillis())
+                            labTaps = step.state
+                            if (step.unlocked) {
+                                LabStore.setEntryEnabled(context, true)
+                                labOn = true
+                                SnackbarManager.show(AppText.get(R.string.lab_entry_unlocked))
+                            }
+                        }
+                    },
+                )
             },
         )
     }

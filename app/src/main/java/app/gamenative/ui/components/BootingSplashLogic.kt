@@ -2,6 +2,7 @@ package app.gamenative.ui.components
 
 import androidx.annotation.StringRes
 import app.gamenative.R
+import app.gamenative.lab.LabIds
 
 /**
  * Reine Logik des Startbildschirms (ohne Android): Zuordnung der Splash-Texte zu den Stufen, Stufenreihenfolge,
@@ -90,4 +91,42 @@ object BootingSplashLogic {
         add(TextRef(R.string.game_boot_tip_first))
         if (gamepadConnected) add(TextRef(R.string.game_boot_tip_pad))
     }
+}
+
+/** Titelzeilen der Ladeanzeige; [sub] null = keine zweite Zeile. */
+data class SplashTitle(val main: String, val sub: String?)
+
+/**
+ * Ladeanzeige je Container (reine Logik). Das Spiel zeigt alle Stufen und blendet erst aus, wenn sein Fenster erscheint (MainViewModel).
+ * Der Container des Battle.net-Labors (`bnetlab`) zeigt nur die Stufen bis zum Grafiktreiber und dann "Programm wird gestartet"; mit
+ * dem Schritt, in dem der Startbefehl abgesetzt wird, verschwindet die Anzeige, damit das Windows-Fenster sichtbar ist.
+ */
+object BootingSplashContainer {
+    fun isLab(containerId: String?): Boolean = containerId == LabIds.CONTAINER_ID
+
+    /** Die angezeigten Stufen: Spiel alle, Labor ohne "Anmeldung" (die letzte Stufe heißt dort "Programm wird gestartet"). */
+    fun steps(containerId: String?): List<BootStage> =
+        if (isLab(containerId)) listOf(BootStage.Environment, BootStage.Wine, BootStage.Graphics, BootStage.Launch) else BootStage.values().toList()
+
+    @StringRes
+    fun stepLabel(step: BootStage, containerId: String?): Int =
+        if (isLab(containerId) && step == BootStage.Launch) R.string.game_boot_stage_program else step.labelRes
+
+    fun title(containerId: String?): SplashTitle =
+        if (isLab(containerId)) SplashTitle("Battle.net Lab", null) else SplashTitle("WORLD OF WARCRAFT", "Forever · Touch")
+
+    /** Detailzeile: im Labor statt der Spieltexte "Programm wird gestartet …". */
+    fun detail(containerId: String?, info: BootInfo): TextRef =
+        if (isLab(containerId) && (info.detail.res == R.string.game_boot_start || info.detail.res == R.string.game_boot_launch)) {
+            TextRef(R.string.game_boot_program)
+        } else {
+            info.detail
+        }
+
+    /**
+     * Anzeige sichtbar? [showRequested] = Zustand des Haupt-Bildschirms. Im Labor verschwindet sie, sobald der Text der Stufe
+     * "Launch" (Startbefehl wird abgesetzt) gesetzt ist; für das Spiel gilt allein [showRequested].
+     */
+    fun isVisible(containerId: String?, showRequested: Boolean, text: String?): Boolean =
+        showRequested && !(isLab(containerId) && BootingSplashLogic.classify(text).stage == BootStage.Launch)
 }

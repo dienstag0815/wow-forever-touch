@@ -24,10 +24,12 @@
     <string name="game_boot_graphics">Loading graphics drivers …</string>
     <string name="game_boot_launch">Starting the game …</string>
     <string name="game_boot_prefix">Migrating Wine prefix …</string>
+    <string name="game_boot_program">Starting the program …</string>
     <string name="game_boot_stage_env">Prepare environment</string>
     <string name="game_boot_stage_graphics">Load graphics driver</string>
     <string name="game_boot_stage_launch">WoW is starting</string>
     <string name="game_boot_stage_login">Login</string>
+    <string name="game_boot_stage_program">Starting program</string>
     <string name="game_boot_stage_wine">Set up Windows layer (Wine)</string>
     <string name="game_boot_start">Starting WoW …</string>
     <string name="game_boot_tip_first">The first start after an update takes longer because the Wine base is rebuilt.</string>
@@ -533,6 +535,8 @@
     <string name="game_voice_set_log_desc">The last recognised words, on this device only</string>
     <string name="game_voice_set_show">Show</string>
     <string name="game_voice_set_umlauts">Umlauts</string>
+    <string name="game_voice_set_umlauts_direct">Write umlauts as real characters</string>
+    <string name="game_voice_set_umlauts_direct_desc">Off: ae, oe, ue instead. That always works.</string>
     <string name="game_voice_set_umlauts_desc">Direct types ä, ö, ü; transcribing makes ae, oe, ue and always works</string>
     <string name="game_voice_set_words">Own words (guild, names), separated by commas</string>
     <string name="game_voice_title">Voice</string>

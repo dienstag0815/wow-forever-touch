@@ -67,6 +67,10 @@ internal data class LauncherHomeState(
     val inputModeLabel: String,
     /** Ein Fenster liegt über der Startseite (Einstellungen, Addons, Seite, Info); das Update-Banner wartet dann. */
     val homeCovered: Boolean = false,
+    /** Wirksame Startart (Wahl „Über Battle.net“ / „Direkt“); null = noch nicht ermittelt. */
+    val startMode: app.gamenative.lab.EffectiveStart? = null,
+    /** Schritt 4 der Anleitung nicht gemerkt: die Startseite zeigt die Tipp-Zeile zur einmaligen Anmeldung. */
+    val startSignInTip: Boolean = false,
 )
 
 internal data class LauncherHomeActions(
@@ -84,6 +88,12 @@ internal data class LauncherHomeActions(
     val onRefresh: () -> Unit,
     /** Öffnet eine Vollbildseite (Kachel, Pille oder Fußzeile); der Launcher-Bildschirm hält den Zustand. */
     val onOpenPage: (LauncherPage) -> Unit,
+    /** Öffnet das Battle.net-Labor (nur sichtbar, wenn auf der Hilfeseite freigeschaltet). */
+    val onOpenLab: () -> Unit = {},
+    /** Tipp auf „Einrichten“ in der Startwahl: öffnet die Battle.net-Seite. */
+    val onSetup: () -> Unit = {},
+    /** Der Nutzer tippt einen Eintrag der Startwahl unter „Spielen“ (die Rückfrage bei „Direkt“ hält der Launcher-Bildschirm). */
+    val onStartMode: (app.gamenative.lab.StartMode) -> Unit = {},
 )
 
 /** Der Launcher-Zustand als Eingabe der reinen Startseiten-Logik (siehe launcher/HomeUiState.kt). */
@@ -117,6 +127,8 @@ internal fun LauncherHomeState.toHomeInput(
     launcherUpdateOffered = launcherUpdateOffered,
     whatsNewPending = whatsNewPending,
     readinessOpen = readinessOpen,
+    startMode = startMode,
+    startSignInTip = startSignInTip,
 )
 
 /** Die Bereitschaftsliste (Zustand der Dateien, Anmeldung, Client) als Zusammenfassung; Startseite und Hilfe nutzen sie. */
@@ -234,6 +246,8 @@ internal fun LauncherHome(s: LauncherHomeState, a: LauncherHomeActions, artOverr
                     art = art,
                     onAction = onHero,
                     onCancelCountdown = a.onCancelCountdown,
+                    onStartMode = a.onStartMode,
+                    onSetup = a.onSetup,
                     modifier = mod,
                     density = m.density,
                 )

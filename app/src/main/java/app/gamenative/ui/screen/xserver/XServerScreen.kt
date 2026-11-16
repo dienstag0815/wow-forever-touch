@@ -921,6 +921,8 @@ fun XServerScreen(
     }
 
     fun startExitWatchForUnmappedGameWindow(window: Window) {
+        // Battle.net-Labor: kein Wächter (ein Installer schließt sein Fenster und startet ein anderes Programm).
+        if (!app.gamenative.lab.LabGuard.exitWatchAllowed(container.id)) return
         val winHandler = xServerView?.getxServer()?.winHandler ?: return
         if (exitWatchJob?.isActive == true) return
         val targetExecutable = extractExecutableBasename(
@@ -2784,7 +2786,9 @@ fun XServerScreen(
         }
 
         // Stufe "Ausfüllen": Knopf "Anmeldedaten ausfüllen" im Anmeldebildschirm (nicht in der Welt, nicht bei offenem Seitenmenü).
-        app.gamenative.ui.screen.wow.LoginFillButton(menuOpen = showQuickMenu)
+        app.gamenative.ui.screen.wow.LoginFillButton(menuOpen = showQuickMenu, containerId = container.id)
+        // Battle.net-Labor: Tastenleiste und Eingabe-Diagnose; für jeden anderen Container zeichnet und tut sie nichts.
+        app.gamenative.ui.screen.wow.lab.LabKeyBar(containerId = container.id)
 
         QuickMenu(
             isVisible = showQuickMenu,
@@ -3606,6 +3610,10 @@ private fun setupXEnvironment(
             logFile?.appendText(line + "\n")
         }
     }
+    // Battle.net-Labor: Wines Ausgabe ins Protokoll (nur für den Container "bnetlab", sonst nichts).
+    app.gamenative.lab.LabRun.attachOutput(container.id)
+    // Gespeicherte Zugangsdaten werden im Container bnetlab nie getippt (Sperre in LoginGuard; gilt für jeden Start, auch für das Spiel).
+    app.gamenative.ui.screen.wow.LoginGuard.setActiveContainer(container.id)
 
     val rootPath = imageFs.getRootDir().getPath()
     FileUtils.clear(imageFs.getTmpDir())
@@ -3633,6 +3641,12 @@ private fun setupXEnvironment(
             getWineStartCommand(context, appId, container, envVars, guestProgramLauncherComponent) +
             (if (container.execArgs.isNotEmpty()) " " + container.execArgs else "")
         guestProgramLauncherComponent.guestExecutable = gameExecutable
+        // Battle.net-Labor: die fertige Startzeile ins Protokoll (für andere Container wirkungslos).
+        try {
+            app.gamenative.lab.LabRun.appendSection(container.id, "Guest executable", listOf("Guest executable: $gameExecutable"))
+        } catch (e: Exception) {
+            Timber.w(e, "Lab: guest executable not logged")
+        }
         guestProgramLauncherComponent.isWoW64Mode = wow64Mode
         // Set steam type for selecting appropriate box64rc
         guestProgramLauncherComponent.setSteamType(container.getSteamType())
@@ -3758,6 +3772,7 @@ private fun setupXEnvironment(
             Timber.e("Guest program terminated with status: $status")
             onGameLaunchError?.invoke("Game terminated with error status: $status")
         }
+        app.gamenative.lab.LabRun.onTerminated(container.id, status)
         PluviaApp.events.emit(AndroidEvent.GuestProgramTerminated)
     }
 
@@ -3835,7 +3850,7 @@ private fun getWineStartCommand(
         }
     }
 
-    val args = if (ContainerUtils.isAbsoluteWindowsPath(executablePath)) {
+    return if (ContainerUtils.isAbsoluteWindowsPath(executablePath)) {
         val driveLetter = executablePath.substring(0, 1).uppercase()
         var driveHostPath: String? = null
         for (drive in Container.drivesIterator(container.drives)) {
@@ -3852,12 +3867,8 @@ private fun getWineStartCommand(
                 guestProgramLauncherComponent.workingDir = hostDir
             }
         }
-        val isArm64 = executablePath.contains("ARM64", ignoreCase = true)
-        if (isArm64) {
-            if (executablePath.contains(" ")) "\"$executablePath\"" else executablePath
-        } else {
-            "winhandler.exe \"$executablePath\""
-        }
+        // Battle.net-Labor: direkter Start ohne winhandler.exe (wie das ARM64-Programm des Spiels); für alle anderen Container false.
+        WineStartLine.compose(executablePath, absolute = true, direct = app.gamenative.lab.LabRun.startsDirect(container.id))
     } else {
         if (gameFolderPath == null) {
             Timber.tag("XServerScreen").e("Could not find A: drive: $appId")
@@ -3867,12 +3878,9 @@ private fun getWineStartCommand(
         val executableDir = gameFolderPath + "/" + executablePath.substringBeforeLast("/", "")
         guestProgramLauncherComponent.workingDir = File(executableDir)
 
-        val normalizedPath = executablePath.replace('/', '\\')
         envVars.put("WINEPATH", "A:\\")
-        "\"A:\\${normalizedPath}\""
+        WineStartLine.compose(executablePath, absolute = false)
     }
-
-    return if (args.contains("ARM64", ignoreCase = true)) args else "winhandler.exe $args"
 }
 private fun exit(
     winHandler: WinHandler?,
@@ -3890,6 +3898,7 @@ private fun exit(
         return
     }
     app.gamenative.report.LoginJournalRecorder.gameEnded(reason)
+    app.gamenative.lab.LabRun.onExit(container.id, reason)
 
     // Store session data in container metadata
     frameRating?.let { rating ->
@@ -4076,6 +4085,8 @@ private suspend fun setupWineSystemFiles(
     // Own stable machine identity (MachineGuid, computer name, volume serial) in the WoW prefix. After
     // everything above, so refreshSkeleton / component extraction can never leave the shared defaults.
     MachineIdentityApply.applyToContainer(context, container)
+    // Battle.net-Labor (nur Container "bnetlab"): dieselbe Kennung im Labor-Prefix, siehe lab/LabIdentity.kt.
+    app.gamenative.lab.LabIdentityHook.apply(context, container)
 
     if (containerDataChanged) container.saveData()
 }

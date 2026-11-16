@@ -38,6 +38,36 @@ the binary.
 
 ---
 
+## Packages the app downloads on request (not bundled)
+
+The experimental Battle.net page can download the packages below, but only when
+you ask for it. They are **not part of the APK** and this project does not host or
+redistribute them: the app fetches each file from the address of its original
+publisher, checks the SHA-256 value recorded in
+`app/src/main/assets/bnetlab_pakete.json` (for the Battle.net setup program: the
+digital signature instead) and stores it in the app's private folder. The links
+point to a fixed version (a release or a commit), so the checked file does not
+change underneath.
+
+| Package | License | Original publisher and source |
+|---|---|---|
+| Wine / GE-Proton 10.0-34 (ARM64EC build, `GE-proton-10.0-34-arm64ec.wcp`) | Wine: LGPL-2.1+; Proton and GE parts carry their own licenses (`COPYING.LIB`, `LICENSE`, `LICENSE.OLD` in the source repository) | Build project https://github.com/The412Banner/proton-wine, release `build-bionic-layers-20260911-xp` (a fork of https://github.com/GameNative/proton-wine, which is a fork of https://github.com/ValveSoftware/wine). The corresponding source is in that repository. |
+| FEXCore DLLs `fexcore-2508` (`libarm64ecfex.dll`, `libwow64fex.dll`) | MIT (FEX); the build project is MIT as well | Built by https://github.com/ashmerra/wehavephones (commit `a7ab99be`) from FEX revision `1268a391` (`FEX-2601-116-g1268a39`), https://github.com/FEX-Emu/FEX |
+| FEXCore DLLs `fexcore-2605` | MIT (FEX); the repository that hosts the file is GPL-3.0 | https://github.com/utkarshdalal/GameNative (commit `75326dc8`). The exact FEX revision of this binary is not documented there. |
+| Battle.net setup program (`Battle.net-Setup.exe`) | Proprietary (Blizzard Entertainment) | Loaded only from Blizzard's own download address on your device; never stored in this repository and never passed on. Your use is covered by Blizzard's terms. |
+
+"Battle.net" and "Blizzard" are trademarks of their owners. This project is
+unofficial and not affiliated with or endorsed by them. Using the Battle.net
+program through this app is outside what the publisher supports and is at your
+own risk.
+
+The Wine, Proton and FEX binaries are downloaded and used on the device; the
+blanket offer in "Availability of Source for Copyleft Components" above covers
+what this project itself distributes. For the downloaded LGPL parts, the source is
+available from the publishers named in the table.
+
+---
+
 ## libredirect.so (Proprietary)
 
 **Component:** `libredirect.so`

@@ -24,10 +24,12 @@
     <string name="game_boot_graphics">Grafiktreiber werden geladen …</string>
     <string name="game_boot_launch">Spiel wird gestartet …</string>
     <string name="game_boot_prefix">Wine-Präfix wird übernommen …</string>
+    <string name="game_boot_program">Programm wird gestartet …</string>
     <string name="game_boot_stage_env">Umgebung vorbereiten</string>
     <string name="game_boot_stage_graphics">Grafiktreiber laden</string>
     <string name="game_boot_stage_launch">WoW startet</string>
     <string name="game_boot_stage_login">Anmeldung</string>
+    <string name="game_boot_stage_program">Programm wird gestartet</string>
     <string name="game_boot_stage_wine">Windows-Schicht (Wine) einrichten</string>
     <string name="game_boot_start">WoW wird gestartet …</string>
     <string name="game_boot_tip_first">Der erste Start nach einem Update dauert länger, weil die Wine-Grundlage neu aufgebaut wird.</string>
@@ -533,6 +535,8 @@
     <string name="game_voice_set_log_desc">Die letzten erkannten Wörter, nur auf diesem Gerät</string>
     <string name="game_voice_set_show">Anzeigen</string>
     <string name="game_voice_set_umlauts">Umlaute</string>
+    <string name="game_voice_set_umlauts_direct">Umlaute als echte Zeichen (ä ö ü)</string>
+    <string name="game_voice_set_umlauts_direct_desc">Aus: stattdessen ae, oe, ue. Das klappt immer.</string>
     <string name="game_voice_set_umlauts_desc">Direkt schreibt ä, ö, ü; Umschreiben macht ae, oe, ue und geht immer</string>
     <string name="game_voice_set_words">Eigene Wörter (Gilde, Namen), mit Komma getrennt</string>
     <string name="game_voice_title">Sprache</string>

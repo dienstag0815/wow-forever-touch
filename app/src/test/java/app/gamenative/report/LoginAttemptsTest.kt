@@ -283,4 +283,108 @@ class LoginAttemptsTest {
         assertNull(LoginAttempts.blzName(5))
         assertNull(LoginAttempts.blzName(123456))
     }
+
+    /** Der echte Ablauf aus dem Fehlerbericht touch9.19: Connection.log unverändert (ohne Kontodaten), Authenticator verlangt, Code nach 41.9 s gesendet, 0.2 s später abgelehnt. */
+    private val realAuthenticator = """
+11/15 07:59:50.193  [N][Connection] Client connection initialized
+11/15 07:59:57.634  [N][Connection] Battle.net services startup requested hasFrontInterface="false" hasBackInterface="false"
+11/15 08:00:04.273  [N][Connection] Glue login started loginType="(enum)0" launcherPortal="nullopt" loginPortal="EU.actual.battle.net:1119"
+11/15 08:00:04.273  [N][Connection] Glue login state reset requested
+11/15 08:00:04.273  [N][Connection] Battle.net login session initialization requested
+11/15 08:00:04.274  [N][Connection] Battle.net logon requested host="EU.actual.battle.net" port="1119"
+11/15 08:00:04.322  [N][Connection] Battle.net login waiting for server response
+11/15 08:00:04.840  [N][Connection] Battle.net front connected connectionId="1" title_id="5730135" platform="WinA" locale="enUS" usedToken="false"
+11/15 08:00:04.840  [N][Connection] Battle.net login waiting for server response
+11/15 08:00:04.936  [N][Connection] Battle.net logon queue update received position="2" estimatedQueueExitTime="1794726005"
+11/15 08:00:04.936  [N][Connection] Battle.net logon queue updated
+11/15 08:00:04.937  [N][Connection] Battle.net logon response received result="ERROR_OK (0)"
+11/15 08:00:05.269  [N][Connection] Battle.net external challenge received usedSSO="false" hasPayload="true"
+11/15 08:00:05.269  [N][Connection] Battle.net logon form requested
+11/15 08:00:05.269  [N][Connection] Battle.net login waiting for server response
+11/15 08:00:05.672  [N][Connection] Battle.net logon form received result="ERROR_OK (0)" hasCaptcha="false"
+11/15 08:00:05.672  [N][Connection] Battle.net logon form submission requested
+11/15 08:00:05.689  [N][Connection] Battle.net login waiting for server response
+11/15 08:00:05.808  [N][Connection] Battle.net SRP endpoint response received result="ERROR_OK (0)"
+11/15 08:00:05.808  [N][Connection] Battle.net login waiting for server response
+11/15 08:00:05.840  [N][Connection] Battle.net login waiting for server response
+11/15 08:00:05.976  [N][Connection] Battle.net logon form submission response received result="ERROR_OK (0)" authenticatorRequired="true" legalRequired="false"
+11/15 08:00:05.976  [N][Connection] Battle.net login requires additional info infoType="(enum)2"
+11/15 08:00:47.910  [N][Connection] Battle.net authenticator challenge submission requested
+11/15 08:00:48.109  [N][Connection] Battle.net logon form submission response received result="Status has no name. (14400)" authenticatorRequired="false" legalRequired="false"
+11/15 08:00:48.109  [N][Connection] Fatal login error received result="Status has no name. (14400)"
+11/15 08:00:48.118  [N][Connection] Battle.net front disconnect deferred
+11/15 08:00:48.118  [N][Connection] Battle.net front disconnecting connectionId="1"
+11/15 08:00:48.118  [N][Connection] Battle.net authentication server disconnect started
+11/15 08:00:48.308  [N][Connection] Battle.net front disconnected connectionId="1" reason="ERROR_NETWORK_MODULE_SOCKET_CLOSED (1016)"
+11/15 08:00:48.308  [N][Connection] Battle.net authentication server disconnected
+11/15 08:00:48.308  [N][Connection] Battle.net login session destroy requested isInitialized="true"
+11/15 08:00:55.060  [N][Connection] Login error state cleared from glue script
+11/15 08:00:56.081  [N][Connection] Battle.net login session destroy requested isInitialized="false"
+11/15 08:00:56.912  [N][Connection] Battle.net services shutdown requested
+11/15 08:00:58.069  [N][Connection] Client connection destroyed
+11/15 08:00:58.069  [N][Connection] Disconnect requested reason="(enum)13"
+"""
+
+    @Test
+    fun realAuthenticatorRejectionIsTheAuthenticatorStep() {
+        val a = LoginAttempts.parse(realAuthenticator).single()
+        assertEquals(1, a.run)
+        assertEquals(AttemptResult.Error(14400), a.result)
+        assertEquals(true, a.authenticatorRequired)
+        assertEquals(LoginStep.AUTHENTICATOR, a.step)
+        assertTrue(a.stepFailed)
+        assertEquals(41_934L, a.codeAfterMs)
+        assertEquals(199L, a.answerAfterMs)
+        assertEquals(43_836L, a.durationMs)
+        assertEquals("(enum)2", a.infoType)
+        assertEquals(true, a.codeSent)
+        val short = LoginAttempts.attemptShort(a)
+        assertTrue(short, short.contains("authenticatorRequired true | error 14400 (BLZ51914400) | 43.8 s | step authenticator failed +43.8 s (code after 41.9 s, answer after 0.2 s)"))
+        assertTrue(LoginAttempts.headerLine(LoginAttempts.stats(listOf(a))), LoginAttempts.headerLine(LoginAttempts.stats(listOf(a))).endsWith("authenticator asked x1, code sent x1, rejected after code x1"))
+    }
+
+    @Test
+    fun authenticatorStaysRequiredWhenALaterLineSaysFalseAndSuccessAfterCodeIsNoFailure() {
+        // Angenommen: die Erfolgszeilen nach der Code-Abgabe folgen dem bekannten Erfolgsablauf (das Format ist nicht belegt).
+        val before = realAuthenticator.lines().takeWhile { !it.contains("14400") }
+        val after = listOf(
+            line("11/15 08:00:48.109", "Battle.net logon form submission response received result=\"ERROR_OK (0)\" authenticatorRequired=\"false\" legalRequired=\"false\""),
+            line("11/15 08:00:48.200", "Battle.net logon completed result=\"ERROR_OK (0)\" numGameAccounts=\"1\""),
+        )
+        val a = LoginAttempts.parse((before + after).joinToString("\n")).single()
+        assertEquals(AttemptResult.Success, a.result)
+        assertEquals(true, a.authenticatorRequired)
+        assertFalse(a.stepFailed)
+        assertEquals(true, a.codeSent)
+        assertEquals(199L, a.answerAfterMs)
+    }
+
+    @Test
+    fun authenticatorRequiredWithoutCodeIsNoCodeSent() {
+        val log = init("11/15 08:00:00.000") + "\n" + attempt("11/15", "08:00:04.273", "08:00:05.976", "open", auth = "true")
+        val a = LoginAttempts.parse(log).single()
+        assertEquals(true, a.authenticatorRequired)
+        assertEquals(false, a.codeSent)
+        assertNull(a.codeAfterMs)
+        assertTrue(LoginAttempts.attemptLine(a).contains("no code sent"))
+    }
+
+    @Test
+    fun rejectionBeforeAnyCodeStaysFormSubmission() {
+        val log = init("11/15 08:00:00.000") + "\n" + attempt("11/15", "08:00:04.273", "08:00:05.976", "14400", auth = "false")
+        val a = LoginAttempts.parse(log).single()
+        assertEquals(LoginStep.FORM_SUBMISSION, a.step)
+        assertTrue(a.stepFailed)
+        assertNull(a.codeSent)
+        assertFalse(LoginAttempts.attemptLine(a).contains("step authenticator"))
+        assertTrue(LoginAttempts.attemptLine(a).contains("step form_submission failed"))
+    }
+
+    @Test
+    fun unknownInfoTypeValueShowsQuestionMark() {
+        val a = LoginAttempts.parse(realAuthenticator.replace("infoType=\"(enum)2\"", "infoType=\"(enum)1234\"")).single()
+        assertEquals("?", a.infoType)
+        assertTrue(LoginAttempts.attemptLine(a).contains("infoType ?"))
+    }
+
 }

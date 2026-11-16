@@ -77,6 +77,7 @@ fun BootingSplash(
     visible: Boolean = true,
     text: String = BootingSplashLogic.TEXT_START,
     progress: Float = -1f,
+    containerId: String? = null,
     onAbort: (() -> Unit)? = null,
 ) {
     if (visible && onAbort != null) {
@@ -158,8 +159,9 @@ fun BootingSplash(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 28.dp, vertical = 24.dp),
             ) {
+                val title = BootingSplashContainer.title(containerId)
                 Text(
-                    text = "WORLD OF WARCRAFT",
+                    text = title.main,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black,
                     fontFamily = FontFamily.Serif,
@@ -167,13 +169,15 @@ fun BootingSplash(
                     color = TitleLight,
                     textAlign = TextAlign.Center,
                 )
-                Text(
-                    text = "Forever · Touch",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = WowGold,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+                if (title.sub != null) {
+                    Text(
+                        text = title.sub,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = WowGold,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -190,15 +194,18 @@ fun BootingSplash(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
-                    BootStage.values().forEach { step ->
-                        StepRow(step = step, state = BootingSplashLogic.stepState(step, shown))
+                    BootingSplashContainer.steps(containerId).forEach { step ->
+                        StepRow(
+                            label = stringResource(BootingSplashContainer.stepLabel(step, containerId)),
+                            state = BootingSplashLogic.stepState(step, shown),
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = info.detail.asString(),
+                    text = BootingSplashContainer.detail(containerId, info).asString(),
                     fontSize = 12.sp,
                     color = WowMuted,
                     textAlign = TextAlign.Center,
@@ -263,7 +270,7 @@ private fun isGamepadConnected(): Boolean =
     }
 
 @Composable
-private fun StepRow(step: BootStage, state: BootingSplashLogic.StepState) {
+private fun StepRow(label: String, state: BootingSplashLogic.StepState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
             when (state) {
@@ -287,7 +294,7 @@ private fun StepRow(step: BootStage, state: BootingSplashLogic.StepState) {
         }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = stringResource(step.labelRes),
+            text = label,
             fontSize = 14.sp,
             fontWeight = if (state == BootingSplashLogic.StepState.Active) FontWeight.SemiBold else FontWeight.Normal,
             color = when (state) {

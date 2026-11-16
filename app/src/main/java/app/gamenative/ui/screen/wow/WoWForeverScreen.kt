@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -132,6 +133,11 @@ fun WoWForeverScreen(
     var launcherPage by remember { mutableStateOf<LauncherPage?>(null) }
     // "Über" liegt noch eine Ebene darüber (Fußzeile oder Hilfe), Zurück führt dorthin zurück.
     var showAbout by remember { mutableStateOf(false) }
+    // Battle.net-Labor (versteckt, Hilfeseite): eigene Seite über der Hilfe, siehe lab/BnetLabPage.kt.
+    // rememberSaveable: nach einem Labor-Lauf (der X-Server-Bildschirm liegt dazwischen) kehrt die App zur Labor-Seite zurück.
+    var showLab by rememberSaveable { mutableStateOf(false) }
+    // Startwahl unter "Spielen": über Battle.net oder direkt (lab/StartChoiceHost.kt). Der Direktstart bleibt startLaunch, unverändert.
+    val startChoice = app.gamenative.ui.screen.wow.lab.rememberStartChoice(onLaunch = onLaunch, openLab = { showLab = true })
     var graphicsPreset by remember { mutableStateOf(GraphicsPreset.current(context)) }
     var showLoginDialog by remember { mutableStateOf(false) }
     val readyStatus = stringResource(R.string.game_status_ready)
@@ -196,6 +202,11 @@ fun WoWForeverScreen(
 
     fun startLaunch(ignoreFold: Boolean, ignoreStartCheck: Boolean = false) {
         if (isLaunching || files.isWrongGame) return
+        if (!app.gamenative.lab.LabGuard.gameMayStart(app.gamenative.lab.LabRun.isActive())) {
+            // Ein Versuch des Battle.net-Labors läuft noch: das Spiel startet nicht, bis er beendet ist.
+            errorMessage = context.getString(R.string.lab_blocks_game)
+            return
+        }
         if (!files.hasStorageAccess) {
             showStoragePermissionDialog = true
             return
@@ -456,8 +467,10 @@ fun WoWForeverScreen(
         val total = autoStartSeconds
         var left = total
         var holdMs = 0
+        // Der Countdown startet nur den Direktstart; ist der Battle.net-Weg gewählt, startet beim Öffnen der App nichts von selbst.
+        val startAllowed = startChoice.autoStartAllowed()
         fun input() = AutoStartInput(
-            enabled = autoStartOn,
+            enabled = autoStartOn && startAllowed,
             launcherUpdateOffered = app.gamenative.update.UpdateManager.state.value.let {
                 it is app.gamenative.update.UpdateState.Available || it is app.gamenative.update.UpdateState.Downloading ||
                     it is app.gamenative.update.UpdateState.Installing
@@ -568,13 +581,15 @@ fun WoWForeverScreen(
         resolutionLabel = resolution.label,
         fpsLabel = fpsLimit.label,
         inputModeLabel = inputModeText,
-        homeCovered = launcherPage != null || showSettings || showAddons || showAbout,
+        homeCovered = launcherPage != null || showSettings || showAddons || showAbout || showLab,
+        startMode = startChoice.effective,
+        startSignInTip = startChoice.signInTip,
     )
     val homeActions = LauncherHomeActions(
         onPlay = {
             // Ein Tipp auf "Spielen" ersetzt den Countdown durch den normalen Start.
             if (autoUi is AutoStartUi.Counting) autoUi = AutoStartUi.Stopped(AutoStartBlock.PlayedNow)
-            launchGame()
+            startChoice.play(direct = ::launchGame)
         },
         onCancelCountdown = { autoUi = AutoStartUi.Stopped(AutoStartBlock.UserStopped) },
         onInstall = ::performInstall,
@@ -616,6 +631,9 @@ fun WoWForeverScreen(
                 else -> launcherPage = page
             }
         },
+        onOpenLab = { showLab = true },
+        onSetup = { startChoice.openSetup() },
+        onStartMode = { startChoice.choose(it) },
     )
     // Einstellungsseite und die Kachel "Touch-Layout" (nur die Gruppe Steuerung) teilen Werte und Aktionen.
     val settingsValues = LauncherSettingsValues(
@@ -696,7 +714,17 @@ fun WoWForeverScreen(
         if (showAbout) {
             AboutPage(onBack = { showAbout = false })
         }
+        if (showLab) {
+            app.gamenative.ui.screen.wow.lab.BnetLabPage(
+                onBack = { showLab = false; startChoice.guideClosed() },
+                onLaunch = onLaunch,
+                startNote = startChoice.guideNote,
+                startPartB = startChoice.guidePartB,
+            )
+        }
     }
+
+    app.gamenative.ui.screen.wow.lab.StartChoiceDialogs(startChoice)
 
     if (showLoginDialog) {
         // Freiwillig aus den Einstellungen: Überspringen oder Speichern startet nichts von selbst.

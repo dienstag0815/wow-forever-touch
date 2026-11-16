@@ -34,6 +34,7 @@ class PageGridTest {
             add("Neuigkeiten neu=$whatsNew update=$offer versionen=$versions" to newsPlan(whatsNew, offer, versions))
         }
         for (error in listOf(false, true)) add("Hilfe Meldung=$error" to helpPlan(error))
+        for (error in listOf(false, true)) add("Hilfe mit Labor Meldung=$error" to helpPlan(error, labEntry = true))
         add("Über" to aboutPlan())
     }
 
@@ -173,7 +174,9 @@ class PageGridTest {
     fun theSettingsOverviewKeepsEveryGroupReachable() {
         // Einstellungen: fünf Karten nach Bedeutung; die zwei höchsten (Spiel, Start und Updates) stehen nebeneinander,
         // die niedrigste (Hilfe) steht hochkant allein in der letzten Reihe
-        assertEquals(listOf("game", "start", "control", "app", "help"), settingsPlan().map { it.id })
+        assertEquals(listOf("game", "easystart", "advanced"), settingsPlan().map { it.id })
+        assertEquals(listOf("game", "easystart", "advanced", "start", "control", "app", "help", "gamefold"), settingsPlan(advancedOpen = true).map { it.id })
+        assertEquals(SPAN_ALL, settingsPlan().sizeOf("advanced").span)
         // Steuerung: Modus, je Gruppe im Seitenmenü eine Karte, dazu die Karte für die Spiel-Einstellungen
         val control = controlPlan(LauncherTexts.CONTROL_HINT_GROUPS.size).map { it.id }
         assertEquals("mode", control.first())
@@ -186,20 +189,32 @@ class PageGridTest {
         val sizes = settingsPlan().sizes()
         val wide = pageGrid(840f, 760f, sizes)
         assertEquals(3, wide.columns)
-        assertEquals(listOf(listOf(0, 1, 2), listOf(3, 4)), wide.rows)
+        assertEquals(listOf(listOf(0, 1), listOf(2)), wide.rows)
         assertTrue(wide.fits)
         val tall = pageGrid(760f, 840f, sizes)
         assertEquals(2, tall.columns)
-        assertEquals(listOf(listOf(0, 1), listOf(2, 3), listOf(4)), tall.rows)
+        assertEquals(listOf(listOf(0, 1), listOf(2)), tall.rows)
         assertTrue(tall.fits)
         // außen eine Spalte, scrollen ist dort erlaubt
         assertEquals(1, pageGrid(410f, 900f, sizes).columns)
         assertEquals(1, pageGrid(360f, 640f, sizes).columns)
-        // Karten einer Reihe sind höchstens 110 dp unterschiedlich hoch (kein großer Leerraum); quer: App (4 Zeilen, 244) neben Hilfe (140) = 104
+        // Karten einer Reihe sind höchstens 110 dp unterschiedlich hoch (kein großer Leerraum); Spiel und Start sind gleich hoch
         for (g in listOf(wide, tall)) for (row in g.rows.filter { it.size > 1 }) {
             val diff = row.maxOf { sizes[it].heightDp } - row.minOf { sizes[it].heightDp }
             assertTrue("Reihe $row: $diff dp Unterschied", diff <= 110f)
         }
+    }
+
+    @Test
+    fun theOpenAdvancedPartMayScrollButKeepsTheSimplePartFirst() {
+        // Aufgeklappt darf gescrollt werden (Einfach hat Vorrang); die ersten zwei Karten und die Zeile "Erweitert" bleiben oben
+        val open = settingsPlan(advancedOpen = true)
+        assertEquals(settingsPlan().map { it.id }, open.map { it.id }.take(3))
+        assertEquals(settingsPlan().sizes(), open.sizes().take(3))
+        assertEquals(open.size, open.map { it.id }.toSet().size)
+        val g = pageGrid(840f, 760f, open.sizes())
+        assertEquals(listOf(0, 1), g.rows.first())
+        assertEquals(listOf(2), g.rows[1])
     }
 
     @Test
@@ -216,6 +231,13 @@ class PageGridTest {
         }
         assertEquals(listOf("ready", "report", "gameonly", "launcher"), helpPlan(false).map { it.id })
         assertEquals(listOf("ready", "error", "report", "gameonly", "launcher"), helpPlan(true).map { it.id })
+        // Der freigeschaltete Eintrag "Labor" ist eine Zeile mehr in der Karte Launcher, die Prüfzeile darunter verliert dafür zwei Textzeilen.
+        assertEquals(helpPlan(false).map { it.id }, helpPlan(false, labEntry = true).map { it.id })
+        assertEquals(
+            helpPlan(false).sizeOf("launcher").heightDp + CARD_ROW_DP - 2 * CARD_TEXT_LINE_DP,
+            helpPlan(false, labEntry = true).sizeOf("launcher").heightDp,
+            0.01f,
+        )
     }
 
     @Test
@@ -350,7 +372,7 @@ class PageGridTest {
     fun everyPageBuildsExactlyTheCardsOfItsPlan() {
         assertPageBuildsItsPlan(
             "LauncherSettingsPage.kt",
-            settingsPlan(),
+            settingsPlan(advancedOpen = true),
             controlPlan(LauncherTexts.CONTROL_HINT_GROUPS.size),
             inLauncherDir = false,
         )

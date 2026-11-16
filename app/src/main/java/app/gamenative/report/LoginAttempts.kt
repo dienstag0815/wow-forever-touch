@@ -25,6 +25,8 @@ object LoginStep {
     const val LOGON_FORM = "logon_form"
     const val SRP = "srp"
     const val FORM_SUBMISSION = "form_submission"
+    /** Fehler der Antwort auf die Code-Abgabe des Authenticators (nach `authenticator challenge submission requested`). */
+    const val AUTHENTICATOR = "authenticator"
     const val CREDENTIALS = "credentials"
     const val LOGON_COMPLETED = "logon_completed"
     const val REALM_AUTH = "realm_auth"
@@ -32,7 +34,7 @@ object LoginStep {
     const val UNKNOWN = "unknown"
 
     /** Alle Kürzel in der Reihenfolge des Ablaufs; `fatal` und `unknown` zuletzt. */
-    val ALL = listOf(LOGON_RESPONSE, LOGON_FORM, SRP, FORM_SUBMISSION, CREDENTIALS, LOGON_COMPLETED, REALM_AUTH, FATAL, UNKNOWN)
+    val ALL = listOf(LOGON_RESPONSE, LOGON_FORM, SRP, FORM_SUBMISSION, AUTHENTICATOR, CREDENTIALS, LOGON_COMPLETED, REALM_AUTH, FATAL, UNKNOWN)
 
     fun isValid(code: String?) = code != null && code in ALL
 }
@@ -75,6 +77,14 @@ data class LoginAttempt(
     /** Millisekunden vom Beginn des Versuchs bis zur Zeile des Schritts; null bei [LoginStep.UNKNOWN]. */
     val stepMs: Long? = null,
     val realm: RealmResult = RealmResult.NotReached,
+    /** `(enum)N` aus `Battle.net login requires additional info infoType=…`; `?` bei unerlaubtem Wert; null ohne die Zeile. */
+    val infoType: String? = null,
+    /** Sekunden (ms) von der Zeile `authenticatorRequired="true"` bis zur Code-Abgabe; null ohne Code-Abgabe. */
+    val codeAfterMs: Long? = null,
+    /** Sekunden (ms) von der Code-Abgabe bis zur ersten Antwort danach; null ohne Antwort. */
+    val answerAfterMs: Long? = null,
+    /** true = Code gesendet, false = Authenticator verlangt, aber kein Code bis zum Ende des Versuchs, null = nicht verlangt. */
+    val codeSent: Boolean? = null,
 )
 
 /** Zusammenfassung über alle Versuche (Kopfzeile von `anmeldung.txt`). */
@@ -92,6 +102,12 @@ data class LoginAttemptStats(
     val realmOk: Int = 0,
     val realmError: Int = 0,
     val realmNotReached: Int = 0,
+    /** Versuche, in denen der Authenticator verlangt wurde. */
+    val authenticatorAsked: Int = 0,
+    /** Versuche mit gesendetem Authenticator-Code. */
+    val codeSent: Int = 0,
+    /** Versuche, die nach der Code-Abgabe abgelehnt wurden (Schritt `authenticator` fehlgeschlagen). */
+    val rejectedAfterCode: Int = 0,
 )
 
 /**
@@ -132,6 +148,7 @@ object LoginAttempts {
     private val LEGAL_REQUIRED = Regex("""\blegalRequired="(true|false)"""")
     private val NUM_GAME_ACCOUNTS = Regex("""\bnumGameAccounts="(\d{1,2})"""")
     private val POSITION = Regex("""\bposition="(\d{1,6})"""")
+    private val INFO_TYPE = Regex("""\binfoType="(\(enum\)\d{1,3})"""")
     private val REGION = Regex("""^(US|EU|KR|TW|CN)(?=\.)""", RegexOption.IGNORE_CASE)
 
     private const val RUN_START = "Client connection initialized"
@@ -143,6 +160,8 @@ object LoginAttempts {
     private const val FATAL = "Fatal login error received"
     private const val COMPLETED = "Battle.net logon completed result"
     private const val LOGON_REQUESTED = "Battle.net logon requested"
+    private const val ADDITIONAL_INFO = "Battle.net login requires additional info"
+    private const val CODE_SUBMITTED = "Battle.net authenticator challenge submission requested"
 
     /** Zeilen mit `result="… (Code)"`, je ein Schritt (Anfang der Zeile -> Kürzel). */
     private val STEP_LINES = listOf(
@@ -183,6 +202,12 @@ object LoginAttempts {
         var reachedStep: String? = null
         var reachedMs: Long? = null
         var realm: RealmResult = RealmResult.NotReached
+
+        var infoType: String? = null
+        /** Zeit (seit Versuchsbeginn) der Zeile `authenticatorRequired="true"` und der Code-Abgabe. */
+        var authRequiredMs: Long? = null
+        var codeSentMs: Long? = null
+        var answerAfterMs: Long? = null
         fun done() = result !is AttemptResult.Open
         fun build(): LoginAttempt {
             val failed = failedStep
@@ -192,10 +217,19 @@ object LoginAttempts {
                 result is AttemptResult.Success && reached != null -> Triple(reached, false, reachedMs)
                 else -> Triple(LoginStep.UNKNOWN, false, null)
             }
+            val sent = codeSentMs
+            val required = authRequiredMs
+            val codeAfter = if (sent != null && required != null) sent - required else null
+            val codeSent = when {
+                sent != null -> true
+                authenticatorRequired == true -> false
+                else -> null
+            }
             return LoginAttempt(
                 time, run, connectionId, usedToken, authenticatorRequired, result, durationMs,
                 platform, locale, loginType, launcherPortalSet, region, usedSso, hasPayload, hasCaptcha, legalRequired, numGameAccounts, queuePosition,
                 step, isFailed, stepMs, realm,
+                infoType = infoType, codeAfterMs = codeAfter, answerAfterMs = answerAfterMs, codeSent = codeSent,
             )
         }
     }
@@ -237,7 +271,8 @@ object LoginAttempts {
             }
             fun fail(b: Builder, step: String, code: Int?) {
                 if (b.failedStep == null) {
-                    b.failedStep = step
+                    // Eine Formular-Antwort nach der Code-Abgabe ist der Schritt `authenticator`, eine davor bleibt `form_submission`.
+                    b.failedStep = if (step == LoginStep.FORM_SUBMISSION && b.codeSentMs != null) LoginStep.AUTHENTICATOR else step
                     b.failedMs = since(b)
                 }
                 // Ein Fehler im Realm-Teil ändert nichts daran, dass die Anmeldung selbst geklappt hat.
@@ -277,6 +312,15 @@ object LoginAttempts {
                     val b = open()
                     POSITION.find(message)?.let { b.queuePosition = it.groupValues[1].toIntOrNull() }
                 }
+                message.startsWith(ADDITIONAL_INFO) -> {
+                    val b = open()
+                    // Ein Wert außerhalb des Musters wird `?`, die Zeile selbst ist aber da.
+                    b.infoType = INFO_TYPE.find(message)?.groupValues?.get(1) ?: "?"
+                }
+                message.startsWith(CODE_SUBMITTED) -> {
+                    val b = open()
+                    if (b.codeSentMs == null) b.codeSentMs = since(b)
+                }
                 message.startsWith(EXTERNAL_CHALLENGE) -> {
                     val b = open()
                     bool(USED_SSO)?.let { b.usedSso = it }
@@ -294,8 +338,19 @@ object LoginAttempts {
                     when (step) {
                         LoginStep.LOGON_FORM -> bool(HAS_CAPTCHA)?.let { b.hasCaptcha = it }
                         LoginStep.FORM_SUBMISSION -> {
-                            bool(AUTH_REQUIRED)?.let { b.authenticatorRequired = it }
+                            // Ein späteres false setzt ein früheres true nicht zurück.
+                            bool(AUTH_REQUIRED)?.let { required ->
+                                if (required) {
+                                    b.authenticatorRequired = true
+                                    if (b.authRequiredMs == null) b.authRequiredMs = since(b)
+                                } else if (b.authenticatorRequired == null) {
+                                    b.authenticatorRequired = false
+                                }
+                            }
                             bool(LEGAL_REQUIRED)?.let { b.legalRequired = it }
+                            // Die erste Antwort nach der Code-Abgabe.
+                            val sent = b.codeSentMs
+                            if (sent != null && b.answerAfterMs == null) b.answerAfterMs = since(b) - sent
                         }
                         LoginStep.LOGON_COMPLETED -> NUM_GAME_ACCOUNTS.find(message)?.let { b.numGameAccounts = it.groupValues[1].toIntOrNull() }
                     }
@@ -338,6 +393,9 @@ object LoginAttempts {
         val firstSuccess = attempts.indexOfFirst { it.result is AttemptResult.Success }
         val successThenError = firstSuccess >= 0 && attempts.drop(firstSuccess + 1).any { it.result is AttemptResult.Error }
         val failedSteps = attempts.filter { it.stepFailed }.groupingBy { it.step }.eachCount()
+        val authAsked = attempts.count { it.authenticatorRequired == true }
+        val codesSent = attempts.count { it.codeSent == true }
+        val rejectedAfterCode = attempts.count { it.stepFailed && it.step == LoginStep.AUTHENTICATOR }
         return LoginAttemptStats(
             total = attempts.size,
             successes = attempts.count { it.result is AttemptResult.Success },
@@ -349,6 +407,9 @@ object LoginAttempts {
             realmOk = attempts.count { it.realm is RealmResult.Ok },
             realmError = attempts.count { it.realm is RealmResult.Error },
             realmNotReached = attempts.count { it.realm is RealmResult.NotReached },
+            authenticatorAsked = authAsked,
+            codeSent = codesSent,
+            rejectedAfterCode = rejectedAfterCode,
         )
     }
 
@@ -368,7 +429,10 @@ object LoginAttempts {
         val yesNo = { b: Boolean -> if (b) "yes" else "no" }
         return "attempts ${stats.total}, ok ${stats.successes}, errors: $errors, open ${stats.open}; error steps: $steps; " +
             "realm ok ${stats.realmOk}, error ${stats.realmError}, not reached ${stats.realmNotReached}; " +
-            "first login in a run ok, later rejected: ${yesNo(stats.firstOkThenRejectedInRun)}; ok then rejected (any run): ${yesNo(stats.successThenError)}"
+            "first login in a run ok, later rejected: ${yesNo(stats.firstOkThenRejectedInRun)}; ok then rejected (any run): ${yesNo(stats.successThenError)}" +
+            // Nur wenn ein Authenticator verlangt wurde; sonst bleibt die Kopfzeile kurz (Platzbudget der kurz.txt).
+            if (stats.authenticatorAsked == 0) "" else
+                "; authenticator asked x${stats.authenticatorAsked}, code sent x${stats.codeSent}, rejected after code x${stats.rejectedAfterCode}"
     }
 
     private fun flag(b: Boolean?) = when (b) { true -> "true"; false -> "false"; null -> "?" }
@@ -379,9 +443,17 @@ object LoginAttempts {
     fun portalText(set: Boolean?) = when (set) { true -> "set"; false -> "none"; null -> "?" }
 
     /** `form_submission failed +1.3 s`, `realm_auth reached +4.2 s` oder `unknown`. */
-    fun stepText(a: LoginAttempt): String = when {
-        a.step == LoginStep.UNKNOWN -> LoginStep.UNKNOWN
-        else -> "${a.step} ${if (a.stepFailed) "failed" else "reached"} +${seconds(a.stepMs)}"
+    fun stepText(a: LoginAttempt): String {
+        val extras = listOfNotNull(
+            a.codeAfterMs?.let { "code after ${seconds(it)}" },
+            a.answerAfterMs?.let { "answer after ${seconds(it)}" },
+            if (a.codeSent == false) "no code sent" else null,
+        )
+        val tail = if (extras.isEmpty()) "" else " (" + extras.joinToString(", ") + ")"
+        return when {
+            a.step == LoginStep.UNKNOWN -> LoginStep.UNKNOWN + tail
+            else -> "${a.step} ${if (a.stepFailed) "failed" else "reached"} +${seconds(a.stepMs)}$tail"
+        }
     }
 
     /** `ok`, `error 4` oder `not reached` (nie eine Realm-Adresse). */
@@ -418,7 +490,7 @@ object LoginAttempts {
             "legalRequired " + flag(a.legalRequired),
             "gameAccounts " + (a.numGameAccounts?.toString() ?: "?"),
             "queue " + (a.queuePosition?.toString() ?: "-"),
-        )
+        ) + listOfNotNull(a.infoType?.let { "infoType $it" })
         ).joinToString(" | ")
 
     /** Kurzform für `kurz.txt`: die Spalten oben und dazu Fehlerschritt, Plattform, `launcherPortal set/none` und `usedSSO`. */

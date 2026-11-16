@@ -53,7 +53,7 @@ class AddonServiceTest {
             )
             if (extra != null) files += extra
             for ((name, content) in files) {
-                z.putNextEntry(ZipEntry(name)); z.write(content.toByteArray()); z.closeEntry()
+                z.putNextEntry(ZipEntry(name).apply { time = 1_700_000_000_000L }); z.write(content.toByteArray()); z.closeEntry()
             }
         }
         return out.toByteArray()

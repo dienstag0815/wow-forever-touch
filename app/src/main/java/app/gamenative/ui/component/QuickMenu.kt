@@ -109,6 +109,7 @@ import app.gamenative.ui.component.dialog.GyroSettingsDialog
 import app.gamenative.ui.screen.wow.WindowHideMode
 import app.gamenative.ui.screen.wow.InputMode
 import app.gamenative.ui.screen.wow.LayoutNameDialog
+import app.gamenative.ui.screen.wow.LoginGuard
 import app.gamenative.ui.screen.wow.LayoutPickerDialog
 import app.gamenative.ui.screen.wow.LayoutResetDialog
 import app.gamenative.ui.screen.wow.QuickMenuAccordion
@@ -445,12 +446,13 @@ fun QuickMenu(
 
     // Im Login zeigt das Menü die Anmeldezeilen, in der Spielwelt nicht. Beim Öffnen einmal geprüft (das Spiel steht dann still),
     // damit die Zeilen beim Schließen nicht noch springen.
-    var inLogin by remember { mutableStateOf(true) }
+    // Im Battle.net-Labor nie (LoginGuard): die Zeilen tippen gespeicherte Zugangsdaten.
+    var inLogin by remember { mutableStateOf(LoginGuard.mayType(container?.id)) }
     var touchLayoutsAvailable by remember { mutableStateOf(true) }
     LaunchedEffect(isVisible) {
         if (isVisible) {
             touchLayoutsAvailable = InputMode.current(checkContext).isTouch
-            inLogin = wowQuick.inLogin()
+            inLogin = wowQuick.inLogin() && LoginGuard.mayType(container?.id)
             // Andere Orte schreiben dieselben Werte (Touch-Editor: Sticks, Zahnrad: Gesten): bei jedem Öffnen frisch lesen.
             wowQuick.reload()
         }

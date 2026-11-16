@@ -100,8 +100,10 @@ internal data class LauncherSettingsActions(
 )
 
 /**
- * Seite "Einstellungen" als Übersicht aus fünf Karten nach Bedeutung (Spiel, Start und Updates, Steuerung im Spiel, App, Hilfe), die
- * auf dem aufgeklappten Fold ohne Scrollen auf den Schirm passen. Jede Zeile tut direkt etwas (Auswahl, Schalter, Knopf); nur die
+ * Seite "Einstellungen" in zwei Teilen ([tierOf]): oben "Einfach" (Spiel sowie Start und Updates, sieben Einstellungen, immer sichtbar
+ * und ohne Scrollen auf dem aufgeklappten Fold), darunter die Zeile "Erweitert" (bei jedem Öffnen zu, nie gespeichert). Aufgeklappt
+ * zeigt sie Start und Version, Steuerung im Spiel, App, Hilfe und "Spiel-Einstellungen" (zu, bis man die Rückfrage bestätigt); dort
+ * darf gescrollt werden. Jede Zeile tut direkt etwas (Auswahl, Schalter, Knopf); nur die
  * Zeilen "Öffnen" führen in einen eigenen Bereich (Sprachsteuerung, Symbole und Abklingzeiten), und der Pfeil im Kopf einer Karte
  * heißt: dahinter stehen Beschreibungen und Abzeichen ("Nur hier", "Auch im Spiel"). Mit [onlyGroup] = Gruppe "Steuerung" (Kachel
  * "Steuerung" der Startseite) zeigt sie stattdessen die Steuerungs-Übersicht unter dem Titel [title]; nur dort steht die Karte
@@ -127,30 +129,70 @@ private fun groupOf(key: String): SettingsGroup = settingsGroups().first { it.ke
 @Composable
 private fun SettingsOverview(v: LauncherSettingsValues, a: LauncherSettingsActions, onBack: () -> Unit, title: UiText) {
     var detailId by remember { mutableStateOf<String?>(null) }
-    val plan = remember { settingsPlan() }
-    val cards = listOf(
-        plan.card("game", stringResource(R.string.launcher_group_game), onOpen = { detailId = "game" }) { GameCardRows(v, a) },
-        plan.card("start", stringResource(R.string.launcher_group_start), onOpen = { detailId = "start" }) { StartCardRows(v, a) { detailId = "start" } },
-        plan.card("control", stringResource(R.string.launcher_settings_control_in_game)) { ControlCardRows(v, a) { detailId = it } },
-        plan.card("app", stringResource(R.string.launcher_group_app), onOpen = { detailId = "app" }) { AppCardRows(v) { detailId = "backup" } },
-        plan.card("help", stringResource(R.string.launcher_group_help)) { HelpCardRows() },
-    )
-    val scopeHint = SETTINGS_SCOPE_HINT.asString()
-    val close: () -> Unit = { detailId = null }
-    // Die Karten mit Pfeil im Kopf und die Zeilen "Öffnen" zeigen je eine Gruppe ([settingsGroups]) als Detailansicht.
-    val detail: PageDetail? = detailId?.let { key ->
-        if (key == "backup") {
-            // Backup ist keine Gruppe des Seitenmenüs, sondern eine eigene Detailansicht in der Karte "App".
-            PageDetail(stringResource(R.string.backup_title), close) { BackupDetailBody() }
-        } else {
-            val group = groupOf(key)
-            PageDetail(group.title.asString(), close) {
-                DetailHint(scopeHint)
-                SettingsGroupView(group, v, a)
-            }
+    // "Erweitert" und der Spiel-Bereich sind bei jedem Öffnen der Seite zu und werden nie gespeichert.
+    var advancedOpen by remember { mutableStateOf(false) }
+    var fold by remember { mutableStateOf(GameSettingsFold()) }
+    val plan = remember(advancedOpen) { settingsPlan(advancedOpen) }
+    val cards = buildList<OverviewCard> {
+        add(plan.card("game", stringResource(R.string.launcher_group_game), onOpen = { detailId = "game" }) { GameCardRows(v, a) })
+        add(plan.card("easystart", stringResource(R.string.launcher_group_start), onOpen = { detailId = "easystart" }) { EasyStartRows(v, a) { detailId = "easystart" } })
+        add(plan.card("advanced", null) { AdvancedRow(advancedOpen) { advancedOpen = !advancedOpen } })
+        if (advancedOpen) {
+            add(plan.card("start", stringResource(R.string.launcher_group_start_advanced), onOpen = { detailId = "start" }) { StartCardRows(v, a) })
+            add(plan.card("control", stringResource(R.string.launcher_settings_control_in_game)) { ControlCardRows(v, a) { detailId = it } })
+            add(plan.card("app", stringResource(R.string.launcher_group_app), onOpen = { detailId = "app" }) { AppCardRows(v) { detailId = "backup" } })
+            add(plan.card("help", stringResource(R.string.launcher_group_help)) { HelpCardRows() })
+            add(
+                plan.card("gamefold", PageTexts.GAME_FOLD_CARD_TITLE.asString(), onOpen = { fold = fold.onRowTap() }) {
+                    CardText(LauncherTexts.GAME_FOLD_ROW_TITLE.asString(), 2, LauncherColors.Body)
+                    CardText(LauncherTexts.GAME_FOLD_ROW_HINT.asString(), 2)
+                },
+            )
         }
     }
+    val scopeHint = SETTINGS_SCOPE_HINT.asString()
+    val close: () -> Unit = { detailId = null }
+    // Die Karten mit Pfeil im Kopf und die Zeilen "Öffnen" zeigen je eine Gruppe ([settingsGroups]) als Detailansicht; die Gruppe
+    // Start ist geteilt: "easystart" zeigt ihre Einfach-Einstellungen, "start" die Erweitert-Einstellungen.
+    val detail: PageDetail? = when {
+        fold.open -> PageDetail(LauncherTexts.GAME_FOLD_GROUP_TITLE.asString(), { fold = GameSettingsFold() }) {
+            SettingGroupCard(LauncherTexts.GAME_FOLD_GROUP_TITLE.asString()) {
+                for (setting in hiddenGameSettings()) SettingItem(setting, v, a)
+            }
+        }
+        detailId == "backup" -> {
+            // Backup ist keine Gruppe des Seitenmenüs, sondern eine eigene Detailansicht in der Karte "App".
+            PageDetail(stringResource(R.string.backup_title), close) { BackupDetailBody() }
+        }
+        detailId != null -> {
+            val key = detailId.orEmpty()
+            val group = groupOf(if (key == "easystart") "start" else key)
+            val tier = when (key) {
+                "easystart" -> SettingTier.SIMPLE
+                "start" -> SettingTier.ADVANCED
+                else -> null
+            }
+            val heading = if (key == "start") stringResource(R.string.launcher_group_start_advanced) else group.title.asString()
+            PageDetail(heading, close) {
+                DetailHint(scopeHint)
+                SettingsGroupView(group, v, a, tier, heading)
+            }
+        }
+        else -> null
+    }
     LauncherOverviewPage(title = title.asString(), onBack = onBack, cards = cards, detail = detail)
+    if (fold.asking) GameFoldAskDialog(onCancel = { fold = fold.onCancel() }, onConfirm = { fold = fold.onConfirm() })
+}
+
+/** Die Zeile "Erweitert": Titel, Knopf Anzeigen/Ausblenden und darunter ein Satz, was dahinter steht. */
+@Composable
+private fun AdvancedRow(open: Boolean, onToggle: () -> Unit) {
+    CardActionRow(
+        title = stringResource(R.string.launcher_advanced_title),
+        actionText = stringResource(if (open) R.string.launcher_action_hide else R.string.launcher_action_show),
+        onClick = onToggle,
+    )
+    CardText(stringResource(R.string.launcher_advanced_hint), 1)
 }
 
 @Composable
@@ -194,8 +236,9 @@ private fun GameCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions) 
     CardActionRow(stringResource(R.string.launcher_files_game_folder), stringResource(R.string.launcher_action_change), enabled = v.enabled) { a.onPickFolder() }
 }
 
+/** Einfach, Start und Updates: Autostart mit Countdown, Updates (automatisch, von Hand, Quelle). */
 @Composable
-private fun StartCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions, onSource: () -> Unit) {
+private fun EasyStartRows(v: LauncherSettingsValues, a: LauncherSettingsActions, onSource: () -> Unit) {
     val context = LocalContext.current
     val autoInstall by remember { UpdateManager.autoInstallState(context) }.collectAsState()
     val state by UpdateManager.state.collectAsState()
@@ -208,7 +251,6 @@ private fun StartCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions,
         enabled = v.enabled && v.autoStartOn,
         onClick = if (v.autoStartOn) nextCountdown else null,
     )
-    CardSwitchRow(stringResource(R.string.launcher_settings_startcheck), v.startCheckOn, v.enabled) { a.onStartCheck(it) }
     CardSwitchRow(stringResource(R.string.launcher_update_auto_title), autoInstall, v.enabled) { UpdateManager.setAutoInstall(context, it) }
     CardActionRow(
         title = stringResource(R.string.launcher_home_check_updates),
@@ -223,7 +265,12 @@ private fun StartCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions,
         enabled = v.enabled,
         onClick = onSource,
     )
-    // Version und Client-Build nur leise als Fußzeile; ausführlich stehen sie in der Detailansicht.
+}
+
+/** Erweitert, Start und Version: Startprüfung, darunter Version und Client-Build leise als Fußzeile (ausführlich in der Detailansicht). */
+@Composable
+private fun StartCardRows(v: LauncherSettingsValues, a: LauncherSettingsActions) {
+    CardSwitchRow(stringResource(R.string.launcher_settings_startcheck), v.startCheckOn, v.enabled) { a.onStartCheck(it) }
     val client = PageTexts.clientBuildValue(v.clientLocal, v.clientRemote, v.clientOutdated).asString()
     CardText(stringResource(R.string.launcher_settings_footer, BuildConfig.VERSION_NAME, client), 2)
 }
@@ -333,10 +380,17 @@ private fun ControlOverview(v: LauncherSettingsValues, a: LauncherSettingsAction
     if (fold.asking) GameFoldAskDialog(onCancel = { fold = fold.onCancel() }, onConfirm = { fold = fold.onConfirm() })
 }
 
+/** Die Einstellungen einer Gruppe; mit [tier] nur die, die zu diesem Teil der Seite gehören (die Gruppe Start ist geteilt). */
 @Composable
-private fun SettingsGroupView(group: SettingsGroup, values: LauncherSettingsValues, actions: LauncherSettingsActions) {
-    SettingGroupCard(group.title.asString()) {
-        for (setting in group.settings) SettingItem(setting, values, actions)
+private fun SettingsGroupView(
+    group: SettingsGroup,
+    values: LauncherSettingsValues,
+    actions: LauncherSettingsActions,
+    tier: SettingTier? = null,
+    heading: String = group.title.asString(),
+) {
+    SettingGroupCard(heading) {
+        for (setting in group.settings) if (tier == null || tierOf(setting) == tier) SettingItem(setting, values, actions)
     }
 }
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -44,6 +45,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
@@ -260,6 +262,8 @@ internal fun HeroCard(
     onCancelCountdown: () -> Unit,
     modifier: Modifier = Modifier,
     density: HomeDensity = HomeDensity.Roomy,
+    onStartMode: (app.gamenative.lab.StartMode) -> Unit = {},
+    onSetup: () -> Unit = {},
 ) {
     val tight = density == HomeDensity.Tight
     val roomy = density == HomeDensity.Roomy
@@ -271,6 +275,12 @@ internal fun HeroCard(
         // Breite hier lesen: in der Column ist der Empfänger von BoxWithConstraints nicht mehr implizit (Falle aus fold8.20).
         val innerWidthDp = maxWidth.value - 2f * heroPad.value
         art.Hero(Modifier.matchParentSize())
+        // Die Startwahl liegt oben im Bild, nicht im Textbalken: der Balken wird nicht höher und die Mindesthöhen des Hero (heroMinHeightFor) bleiben gültig.
+        hero.startChoice?.let { choice ->
+            Box(modifier = Modifier.align(Alignment.TopStart).padding(heroPad)) {
+                app.gamenative.ui.screen.wow.lab.StartChoiceChips(choice, compact, tight, onStartMode)
+            }
+        }
         ImageTextBar(
             modifier = Modifier.align(Alignment.BottomStart),
             horizontalPad = heroPad,
@@ -308,7 +318,28 @@ internal fun HeroCard(
                     modifier = Modifier.weight(1f, fill = false),
                 )
             }
-            hero.primary?.let { PlayButton(it, compact, density) { onAction(it.action) } }
+            hero.primary?.let { primary ->
+                if (hero.startChoice != null) {
+                    // Neben „Spielen“ der Knopf „Battle.net-Launcher“ (Höhe wie die Hauptschaltfläche). Schmal oder große Schrift: er rutscht
+                    // unter „Spielen“, sonst würde sein Text mitten im Wort umbrechen oder abgeschnitten.
+                    val narrow = innerWidthDp < 320f || LocalDensity.current.fontScale > 1.3f
+                    if (narrow) {
+                        PlayButton(primary, compact, density) { onAction(primary.action) }
+                        app.gamenative.ui.screen.wow.lab.BnetLauncherButton(compact = compact, fillWidth = true, onClick = onSetup)
+                    } else {
+                        Row(
+                            modifier = (if (compact) Modifier.fillMaxWidth() else Modifier).height(IntrinsicSize.Min),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            PlayButton(primary, compact, density, modifier = if (compact) Modifier.weight(1f) else Modifier) { onAction(primary.action) }
+                            app.gamenative.ui.screen.wow.lab.BnetLauncherButton(compact = compact, fillWidth = false, onClick = onSetup, modifier = Modifier.fillMaxHeight())
+                        }
+                    }
+                } else {
+                    PlayButton(primary, compact, density) { onAction(primary.action) }
+                }
+            }
             hero.secondary?.let { sec ->
                 TextButton(onClick = { onAction(sec.action) }, enabled = sec.enabled) {
                     Text(
@@ -333,7 +364,7 @@ internal fun HeroCard(
  * Installieren, Update ...) benutzen dieselbe Form.
  */
 @Composable
-internal fun PlayButton(button: HeroButton, compact: Boolean, density: HomeDensity = HomeDensity.Roomy, onClick: () -> Unit) {
+internal fun PlayButton(button: HeroButton, compact: Boolean, density: HomeDensity = HomeDensity.Roomy, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(8.dp)
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -344,7 +375,7 @@ internal fun PlayButton(button: HeroButton, compact: Boolean, density: HomeDensi
         else -> Brush.verticalGradient(listOf(LauncherColors.Crimson, LauncherColors.CrimsonDark))
     }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .then(if (compact) Modifier.fillMaxWidth() else Modifier.widthIn(min = 240.dp))
             .heightIn(min = if (density == HomeDensity.Tight) 46.dp else if (density == HomeDensity.Normal) 50.dp else 56.dp)
             .drawBehind {
@@ -388,23 +419,41 @@ internal fun PlayButton(button: HeroButton, compact: Boolean, density: HomeDensi
                 }
             }
             .clickable(interactionSource = interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = if (compact) 18.dp else 26.dp, vertical = if (density == HomeDensity.Tight) 8.dp else 11.dp),
+            .padding(
+                horizontal = if (compact) 18.dp else 26.dp,
+                // Mit Unterzeile weniger Rand oben und unten: zwei Zeilen passen in die Mindesthöhe, der Knopf wird nicht höher.
+                vertical = if (button.subtitle != null) 4.dp else if (density == HomeDensity.Tight) 8.dp else 11.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = button.text.asString().uppercase(),
-            fontSize = if (compact) 16.sp else 19.sp,
-            fontWeight = FontWeight.ExtraBold,
-            fontFamily = LauncherFonts.Cinzel,
-            letterSpacing = 0.1.em,
-            color = if (enabled) LauncherColors.GoldBright else LauncherColors.DisabledText,
-            textAlign = TextAlign.Center,
-            style = if (enabled) {
-                TextStyle(shadow = Shadow(color = LauncherColors.TextShadowSoft, offset = Offset(0f, 1f), blurRadius = 3f))
-            } else {
-                TextStyle.Default
-            },
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = button.text.asString().uppercase(),
+                fontSize = if (compact) 16.sp else 19.sp,
+                fontWeight = FontWeight.ExtraBold,
+                fontFamily = LauncherFonts.Cinzel,
+                letterSpacing = 0.1.em,
+                color = if (enabled) LauncherColors.GoldBright else LauncherColors.DisabledText,
+                textAlign = TextAlign.Center,
+                style = if (enabled) {
+                    TextStyle(shadow = Shadow(color = LauncherColors.TextShadowSoft, offset = Offset(0f, 1f), blurRadius = 3f))
+                } else {
+                    TextStyle.Default
+                },
+            )
+            // Die Unterzeile (gewählte Startart) steht im Knopf: die Mindesthöhe des Knopfes reicht für beide Zeilen.
+            button.subtitle?.let { sub ->
+                Text(
+                    text = sub.asString(),
+                    fontSize = if (compact) 11.sp else 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (enabled) LauncherColors.GoldBright.copy(alpha = 0.8f) else LauncherColors.DisabledText,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 

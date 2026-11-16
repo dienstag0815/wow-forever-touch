@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import app.gamenative.ui.component.NoExtractOutlinedTextField
 import app.gamenative.ui.screen.wow.SettingActionRow
 import app.gamenative.ui.screen.wow.SettingNote
+import app.gamenative.ui.screen.wow.SettingSwitchRow
 import app.gamenative.ui.screen.wow.SettingValueRow
 import app.gamenative.ui.theme.WowGold
 import app.gamenative.ui.theme.WowSubtle
@@ -46,6 +47,11 @@ internal fun VoiceLanguageRow(enabled: Boolean) {
     }
 }
 
+/** Kippschalter "Umlaute als echte Zeichen": an = [UmlautMode.DIRECT], aus = [UmlautMode.ASCII]; gespeichert wird weiter der Modus. */
+internal fun umlautSwitchOn(mode: UmlautMode): Boolean = mode == UmlautMode.DIRECT
+
+internal fun umlautModeFor(switchOn: Boolean): UmlautMode = if (switchOn) UmlautMode.DIRECT else UmlautMode.ASCII
+
 /**
  * Zeilen der Spracheingabe auf der Einstellungsseite: Umgang mit Umlauten und ein Feld für eigene Wörter (Gilden- und
  * Charakternamen, eins pro Zeile oder mit Komma getrennt), dazu das Erkennungsprotokoll. Die Erkennungssprache steht in
@@ -60,13 +66,13 @@ internal fun VoiceSettingsBlock(enabled: Boolean) {
     var logEntries by remember { mutableStateOf(emptyList<VoiceLogEntry>()) }
 
     Column {
-        SettingValueRow(
-            title = stringResource(R.string.game_voice_set_umlauts),
-            description = stringResource(R.string.game_voice_set_umlauts_desc),
-            value = stringResource(umlauts.labelRes),
+        SettingSwitchRow(
+            title = stringResource(R.string.game_voice_set_umlauts_direct),
+            description = stringResource(R.string.game_voice_set_umlauts_direct_desc),
+            checked = umlautSwitchOn(umlauts),
             enabled = enabled,
-        ) {
-            val next = UmlautMode.entries[(umlauts.ordinal + 1) % UmlautMode.entries.size]
+        ) { on ->
+            val next = umlautModeFor(on)
             VoiceSettings.saveUmlautMode(context, next)
             umlauts = next
         }
@@ -93,13 +99,13 @@ internal fun VoiceSettingsBlock(enabled: Boolean) {
             ),
         )
         // Erkennungsprotokoll: die letzten 30 Paare "gehört -> korrigiert", nur auf diesem Gerät, um falsch gehörte Wörter zu melden.
-        SettingActionRow(
+        SettingSwitchRow(
             title = stringResource(R.string.game_voice_set_log),
             description = stringResource(R.string.game_voice_set_log_desc),
-            actionText = stringResource(if (logOpen) R.string.game_voice_set_hide else R.string.game_voice_set_show),
-        ) {
-            logEntries = VoiceLog.load(context)
-            logOpen = !logOpen
+            checked = logOpen,
+        ) { on ->
+            if (on) logEntries = VoiceLog.load(context)
+            logOpen = on
         }
         if (logOpen) {
             if (logEntries.isEmpty()) {

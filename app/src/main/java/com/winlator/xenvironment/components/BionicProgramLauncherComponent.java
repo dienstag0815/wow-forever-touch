@@ -436,6 +436,14 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             command = getFinalCommand(winePath, emulator, envVars, imageFs.getBinDir(), guestExecutable);
         }
 
+        // Battle.net-Labor: tatsaechlicher Wert von HODLL und Dateien im Prefix ins Protokoll (nur Container "bnetlab", sonst wirkungslos).
+        try {
+            app.gamenative.lab.LabRun.INSTANCE.onLaunchEnvironment(container.id, envVars.get("HODLL"),
+                    envVars.get("GN_OVERLAY_UPPER"), envVars.get("GN_OVERLAY_LOWER"));
+        } catch (Throwable t) {
+            Log.w("BionicProgramLauncherComponent", "Lab: launch environment not logged", t);
+        }
+
         // **Maybe remove this: Set execute permissions for box64 if necessary (Glibc/Proot artifact)
         File box64File = new File(rootDir, "/usr/bin/box64");
         if (box64File.exists()) {
@@ -461,7 +469,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
             command = winePath + "/" + guestExecutable;
             if (emulator.toLowerCase().equals("fexcore"))
                 envVars.put("HODLL", "libwow64fex.dll");
-            else
+            else if (!emulator.equalsIgnoreCase("none")) // "none": nur das Battle.net-Labor, Wine ohne Übersetzer
                 envVars.put("HODLL", "wowbox64.dll");
         }
         else

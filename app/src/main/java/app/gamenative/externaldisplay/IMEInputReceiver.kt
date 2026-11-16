@@ -7,6 +7,8 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import app.gamenative.lab.LabImeCall
+import app.gamenative.lab.LabInput
 import com.winlator.xserver.Pointer
 import com.winlator.xserver.XServer
 import kotlinx.coroutines.delay
@@ -80,11 +82,24 @@ class IMEInputReceiver(
         return object : BaseInputConnection(this, false) {
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 Timber.d("IMEInputReceiver: commitText called with: '$text'")
+                LabInput.imeCall(LabImeCall.COMMIT_TEXT, text?.length ?: 0)
                 text?.let(::typeText)
                 return true
             }
 
+            // Nur Zähler für das Labor-Protokoll (Verhalten unverändert): welche Rückrufe die Android-Tastatur überhaupt schickt.
+            override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+                LabInput.imeCall(LabImeCall.SET_COMPOSING)
+                return super.setComposingText(text, newCursorPosition)
+            }
+
+            override fun finishComposingText(): Boolean {
+                LabInput.imeCall(LabImeCall.FINISH_COMPOSING)
+                return super.finishComposingText()
+            }
+
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+                LabInput.imeCall(LabImeCall.DELETE_SURROUNDING)
                 Timber.d("IMEInputReceiver: deleteSurroundingText called")
                 if (beforeLength > 0) {
                     repeat(beforeLength) {
@@ -97,6 +112,7 @@ class IMEInputReceiver(
             }
 
             override fun sendKeyEvent(event: KeyEvent): Boolean {
+                LabInput.imeCall(LabImeCall.SEND_KEY_EVENT)
                 if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DEL) {
                     xServer.injectKeyPress(com.winlator.xserver.XKeycode.KEY_BKSP, 0)
                     xServer.injectKeyRelease(com.winlator.xserver.XKeycode.KEY_BKSP)

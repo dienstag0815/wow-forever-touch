@@ -34,6 +34,8 @@
     <string name="launcher_action_hide">Ausblenden</string>
     <string name="launcher_action_show">Anzeigen</string>
     <string name="launcher_action_verify">Prüfen</string>
+    <string name="launcher_advanced_hint">Steuerung, Sprache, App und Hilfe</string>
+    <string name="launcher_advanced_title">Erweitert</string>
     <string name="launcher_addon_assess_bad_name">Ungültiger Ordnername %1$s</string>
     <string name="launcher_addon_assess_bak_reserved">Ordnernamen mit %1$s sind für Sicherungen reserviert</string>
     <string name="launcher_addon_assess_not_folder">%1$s ist kein Ordner</string>
@@ -342,6 +344,7 @@
     <string name="launcher_group_help">Hilfe</string>
     <string name="launcher_group_icons">Symbole und Abklingzeiten</string>
     <string name="launcher_group_start">Start und Updates</string>
+    <string name="launcher_group_start_advanced">Start und Version</string>
     <string name="launcher_group_voice">Sprachsteuerung</string>
     <string name="launcher_help">Hilfe</string>
     <string name="launcher_help_about_app">Über diese App</string>
@@ -846,4 +849,22 @@
     <string name="launcher_ready_login_off">Anmeldung: Aus</string>
     <string name="launcher_ready_login_fill">Anmeldung: Ausfüllen</string>
     <string name="launcher_ready_login_self">Anmeldung: Selbst anmelden</string>
+
+    <!-- Startwahl unter dem Knopf Spielen (über Battle.net starten / direkt starten) -->
+    <string name="launcher_start_battlenet">Über Battle.net starten</string>
+    <string name="launcher_start_direct">Direkt starten</string>
+    <string name="launcher_play_sub_battlenet">über Battle.net</string>
+    <string name="launcher_play_sub_direct">direkt</string>
+    <string name="launcher_start_fallback">Ausweichweg</string>
+    <string name="launcher_start_tip">Tipp: einmal bei Battle.net anmelden, falls die Anmeldung im Spiel abgelehnt wird</string>
+    <string name="launcher_start_ok">OK</string>
+    <string name="launcher_start_missing_packages">Der Start über Battle.net ist noch nicht eingerichtet: Ein Paket fehlt. Die Anleitung zeigt, was zu laden ist.</string>
+    <string name="launcher_start_missing_launcher">Der Start über Battle.net ist noch nicht eingerichtet: Der Battle.net-Launcher ist nicht installiert. Die Anleitung zeigt, wie.</string>
+    <string name="launcher_start_missing_setting">Der Start über Battle.net ist noch nicht eingerichtet: Der Anmeldeweg ist nicht eingestellt. Die Anleitung zeigt, wie.</string>
+    <string name="launcher_start_missing_copy">Der Start über Battle.net ist nur nach Teil B der Anleitung möglich: Die Kopie des Spiels fehlt (rund 50 GB zusätzlich). Die Anleitung zeigt, wie.</string>
+    <string name="launcher_start_missing_game">Der Start über Battle.net ist nur nach Teil B der Anleitung möglich: Das Spiel ist im Battle.net-Programm noch nicht installiert. Die Anleitung zeigt, wie.</string>
+    <string name="launcher_start_blocked_game">Das Spiel läuft. Beende es zuerst, dann starte über Battle.net.</string>
+    <string name="launcher_start_blocked_run">Ein Start über Battle.net läuft bereits. Beende ihn zuerst.</string>
+    <string name="launcher_start_no_base">Starte das Spiel zuerst einmal direkt: Der Battle.net-Weg nutzt dessen vorbereitete Dateien. Die Anleitung zeigt die Schritte.</string>
+    <string name="launcher_start_failed">Der Start über Battle.net konnte nicht beginnen. Die Anleitung zeigt, was fehlt.</string>
 </resources>

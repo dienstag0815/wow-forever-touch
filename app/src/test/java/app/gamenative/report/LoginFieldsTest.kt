@@ -158,7 +158,8 @@ class LoginFieldsTest {
             assertEquals(text, 1500L, a.stepMs)
             if (step != LoginStep.REALM_AUTH) assertEquals(text, AttemptResult.Error(14500), a.result)
         }
-        assertEquals(LoginStep.ALL.toSet(), cases.map { it.second }.toSet() + LoginStep.UNKNOWN)
+        // authenticator kommt nicht aus einer Schrittzeile, sondern aus der Antwort nach der Code-Abgabe (eigener Test in LoginAttemptsTest).
+        assertEquals(LoginStep.ALL.toSet(), cases.map { it.second }.toSet() + LoginStep.UNKNOWN + LoginStep.AUTHENTICATOR)
     }
 
     @Test
